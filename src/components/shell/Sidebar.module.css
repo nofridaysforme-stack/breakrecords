@@ -87,6 +87,7 @@ a.item:hover { background: var(--surface-raised); color: var(--text); }
 }
 .footerItem { padding: 7px 10px; color: var(--text-muted); border-radius: var(--r-control); transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
 .footerItem:hover { background: var(--surface-raised); color: var(--text); }
+.askItem { background: none; border: 0; font: inherit; font-size: var(--fs-meta); text-align: left; width: 100%; color: var(--text-muted); }
 .footerItem[aria-current='page'] { color: var(--text); font-weight: 600; }
 
 /* 768 to 1279: 64px icon rail */

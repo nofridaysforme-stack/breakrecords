@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, MessageSquare } from 'lucide-react';
 import { footerNav, isActive, primaryNav } from './nav';
+import { useShellUI } from './ShellUI';
 import { useDecisions } from '@/data/decisions';
 import s from './Sidebar.module.css';
 
@@ -12,6 +13,7 @@ type Props = { labelName: string; approvalIds: string[] };
 export function Sidebar({ labelName, approvalIds }: Props) {
   const pathname = usePathname() ?? '/';
   const approvalsCount = useDecisions().openCount(approvalIds);
+  const { openPanel } = useShellUI();
 
   return (
     <aside className={s.sidebar} aria-label="Sidebar">
@@ -67,6 +69,10 @@ export function Sidebar({ labelName, approvalIds }: Props) {
       </nav>
 
       <nav aria-label="Secondary" className={s.footer}>
+        <button type="button" className={`${s.item} ${s.footerItem} ${s.askItem}`} onClick={() => openPanel()} title="Ask the Label Head" aria-haspopup="dialog">
+          <MessageSquare className={s.icon} size={18} aria-hidden="true" />
+          <span className={s.label}>Ask the Label Head</span>
+        </button>
         {footerNav.map((item) => {
           const Icon = item.icon;
           return (

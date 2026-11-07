@@ -40,7 +40,7 @@
 }
 
 @media (max-width: 767px) {
-  .main { padding: var(--mobile-pad-y) var(--mobile-pad-x) calc(var(--page-gap) + 96px); gap: 18px; }
+  .main { padding: var(--mobile-pad-y) var(--mobile-pad-x) calc(var(--page-gap) + 140px); gap: 18px; }
   .toggle { bottom: 96px; right: var(--mobile-pad-x); }
   .toggleDesk { display: none; }
 }

@@ -8,6 +8,7 @@ import { TypeGlyph } from '@/components/ui/Status';
 import { formatMoney } from '@/lib/money';
 import type { getDepartments, getSettings } from '@/data/api';
 import type { IntegrationState, SettingsSection } from '@/data/ops';
+import { useShellUI, type Density } from '@/components/shell/ShellUI';
 import o from '@/components/ops/Ops.module.css';
 import s from './Settings.module.css';
 
@@ -138,6 +139,7 @@ export function SettingsSectionView({ data, section, depts }: { data: Data; sect
             <dt>Default autonomy</dt><dd>Draft and wait</dd>
           </dl>
           <p className={o.small}>Changing your profile changes which departments are on. <Link href="/onboarding/welcome" className={o.linkInline}>Run setup again</Link>.</p>
+          <DensityControl />
         </section>
       );
     case 'team':
@@ -162,4 +164,27 @@ export function SettingsSectionView({ data, section, depts }: { data: Data; sect
     default:
       return null;
   }
+}
+
+const DENSITY: { id: Density; name: string; text: string }[] = [
+  { id: 'comfortable', name: 'Comfortable', text: 'More room. Best for a few releases.' },
+  { id: 'compact', name: 'Compact', text: 'Tighter rows and padding for labels with many releases.' },
+];
+
+/** flows.md: the data-density="compact" toggle. Saved on this device. */
+function DensityControl() {
+  const { density, setDensity } = useShellUI();
+  return (
+    <fieldset className={s.density}>
+      <legend className={o.sectionTitle}>Display density</legend>
+      <div className={s.densityOpts}>
+        {DENSITY.map((d) => (
+          <label key={d.id} className={s.densityOpt}>
+            <input type="radio" name="density" value={d.id} checked={density === d.id} onChange={() => setDensity(d.id)} />
+            <span><span className={s.densityName}>{d.name}</span><span className={o.small} style={{ display: 'block' }}>{d.text}</span></span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
 }

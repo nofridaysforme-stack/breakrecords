@@ -1,5 +1,7 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+import { useShellUI } from '@/components/shell/ShellUI';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ChevronDown, Search } from 'lucide-react';
@@ -43,6 +45,8 @@ export function AgentRail({ feed }: { feed: HomeData['feed'] }) {
 
 export function HomeView({ scenario, home, numbers, approvals, labelShort }: Props) {
   const { pending, approve, undo, proposals, decisions } = useDecisions();
+  const { openCommand, openPanel } = useShellUI();
+  const router = useRouter();
   const [justApproved, setJustApproved] = useState<string | null>(null);
   useEffect(() => {
     if (!justApproved) return;
@@ -57,12 +61,11 @@ export function HomeView({ scenario, home, numbers, approvals, labelShort }: Pro
 
   const top = (
     <div className={s.top}>
-      <form className={s.search} role="search" onSubmit={(e) => e.preventDefault()}>
+      <button type="button" className={s.search} onClick={() => openCommand()} aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K">
         <Search size={16} aria-hidden="true" style={{ color: 'var(--text-muted)' }} />
-        <label htmlFor="cmd" className="visually-hidden">Search or tell me a goal</label>
-        <input id="cmd" className={s.searchInput} placeholder="Search or tell me a goal" aria-keyshortcuts="Meta+K Control+K" />
+        <span className={s.searchInput}>Search or tell me a goal</span>
         <kbd className={s.kbd}>⌘K</kbd>
-      </form>
+      </button>
       <span className={s.labelName}>{labelShort} <ChevronDown size={12} aria-hidden="true" /></span>
       <div className={s.who}><span className={s.whoDate}>{home.today}</span><span className={s.avatar} aria-label={`Signed in as ${home.user.name}`}>{home.user.initial}</span></div>
     </div>
@@ -76,7 +79,7 @@ export function HomeView({ scenario, home, numbers, approvals, labelShort }: Pro
         <section className={s.welcome} aria-labelledby="welcome">
           <h1 id="welcome" className={s.welcomeTitle}>Welcome, {home.user.name}. What are you working on?</h1>
           <p className={s.welcomeLede}>Tell me a goal in your own words. I&apos;ll come back with a plan, a budget and dates for you to approve.</p>
-          <GoalBox onSubmit={() => undefined} examples={['Plan an EP for May', "Find money I'm owed", 'Set up splits for my band', 'Find grants I qualify for']} />
+          <GoalBox onSubmit={(g) => router.push(`/plan?goal=${encodeURIComponent(g)}`)} examples={['Plan an EP for May', "Find money I'm owed", 'Set up splits for my band', 'Find grants I qualify for']} />
         </section>
       </>
     );
@@ -141,7 +144,7 @@ export function HomeView({ scenario, home, numbers, approvals, labelShort }: Pro
           eyebrow="weekly brief"
           shortEyebrow="this week"
           heading={<h1 className={s.greeting}>Good morning, {home.user.name}.</h1>}
-          action={<Button variant="onBrand">Ask the Label Head</Button>}
+          action={<Button variant="onBrand" onClick={() => openPanel()} aria-haspopup="dialog">Ask the Label Head</Button>}
           short="Glasshouse is on track and on budget. Two terms in Marco's agreement need your eyes. A grant closes in 9 days."
         >
           {home.brief}

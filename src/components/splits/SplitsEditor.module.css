@@ -49,6 +49,6 @@
 }
 @media (max-width: 767px) {
   .main, .treeCol { padding: var(--mobile-pad-y) var(--mobile-pad-x); }
-  .main { padding-bottom: 120px; }
+  .main { padding-bottom: 160px; }
   .actions > * { flex: 1 1 100%; }
 }

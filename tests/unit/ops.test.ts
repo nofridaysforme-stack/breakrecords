@@ -50,3 +50,23 @@ describe('Batch 3 fixtures', () => {
     expect(departments).toHaveLength(14);
   });
 });
+
+import { draftPlan, looksLikeGoal, parseGoal } from '@/lib/plan';
+
+describe('goal parsing (command bar)', () => {
+  test('reads format, budget and month', () => {
+    expect(parseGoal('Plan an EP for May on $6k')).toMatchObject({ kind: 'release', format: 'EP', budget: 600_000, month: 4 });
+    expect(parseGoal("Find money I'm owed").kind).toBe('money');
+    expect(parseGoal('Set up splits for my band').kind).toBe('splits');
+  });
+  test('an EP for May lands on the first Friday of May 2027', () => {
+    const p = draftPlan('Plan an EP for May', '2026-11-06');
+    expect(p.title).toBe('Release an EP on May 7');
+    expect(p.budgetAssumed).toBe(true);
+    expect(p.assumptions.join(' ')).toMatch(/No budget given/);
+  });
+  test('search words are not goals; requests are', () => {
+    expect(looksLikeGoal('Glasshouse')).toBe(false);
+    expect(looksLikeGoal('plan an EP for May')).toBe(true);
+  });
+});

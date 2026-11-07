@@ -4,7 +4,7 @@
 
 .recTable { table-layout: fixed; min-width: 640px; }
 .cTitle { width: 27%; } .cArtist { width: 21%; } .cIsrc { width: 136px; } .cMeta { width: 172px; } .cAi { width: 110px; }
-.recTable td, .recTable tbody th { padding-top: 13px; padding-bottom: 13px; }
+.recTable td, .recTable tbody th { padding-top: calc(var(--cell-pad-y) - 1px); padding-bottom: calc(var(--cell-pad-y) - 1px); }
 
 .isrcMissing { display: inline-flex; align-items: center; gap: 5px; font: 500 var(--fs-eyebrow-lg) var(--font-mono); color: var(--critical); white-space: nowrap; }
 .score { display: flex; align-items: center; gap: 8px; }
@@ -35,7 +35,7 @@
 @media (max-width: 1023px) { .assets { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 767px) {
   .main, .single { padding: var(--mobile-pad-y) var(--mobile-pad-x) 40px; gap: 18px; }
-  .single { padding-bottom: 120px; }
-  .detail { padding: 24px var(--mobile-pad-x) 120px; }
+  .single { padding-bottom: 160px; }
+  .detail { padding: 24px var(--mobile-pad-x) 160px; }
   .editBtn { align-self: stretch; }
 }

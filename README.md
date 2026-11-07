@@ -69,6 +69,13 @@ Every Batch 2 screen also takes `?state=` for the five data states. The portal s
 
 Every Batch 3 screen takes `?state=` for the five data states. Accepting an offer, drafting from a template and preparing a claim create approvals; nothing is accepted, signed or filed. The theme editor applies the tenant's colors as CSS variables on the preview (and on the whole app with "Try it on this app"), and refuses to publish while any text pair is under 4.5:1.
 
+### Cross-cutting (Phase F)
+
+- **⌘K / Ctrl+K** opens the command bar anywhere in the app (not the payee portal). It searches pages, catalog, people, money, approvals and contracts. A plain-language goal ("Plan an EP for May") opens a plan preview at `/plan?goal=`, and approving it records a Plan decision.
+- **Label Head panel:** a 380px drawer from "Ask the Label Head" in the sidebar footer, on Home, from the command bar, or from the Label Head button on phones. It answers from what's on the current screen, shows the Needs you count, and never acts.
+- **Density:** Settings > Profile > Display density sets `data-density="compact"` on `<html>` (saved on this device), which tightens page padding and table rows through tokens.
+- **Reduced motion:** with `prefers-reduced-motion`, drawers appear without sliding and the working pulse and skeleton shimmer stop.
+
 The mock API lives in `src/data/api.ts` and is served under `/api/*`. Approvals you make are kept for the browser session only; nothing is sent, paid, signed or filed.
 
 `npx playwright test --project=visual` saves one screenshot per frame to `artifacts/screens/{id}.png` for side-by-side review with `design/screenshots/`.

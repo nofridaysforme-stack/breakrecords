@@ -16,6 +16,8 @@ const ROUTES = [
   '/portal/tax', '/portal/profile', '/portal/sign',
   ...['/money/royalties', '/money/payouts', '/money/recoupment', '/money/statements/ST-2026-10-KV', '/splits/gh-rec', '/portal']
     .flatMap((r) => ['empty', 'working', 'blocked', 'error', 'partial'].map((st) => `${r}?state=${st}`)),
+  // Phase F
+  '/plan', '/plan?goal=Plan%20an%20EP%20for%20May', '/plan?goal=Find%20money%20I%27m%20owed',
   // Batch 3
   '/catalog/songs', '/catalog/releases', '/catalog/assets', '/contracts/templates/producer',
   '/funding/applications', '/funding/offers',

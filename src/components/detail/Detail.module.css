@@ -113,7 +113,7 @@
   .contract { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 767px) {
-  .main, .contract { padding: var(--mobile-pad-y) var(--mobile-pad-x) 120px; }
+  .main, .contract { padding: var(--mobile-pad-y) var(--mobile-pad-x) 160px; }
   .outcome { font-size: 26px; }
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .compare, .plainGrid { grid-template-columns: minmax(0, 1fr); }

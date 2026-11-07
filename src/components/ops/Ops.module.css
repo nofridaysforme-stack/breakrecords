@@ -26,7 +26,7 @@
 .tableWrap { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); overflow-x: auto; }
 .table { width: 100%; border-collapse: collapse; font-size: var(--fs-body); }
 .table thead th { padding: 12px 8px; text-align: left; font: 500 var(--fs-eyebrow) var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); border-bottom: 1px solid var(--line); white-space: nowrap; }
-.table td, .table tbody th { padding: 14px 8px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: middle; font-weight: 400; }
+.table td, .table tbody th { padding: var(--cell-pad-y) 8px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: middle; font-weight: 400; }
 .table th:first-child, .table td:first-child { padding-left: 20px; }
 .table th:last-child, .table td:last-child { padding-right: 20px; }
 .table tbody tr:last-child > * { border-bottom: 0; }

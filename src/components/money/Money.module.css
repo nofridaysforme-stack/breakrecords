@@ -47,7 +47,7 @@
 .tableWrap { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); overflow-x: auto; }
 .table { width: 100%; border-collapse: collapse; font-size: var(--fs-body); }
 .table thead th { padding: 12px 22px; text-align: left; font: 500 var(--fs-eyebrow) var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); border-bottom: 1px solid var(--line); white-space: nowrap; }
-.table td, .table tbody th { padding: 15px 22px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: middle; }
+.table td, .table tbody th { padding: calc(var(--cell-pad-y) + 1px) 22px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: middle; }
 .table tbody th { font-weight: 600; }
 .table tbody tr:last-child td, .table tbody tr:last-child th { border-bottom: 0; }
 .r { text-align: right !important; }

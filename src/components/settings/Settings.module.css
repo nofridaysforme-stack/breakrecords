@@ -8,7 +8,7 @@
 .navItem[aria-current='page'] { background: var(--surface-raised); color: var(--text); font-weight: 600; }
 .main { min-width: 0; padding: var(--page-pad-y) 40px; display: flex; flex-direction: column; gap: 24px; }
 
-.routing td, .routing tbody th { padding: 14px 8px; }
+.routing td, .routing tbody th { padding: var(--cell-pad-y) 8px; }
 .routing tbody th:first-child { padding-left: 20px; }
 .routing td:last-child { padding-right: 20px; }
 .routing { table-layout: fixed; min-width: 640px; }
@@ -42,5 +42,16 @@
 @media (max-width: 767px) {
   .ints, .configs { grid-template-columns: minmax(0, 1fr); }
   .nav { padding: var(--mobile-pad-y) var(--mobile-pad-x) 8px; }
-  .main { padding: 18px var(--mobile-pad-x) 120px; }
+  .main { padding: 18px var(--mobile-pad-x) 160px; }
 }
+
+/* Display density (Profile) */
+.density { border: 0; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.density legend { padding: 0; margin-bottom: 10px; }
+.densityOpts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.densityOpt { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface); cursor: pointer; }
+.densityOpt:has(input:checked) { border-color: var(--accent); background: var(--surface-raised); }
+.densityOpt:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.densityOpt input { accent-color: var(--accent); margin-top: 3px; }
+.densityName { font-weight: 600; }
+@media (max-width: 767px) { .densityOpts { grid-template-columns: minmax(0, 1fr); } }

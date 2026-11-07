@@ -147,9 +147,19 @@
   --stripe-drop: #170f0e;              /* logo drop zone stripes (5i) */
   --on-accent-2: #3a1a0a;              /* secondary text on the selected dial stop (5f) */
   --r-swatch: 7px;                     /* color swatches (5i) */
+  --cell-pad-y: 14px;                  /* table rows; compact density tightens it */
 
   /* motion (flows.md) */
   --ease: cubic-bezier(.2,.7,.3,1);
   --dur-fast: 150ms;
   --dur-drawer: 200ms;
+}
+
+/* Compact density (flows.md, Settings > Profile). Declared after the defaults so it wins. */
+[data-density="compact"] {
+  --page-pad-x: 28px;
+  --page-pad-y: 20px;
+  --page-gap: 18px;
+  --rail-gap: 12px;
+  --cell-pad-y: 8px;
 }

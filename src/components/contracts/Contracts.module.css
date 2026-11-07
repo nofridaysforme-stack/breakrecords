@@ -1,7 +1,7 @@
 /* 5b and the undrawn template detail. */
 .head { flex-wrap: nowrap; }
 .table { table-layout: fixed; min-width: 860px; }
-.table td, .table tbody th { padding-top: 14px; padding-bottom: 14px; }
+.table td, .table tbody th { padding-top: var(--cell-pad-y); padding-bottom: var(--cell-pad-y); }
 .cName { width: 25%; } .cParties { width: 17%; } .cTerms { width: 22%; } .cDate { width: 170px; } .cSig { width: 180px; }
 .table th, .table td { padding-left: 8px; padding-right: 8px; }
 .name { font-weight: 600; text-decoration: underline; text-decoration-color: var(--line-control); text-underline-offset: 3px; }

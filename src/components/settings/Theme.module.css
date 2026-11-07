@@ -48,7 +48,7 @@
 @media (max-width: 1279px) { .layout { grid-template-columns: minmax(0, 1fr); } .editor { border-right: 0; border-bottom: 1px solid var(--line); } }
 @media (max-width: 767px) {
   .editor { padding: var(--mobile-pad-y) var(--mobile-pad-x) 24px; }
-  .previewCol { padding: 20px var(--mobile-pad-x) 120px; }
+  .previewCol { padding: 20px var(--mobile-pad-x) 160px; }
   .preview { grid-template-columns: minmax(0, 1fr); }
   .pSide { flex-direction: row; flex-wrap: wrap; }
 }
