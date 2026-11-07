@@ -18,7 +18,10 @@
     "radix-ui": "1.8.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "@breakrecords/core": "workspace:*"
+    "@breakrecords/core": "workspace:*",
+    "@breakrecords/contract": "workspace:*",
+    "server-only": "0.0.1",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",

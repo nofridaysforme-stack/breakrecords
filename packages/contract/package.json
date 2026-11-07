@@ -1,0 +1,23 @@
+{
+  "name": "@breakrecords/contract",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The API contract between the Break Records UI and any server behind it (mock or live): Zod schemas for every read and write.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "typescript": "5.8.3",
+    "vitest": "4.1.12",
+    "@types/node": "22.15.29"
+  }
+}

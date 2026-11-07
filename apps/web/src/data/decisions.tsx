@@ -1,20 +1,16 @@
 'use client';
 
-// What the user decided on each approval, this session. Approving here records a
-// decision only: nothing is sent, paid, signed or filed by the mock app.
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { ApprovalSummary } from '@/components/ui/Approval';
+// Decisions and in-app proposals, read from and written to the approvals API
+// (/api/approvals/*, contract in @breakrecords/contract). The server enforces the rules;
+// this mirrors its state so screens update instantly. Approving records a decision only:
+// nothing is sent, paid, signed or filed.
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { X } from 'lucide-react';
+import type { ApprovalError, ApprovalState, Decision as DecisionT, Proposal as ProposalT } from '@breakrecords/contract';
 
-export type Decision = { status: 'approved' | 'rejected'; at: number; reason?: string };
-
+export type Decision = DecisionT;
 /** An approval created in the app, such as a release date change sent as a Plan (flows.md). */
-export type Proposal = ApprovalSummary & {
-  href: string;
-  /** Release date changes (2g). */
-  releaseId?: string; newDate?: string;
-  /** Inbox filters; default to Glasshouse for release plans. */
-  artists?: string[]; releases?: string[]; dept?: string;
-};
+export type Proposal = ProposalT;
 
 type Store = {
   decisions: Record<string, Decision>;
@@ -29,46 +25,96 @@ type Store = {
   propose: (p: Proposal) => void;
 };
 
-const KEY = 'br.decisions.v1';
-const PKEY = 'br.proposals.v1';
 const Ctx = createContext<Store | null>(null);
+const EMPTY: ApprovalState = { decisions: {}, proposals: [] };
+
+type Call = { url: string; method: 'POST' | 'DELETE'; body?: unknown };
 
 export function DecisionsProvider({ children }: { children: ReactNode }) {
-  const [decisions, setDecisions] = useState<Record<string, Decision>>({});
-  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [state, setState] = useState<ApprovalState>(EMPTY);
+  const [error, setError] = useState<string | null>(null);
+  // Writes run one at a time, in order, so a proposal always lands before its approval.
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const pendingWrites = useRef(0);
 
-  useEffect(() => {
+  const refresh = useCallback(async () => {
     try {
-      const raw = sessionStorage.getItem(KEY); if (raw) setDecisions(JSON.parse(raw));
-      const p = sessionStorage.getItem(PKEY); if (p) setProposals(JSON.parse(p));
-    } catch { /* storage off: start empty */ }
+      const res = await fetch('/api/approvals/state', { cache: 'no-store' });
+      if (res.ok) setState(await res.json());
+    } catch { /* offline: keep what we have */ }
   }, []);
-  const save = useCallback((next: Record<string, Decision>) => {
-    setDecisions(next);
-    try { sessionStorage.setItem(KEY, JSON.stringify(next)); } catch { /* ignore */ }
-  }, []);
+  useEffect(() => { void refresh(); }, [refresh]);
 
-  const store = useMemo<Store>(() => ({
-    decisions,
-    approve: (ids) => save({ ...decisions, ...Object.fromEntries(ids.map((id) => [id, { status: 'approved', at: Date.now() }])) }),
-    reject: (id, reason) => {
-      if (!reason.trim()) throw new Error('A rejection needs a reason');
-      save({ ...decisions, [id]: { status: 'rejected', at: Date.now(), reason: reason.trim() } });
-    },
-    undo: (ids) => { const next = { ...decisions }; ids.forEach((id) => delete next[id]); save(next); },
-    pending: (ids) => ids.filter((id) => !decisions[id]),
-    openCount: (ids) => ids.filter((id) => !decisions[id]).length + proposals.filter((p) => !decisions[p.id]).length,
-    proposals,
-    propose: (p) => {
-      const next = [...proposals.filter((x) => x.id !== p.id), p];
-      setProposals(next);
-      // A re-proposed plan needs a fresh decision.
-      const d = { ...decisions }; delete d[p.id]; save(d);
-      try { sessionStorage.setItem(PKEY, JSON.stringify(next)); } catch { /* ignore */ }
-    },
-  }), [decisions, proposals, save]);
+  /** Shows the change at once, then lets the server confirm or refuse it. */
+  const write = useCallback((optimistic: (s: ApprovalState) => ApprovalState, call: Call) => {
+    setState(optimistic);
+    pendingWrites.current += 1;
+    queue.current = queue.current.then(async () => {
+      try {
+        const res = await fetch(call.url, {
+          method: call.method, keepalive: true,
+          headers: call.body ? { 'content-type': 'application/json' } : undefined,
+          body: call.body ? JSON.stringify(call.body) : undefined,
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+          setError((json as ApprovalError | null)?.message ?? 'That didn’t go through. Nothing was changed.');
+          await refresh();
+        } else if (pendingWrites.current === 1) {
+          // Only the last write in a burst replaces local state, so quick clicks don't flicker.
+          setState(json as ApprovalState);
+        }
+      } catch {
+        setError('Couldn’t reach the server. Nothing was changed.');
+        await refresh();
+      } finally {
+        pendingWrites.current -= 1;
+      }
+    });
+  }, [refresh]);
 
-  return <Ctx.Provider value={store}>{children}</Ctx.Provider>;
+  const store = useMemo<Store>(() => {
+    const decide = (ids: string[], d: Decision) => (s: ApprovalState) => ({ ...s, decisions: { ...s.decisions, ...Object.fromEntries(ids.map((id) => [id, d])) } });
+    return {
+      decisions: state.decisions,
+      proposals: state.proposals,
+      approve: (ids) => {
+        if (!ids.length) return;
+        const optimistic = decide(ids, { status: 'approved', at: Date.now() });
+        if (ids.length === 1) write(optimistic, { url: `/api/approvals/${encodeURIComponent(ids[0])}/decision`, method: 'POST', body: { action: 'approve' } });
+        else write(optimistic, { url: '/api/approvals/decisions', method: 'POST', body: { action: 'approve', ids } });
+      },
+      reject: (id, reason) => {
+        if (!reason.trim()) throw new Error('A rejection needs a reason');
+        write(decide([id], { status: 'rejected', at: Date.now(), reason: reason.trim() }), { url: `/api/approvals/${encodeURIComponent(id)}/decision`, method: 'POST', body: { action: 'reject', reason: reason.trim() } });
+      },
+      undo: (ids) => {
+        if (!ids.length) return;
+        const optimistic = (s: ApprovalState) => { const d = { ...s.decisions }; ids.forEach((id) => delete d[id]); return { ...s, decisions: d }; };
+        if (ids.length === 1) write(optimistic, { url: `/api/approvals/${encodeURIComponent(ids[0])}/decision`, method: 'DELETE' });
+        else write(optimistic, { url: '/api/approvals/decisions', method: 'DELETE', body: { ids } });
+      },
+      pending: (ids) => ids.filter((id) => !state.decisions[id]),
+      openCount: (ids) => ids.filter((id) => !state.decisions[id]).length + state.proposals.filter((p) => !state.decisions[p.id]).length,
+      propose: (p) => {
+        // A re-proposed plan needs a fresh decision.
+        write((s) => { const d = { ...s.decisions }; delete d[p.id]; return { decisions: d, proposals: [...s.proposals.filter((x) => x.id !== p.id), p] }; },
+          { url: '/api/approvals', method: 'POST', body: { proposal: p } });
+      },
+    };
+  }, [state, write]);
+
+  return (
+    <Ctx.Provider value={store}>
+      {children}
+      {error && (
+        <div role="alert" className="decision-error">
+          <span>{error}</span>
+          <button type="button" aria-label="Dismiss" onClick={() => setError(null)}><X size={16} aria-hidden="true" /></button>
+        </div>
+      )}
+    </Ctx.Provider>
+  );
 }
 
 export function useDecisions(): Store {

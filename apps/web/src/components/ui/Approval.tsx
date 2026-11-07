@@ -8,21 +8,9 @@ import { approvalTypeLabel, Preparing, RiskFlag, TypeGlyph, type ApprovalType, t
 import { cx } from './cx';
 import s from './Approval.module.css';
 
-export type ApprovalSummary = {
-  id: string;
-  type: ApprovalType;
-  title: string;
-  agent: string;
-  /** Display date, for example "Nov 10". */
-  due: string;
-  /** Mono impact line: "$1,240.18 to 6 payees". */
-  impact: string;
-  risk: Risk;
-  /** Inbox row context after the agent: "October statements". */
-  context?: string;
-  /** Override the risk word: "Due in 9 days". */
-  riskLabel?: string;
-};
+/** What a card and an inbox row show. Defined by the API contract. */
+export type { ApprovalSummary } from '@breakrecords/contract';
+import type { ApprovalSummary } from '@breakrecords/contract';
 
 /** Low-risk items may be bulk approved. Signatures never. */
 export const canBulkApprove = (a: ApprovalSummary) => a.risk === 'low' && a.type !== 'signature';

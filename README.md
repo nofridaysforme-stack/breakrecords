@@ -78,7 +78,7 @@ Every Batch 3 screen takes `?state=` for the five data states. Accepting an offe
 - **Density:** Settings > Profile > Display density sets `data-density="compact"` on `<html>` (saved on this device), which tightens page padding and table rows through tokens.
 - **Reduced motion:** with `prefers-reduced-motion`, drawers appear without sliding and the working pulse and skeleton shimmer stop.
 
-The mock API lives in `apps/web/src/data/api.ts` and is served under `/api/*`. Approvals you make are kept for the browser session only; nothing is sent, paid, signed or filed.
+The mock API lives in `apps/web/src/data/api.ts` and is served under `/api/*`; its contract is `packages/contract`. Approvals you make go to the mock server and are kept for your browser session until the server restarts; nothing is sent, paid, signed or filed. See `docs/STRATEGY.md` for the path to a live backend.
 
 `pnpm --filter @breakrecords/web exec playwright test --project=visual` saves one screenshot per frame to `apps/web/artifacts/screens/{id}.png` for side-by-side review with `design/screenshots/`.
 

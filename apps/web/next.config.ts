@@ -3,7 +3,7 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Workspace packages ship TypeScript source.
-  transpilePackages: ['@breakrecords/core'],
+  transpilePackages: ['@breakrecords/core', '@breakrecords/contract'],
 };
 
 export default nextConfig;

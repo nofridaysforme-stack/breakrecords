@@ -32,3 +32,14 @@ img, svg { display: block; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; }
 }
+
+/* A decision the server refused (DecisionsProvider). Red is paired with words, never alone. */
+.decision-error {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 40;
+  display: flex; align-items: center; gap: 12px; max-width: min(560px, calc(100vw - 32px));
+  padding: 10px 10px 10px 16px; border-radius: var(--r-panel);
+  background: var(--surface-raised); border: 1px solid var(--critical-line); color: var(--text);
+  box-shadow: var(--shadow-overlay); font-size: var(--fs-body);
+}
+.decision-error button { width: var(--tap-min); height: var(--tap-min); display: grid; place-items: center; background: none; border: 0; color: var(--text); }
+@media (max-width: 767px) { .decision-error { bottom: 96px; } }
