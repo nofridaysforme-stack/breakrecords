@@ -97,4 +97,42 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
     expect((await app`SELECT app_claim_invites(${id}) AS n`)[0].n).toBe(1);
     expect((await memberships(app, id)).map((m) => [m.slug, m.role])).toEqual([['b', 'team']]);
   });
+
+  describe('catalog', () => {
+    let partyA = ''; let partyB = '';
+    beforeAll(async () => {
+      [{ id: partyA }] = await owner`INSERT INTO parties (tenant_id, slug, name) VALUES (${ids.a}, 'kesi', 'Kesi Vale') RETURNING id`;
+      [{ id: partyB }] = await owner`INSERT INTO parties (tenant_id, slug, name) VALUES (${ids.b}, 'harbor-artist', 'Harbor Artist') RETURNING id`;
+      await owner`INSERT INTO recordings (tenant_id, slug, title, artist_id, isrc) VALUES (${ids.a}, 'glasshouse', 'Glasshouse', ${partyA}, 'USNL12600014')`;
+      await owner`INSERT INTO recordings (tenant_id, slug, title, artist_id) VALUES (${ids.b}, 'tidal', 'Tidal', ${partyB})`;
+    });
+
+    it('each label sees only its own recordings', async () => {
+      const a = await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT slug FROM recordings`);
+      const b = await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT slug FROM recordings`);
+      expect(a.map((r) => r.slug)).toEqual(['glasshouse']);
+      expect(b.map((r) => r.slug)).toEqual(['tidal']);
+    });
+
+    it('another label cannot change your recordings', async () => {
+      const n = await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`UPDATE recordings SET genre = 'x' WHERE slug = 'glasshouse'`);
+      expect(n.count).toBe(0);
+    });
+
+    it('payees cannot read the label’s catalog', async () => {
+      const rows = await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT slug FROM recordings`);
+      expect(rows).toHaveLength(0);
+    });
+
+    it('a record cannot point at another tenant’s party', async () => {
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) =>
+        tx`INSERT INTO recordings (tenant_id, slug, title, artist_id) VALUES (${ids.a}, 'stolen', 'Stolen', ${partyB})`))
+        .rejects.toThrow(/cross-tenant reference/);
+    });
+
+    it('registrations attach to the right kind of subject', async () => {
+      const [{ id: rec }] = await owner`SELECT id FROM recordings WHERE slug = 'glasshouse'`;
+      await expect(owner`INSERT INTO registrations (tenant_id, org, recording_id) VALUES (${ids.a}, 'mlc', ${rec})`).rejects.toThrow(/check constraint/);
+    });
+  });
 });

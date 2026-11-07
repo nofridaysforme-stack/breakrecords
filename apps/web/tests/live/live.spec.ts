@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ApprovalError, ApprovalState, ENDPOINTS } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, CatalogResponse, ENDPOINTS, Recording } from '@breakrecords/contract';
 import { signIn, USERS } from './helpers';
 
 // Live mode (Postgres + sign-in + approvals module live). Stage 0 gate: screens run on the
@@ -95,4 +95,58 @@ test('signed in, every endpoint still matches the contract', async ({ page }) =>
     const parsed = e.schema.safeParse(await res.json());
     expect(parsed.success ? 'ok' : `${e.path}: ${JSON.stringify(parsed.error.issues.slice(0, 2))}`).toBe('ok');
   }
+});
+
+test.describe('catalog (live)', () => {
+  const catalog = async (page: import('@playwright/test').Page) => CatalogResponse.parse(await (await page.request.get('/api/catalog')).json());
+
+  test('Northline’s catalog comes from its own tables, scored from the data', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    const c = await catalog(page);
+    expect(c.recordings.map((r) => r.id)).toEqual(['glasshouse', 'night-bus', 'static-hymn', 'velvet-hours', 'low-light', 'night-bus-demo', 'paper-moons']);
+    expect(c.counts).toEqual({ songs: 6, recordings: 7, releases: 3, assets: 8 });
+    // Glasshouse: no ISWC yet, and Marco hasn't signed the split sheet (5b: 1 of 2 signed).
+    const gh = c.recordings.find((r) => r.id === 'glasshouse')!;
+    expect(gh).toMatchObject({ score: 83, upc: '196922410037', duration: '3:42' });
+    expect(gh.note).toBe('Missing the ISWC and confirmed writer splits. Publishing Agent will add it once the MLC filing is confirmed.');
+    expect(c.recordings.find((r) => r.id === 'velvet-hours')!.score).toBe(100);
+    expect(c.songs.find((s) => s.id === 'glasshouse')).toMatchObject({ writers: 'Kesi Vale 75%, Marco Dela 25%', mlc: 'needsYou' });
+    await page.goto('/catalog/recordings');
+    await expect(page.getByRole('complementary', { name: 'Glasshouse details' })).toContainText('83% complete.');
+    await expect(page.getByText('Tidal Lines')).toHaveCount(0);
+  });
+
+  test('editing a recording saves to the database and rescores it', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    const before = (await catalog(page)).recordings.find((r) => r.id === 'low-light')!;
+    // Missing ISRC, genre, ISWC, signed writer splits, lyrics, contributor credits and a release: 5 of 12.
+    expect(before).toMatchObject({ genre: null, score: 41 });
+    await page.goto('/catalog/recordings?id=low-light');
+    const panel = page.getByRole('complementary', { name: 'Low Light details' });
+    await panel.getByRole('button', { name: 'Edit metadata' }).click();
+    await page.getByRole('dialog', { name: 'Edit Low Light' }).getByLabel('Genre').fill('Electronic');
+    await page.getByRole('dialog', { name: 'Edit Low Light' }).getByRole('button', { name: 'Save' }).click();
+    await expect(panel).toContainText('50% complete.');
+    await page.reload();
+    await expect(page.getByRole('complementary', { name: 'Low Light details' })).toContainText('Electronic');
+  });
+
+  test('cross-tenant: Harbor Sound sees only its catalog and can’t edit Northline’s', async ({ page }) => {
+    await signIn(page, USERS.harbor);
+    const c = await catalog(page);
+    expect(c.recordings.map((r) => r.id)).toEqual(['tidal-lines']);
+    const res = await page.request.patch('/api/catalog/recordings/glasshouse', { data: { genre: 'Pop' } });
+    expect(res.status()).toBe(404);
+  });
+
+  test('payees can’t change the catalog', async ({ page }) => {
+    await signIn(page, USERS.payee);
+    expect((await page.request.patch('/api/catalog/recordings/glasshouse', { data: { genre: 'Pop' } })).status()).toBe(403);
+  });
+
+  test('a saved edit returns a valid recording', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    const res = await page.request.patch('/api/catalog/recordings/paper-moons', { data: { ai: 'None' } });
+    expect(Recording.safeParse(await res.json()).success).toBe(true);
+  });
 });

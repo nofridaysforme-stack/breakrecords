@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ApprovalError, ApprovalState, ENDPOINTS } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, ENDPOINTS, Recording } from '@breakrecords/contract';
 
 // The API contract over HTTP. Any server behind the UI, mock or live, must pass this file.
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
@@ -72,5 +72,21 @@ test.describe('approval writes', () => {
     await a.post('/api/approvals/apr_mlc/decision', { data: { action: 'approve' } });
     expect((await state(b)).decisions).toEqual({});
     await a.dispose(); await b.dispose();
+  });
+});
+
+test.describe('catalog writes', () => {
+  test('a recording’s genre and AI use can be changed, and the change sticks for the session', async ({ request }) => {
+    const res = await request.patch('/api/catalog/recordings/low-light', { data: { genre: 'Electronic', ai: 'Partial, vocals' } });
+    expect(res.status()).toBe(200);
+    expect(Recording.parse(await res.json())).toMatchObject({ id: 'low-light', genre: 'Electronic', ai: 'Partial, vocals' });
+    const cat = await (await request.get('/api/catalog')).json();
+    expect(cat.recordings.find((r: { id: string }) => r.id === 'low-light')).toMatchObject({ genre: 'Electronic' });
+  });
+
+  test('bad changes are refused', async ({ request }) => {
+    expect((await request.patch('/api/catalog/recordings/low-light', { data: {} })).status()).toBe(400);
+    expect((await request.patch('/api/catalog/recordings/low-light', { data: { ai: 'Mostly' } })).status()).toBe(400);
+    expect((await request.patch('/api/catalog/recordings/nope', { data: { genre: 'Pop' } })).status()).toBe(404);
   });
 });

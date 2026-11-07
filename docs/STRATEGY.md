@@ -38,12 +38,16 @@ Stage 3 is the point of no return: attorney sign-off, insurance and a staging re
 - **Auth:** magic links (Resend in production, a test mailbox locally), invite-only, 30-day database sessions, a "Continue" step so link previews can't use up a link. `BR_AUTH=required` turns it on; live data is refused without it.
 - **First live module: approvals.** With `BR_LIVE_MODULES=approvals`, the inbox, detail, Home cards, decisions, bulk approve, undo and in-app proposals read and write Postgres for the signed-in tenant, using the same rules as the mock (`packages/core/src/approvals.ts`), one writer per tenant at a time, every change in the audit log. Payees are refused.
 
+- **Second live module: catalog.** With `catalog` in `BR_LIVE_MODULES`, the Catalog screens read the tenant's parties, songs (with writer shares in basis points), recordings, credits, releases, tracks, assets and registrations from Postgres. Metadata scores are computed from the data (`packages/core/src/metadata.ts`: twelve checks, rounded down) instead of stored, and the note says exactly what's missing. Genre and AI use edits save through `PATCH /api/catalog/recordings/{id}`, are audited, and rescore the recording. Records can't point across tenants (a database trigger refuses it), and payees can't read the catalog.
+
 ### Left in Stage 0
 
 | Item | Why |
 | --- | --- |
-| Live backends for the other modules (catalog, splits, statements, payouts, registrations, releases, funding, activity, settings), seeded with the sample world | The gate: every contract endpoint on the live API in staging |
+| Live backends for the other modules (contracts, roster, splits, statements, payouts, registrations, releases, funding, activity, settings), seeded with the sample world. Registrations already has its table, filled by the catalog seed | The gate: every contract endpoint on the live API in staging |
 | Move the remaining browser-only business data to the server: split v5 send and signatures, onboarding answers, published theme, profile claims, dismissed funding cards | Survives reloads, shared with the team |
+| The ⌘K search index reads the sample catalog in the browser; in live mode it should search the tenant's data through the API | Search must match what's in the database |
+| Asset uploads (R2 or S3 with signed URLs); `assets.storage_key` is ready for them | Upload assets only queues names today |
 | Tenant switcher in the sidebar (memberships already support several tenants) | Licensees and people in more than one label |
 | Owner screens to invite people (allowlist) | Today invitations are seeded |
 | Staging on Supabase and Vercel; CI running lint, unit, contract, RLS, mock e2e, live e2e and visual checks on every pull request | "Nothing merged without tests" |
@@ -61,7 +65,7 @@ sudo -u postgres psql -c "ALTER ROLE br_app LOGIN PASSWORD 'br_app_local'"
 SEED_DATABASE_URL=postgres://br_owner:br_owner_local@localhost/breakrecords_dev BR_ALLOW_SEED=1 pnpm --filter @breakrecords/web db:seed
 ```
 
-Then start the app with the variables in `.env.example` (`BR_AUTH=required`, `BR_LIVE_MODULES=approvals`, `AUTH_TEST_MAILBOX` set) and sign in as `jana@northline.example`; the link is written to the mailbox folder.
+Then start the app with the variables in `.env.example` (`BR_AUTH=required`, `BR_LIVE_MODULES=approvals,catalog`, `AUTH_TEST_MAILBOX` set) and sign in as `jana@northline.example`; the link is written to the mailbox folder.
 
 Tests: `TEST_DATABASE_URL` (owner) and `TEST_APP_DATABASE_URL` (`br_app`) on a migrated test database, then `pnpm --filter @breakrecords/db test` (row-level security) and `pnpm --filter @breakrecords/web exec playwright test -c playwright.live.config.ts` (live end to end).
 
