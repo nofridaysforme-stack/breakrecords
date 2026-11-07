@@ -1,0 +1,116 @@
+/* BR Sidebar.dc.html. Full 240px at 1280 and up, 64px icon rail below, hidden under 768 (tab bar instead). */
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  overflow-y: auto;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--line);
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  font-family: var(--font-ui);
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.sidebar > * { flex-shrink: 0; }
+
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px; }
+.mark {
+  flex: 0 0 28px; width: 28px; height: 28px; border-radius: var(--r-mark);
+  background: var(--accent); color: var(--on-accent);
+  display: grid; place-items: center;
+  font: 800 14px var(--font-display); font-stretch: 125%;
+}
+.wordmark { font: 800 15px var(--font-display); font-stretch: 118%; letter-spacing: -.01em; }
+
+.switcher {
+  width: 100%;
+  border: 1px solid var(--line-box);
+  border-radius: var(--r-control);
+  background: transparent;
+  padding: 10px 12px;
+  display: flex; justify-content: space-between; align-items: center;
+  text-align: left;
+  transition: background var(--dur-fast) var(--ease);
+}
+.switcher:hover { background: var(--surface-raised); }
+.switcherKicker { display: block; font-size: var(--fs-eyebrow); color: var(--text-muted); }
+.switcherName { display: block; font-size: var(--fs-body); font-weight: 600; }
+.switcherChevron { color: var(--text-muted); }
+.switcherInitial { display: none; }
+
+.nav { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-body); }
+
+.item {
+  position: relative;
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--r-control);
+  color: var(--text-2);
+  font-weight: 400;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+a.item:hover { background: var(--surface-raised); color: var(--text); }
+.item[aria-current='page'] { background: var(--surface-raised); color: var(--text); font-weight: 600; }
+
+.dot { flex: 0 0 6px; width: 6px; height: 6px; border-radius: var(--r-dot); background: transparent; }
+.item[aria-current='page'] .dot { background: var(--accent); }
+
+.icon { display: none; flex: 0 0 auto; }
+.label { flex: 1; }
+
+.badge {
+  background: var(--accent); color: var(--on-accent);
+  font: 600 11px var(--font-mono); font-variant-numeric: tabular-nums;
+  padding: 1px 7px; border-radius: var(--r-chip);
+}
+
+.locked { color: var(--text-faint); cursor: default; }
+.tag {
+  font: 500 10px var(--font-mono);
+  border: 1px solid var(--line-chip);
+  padding: 1px 6px;
+  border-radius: var(--r-tag);
+}
+
+.footer {
+  margin-top: auto;
+  display: flex; flex-direction: column; gap: 2px;
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+.footerItem { padding: 7px 10px; color: var(--text-muted); border-radius: var(--r-control); transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
+.footerItem:hover { background: var(--surface-raised); color: var(--text); }
+.footerItem[aria-current='page'] { color: var(--text); font-weight: 600; }
+
+/* 768 to 1279: 64px icon rail */
+@media (max-width: 1279px) {
+  .sidebar { padding: 20px 10px; align-items: center; gap: 18px; }
+  .brand { padding: 4px 0; }
+  .wordmark, .switcherKicker, .switcherName, .switcherChevron, .dot, .tag { display: none; }
+  .switcher { width: var(--tap-min); height: var(--tap-min); padding: 0; justify-content: center; }
+  .switcherInitial { display: block; font-weight: 700; }
+  .nav, .footer { width: 100%; align-items: center; }
+  .item, .footerItem {
+    width: var(--tap-min); height: var(--tap-min); padding: 0;
+    justify-content: center; gap: 0;
+  }
+  .icon { display: block; }
+  .label {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .item[aria-current='page'] .icon { color: var(--accent); }
+  .badge { position: absolute; top: 2px; right: 0; padding: 0 5px; font-size: 10px; }
+  .footer { border-top: 1px solid var(--line); }
+}
+
+@media (max-width: 767px) {
+  .sidebar { display: none; }
+}

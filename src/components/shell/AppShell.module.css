@@ -1,0 +1,12 @@
+.shell { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 100dvh; }
+.content { min-width: 0; }
+
+.skip {
+  position: absolute; left: 12px; top: -48px; z-index: 30;
+  padding: 10px 14px; border-radius: var(--r-control);
+  background: var(--accent); color: var(--on-accent); font-weight: 700;
+}
+.skip:focus { top: 12px; }
+
+@media (max-width: 1279px) { .shell { grid-template-columns: var(--sidebar-rail-w) minmax(0, 1fr); } }
+@media (max-width: 767px) { .shell { grid-template-columns: minmax(0, 1fr); } }

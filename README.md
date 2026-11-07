@@ -13,3 +13,14 @@ Start with [`design/CLAUDE_CODE_INSTRUCTIONS.md`](design/CLAUDE_CODE_INSTRUCTION
 Open a Claude Code session on `main` and say:
 
 > Read design/CLAUDE_CODE_INSTRUCTIONS.md and start with Phase A. Before building each screen, open its PNG in design/screenshots/ and its frame in design/design_files/, and match them. Do not edit anything in /design. Commit after each phase and tell me what you built and anything you couldn't match.
+
+## Development
+
+```bash
+npm install
+npm run dev        # http://localhost:3000
+npm run build
+npm run lint       # typecheck plus lint:copy (no em dashes, no hard-coded hex outside src/styles/tokens.css)
+```
+
+Reference pages: `/dev/type` shows the type ramp and color tokens.
