@@ -8,16 +8,17 @@ import { approvalDetails, home, homeNumbers, releases, TODAY } from './fixtures'
 import type { ApprovalDetail, Release, Scenario } from './types';
 import type { ApprovalSummary } from '@/components/ui/Approval';
 import * as ops from './ops';
+import type { Module } from '@breakrecords/contract';
 import { advance, baselineIncome, sale, type OfferAssumptions } from '@breakrecords/core/offers';
 
 export { TODAY };
 
 // Approvals are the first module with a live backend (Stage 0). When BR_LIVE_MODULES
 // includes "approvals", these read the signed-in tenant's rows from Postgres.
-async function liveCtx() {
+async function liveCtx(module: Module = 'approvals') {
   const { authRequired, requireContext } = await import('@/server/context');
   const { isLive } = await import('@/server/modules');
-  return authRequired() && isLive('approvals') ? requireContext() : null;
+  return authRequired() && isLive(module) ? requireContext() : null;
 }
 
 async function approvalItems(): Promise<ApprovalSummary[]> {
@@ -74,7 +75,20 @@ export const getPayee = (id: string) => payees[id as keyof typeof payees] ?? nul
 
 // ---------- Batch 3: rights and operations ----------
 
-export const getCatalog = () => ({ counts: ops.catalogCounts, recordings: ops.recordings, songs: ops.songs, releases: ops.catalogReleases, assets: ops.catalogAssets });
+const mockCatalog = () => ({ counts: ops.catalogCounts, recordings: ops.recordings, songs: ops.songs, releases: ops.catalogReleases, assets: ops.catalogAssets });
+
+/** Catalog (5a). Live: the signed-in tenant's tables. Mock: the sample, plus this session's edits. */
+export async function getCatalog(): Promise<ReturnType<typeof mockCatalog>> {
+  const ctx = await liveCtx('catalog');
+  if (ctx) {
+    const { liveCatalog } = await import('@/server/live/catalog');
+    return liveCatalog(ctx);
+  }
+  const { mockRecordingEdits } = await import('@/server/mockCatalog');
+  const edits = await mockRecordingEdits();
+  const base = mockCatalog();
+  return { ...base, recordings: base.recordings.map((r) => (edits[r.id] ? { ...r, ...edits[r.id] } : r)) };
+}
 export const getContracts = () => ({ summary: ops.contractsSummary, contracts: ops.contracts, templates: ops.templates });
 export const getTemplate = (id: string) => ops.templates.find((t) => t.id === id) ?? null;
 export const getRegistrations = () => ({ columns: ops.regColumns, rows: ops.registrations });

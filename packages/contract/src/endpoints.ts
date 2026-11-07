@@ -7,7 +7,7 @@ import * as R from './read';
 export type Endpoint = { path: string; schema: z.ZodType; module: Module };
 
 /** The API areas that flip from mock to live one at a time (strategy: "Flip modules with a flag"). */
-export const MODULES = ['approvals', 'catalog', 'splits', 'statements', 'payouts', 'registrations', 'releases', 'funding', 'activity', 'settings'] as const;
+export const MODULES = ['approvals', 'catalog', 'contracts', 'roster', 'splits', 'statements', 'payouts', 'registrations', 'releases', 'funding', 'activity', 'settings'] as const;
 export type Module = (typeof MODULES)[number];
 
 export const ENDPOINTS: Endpoint[] = [
@@ -29,8 +29,8 @@ export const ENDPOINTS: Endpoint[] = [
   { path: '/api/portal/marco', schema: R.PayeeResponse, module: 'payouts' },
   { path: '/api/portal/kesi', schema: R.PayeeResponse, module: 'payouts' },
   { path: '/api/catalog', schema: R.CatalogResponse, module: 'catalog' },
-  { path: '/api/contracts', schema: R.ContractsResponse, module: 'catalog' },
-  { path: '/api/contracts/templates/artist', schema: R.Template, module: 'catalog' },
+  { path: '/api/contracts', schema: R.ContractsResponse, module: 'contracts' },
+  { path: '/api/contracts/templates/artist', schema: R.Template, module: 'contracts' },
   { path: '/api/rights/registrations', schema: R.RegistrationsResponse, module: 'registrations' },
   { path: '/api/rights/unclaimed', schema: R.UnclaimedResponse, module: 'registrations' },
   { path: '/api/rights/claims', schema: R.ProfileClaimsResponse, module: 'registrations' },
@@ -40,5 +40,5 @@ export const ENDPOINTS: Endpoint[] = [
   { path: '/api/activity', schema: R.ActivityResponse, module: 'activity' },
   { path: '/api/settings', schema: R.SettingsResponse, module: 'settings' },
   { path: '/api/settings/theme', schema: R.ThemeResponse, module: 'settings' },
-  { path: '/api/roster', schema: R.RosterResponse, module: 'catalog' },
+  { path: '/api/roster', schema: R.RosterResponse, module: 'roster' },
 ];

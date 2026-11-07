@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 import path from 'node:path';
 
-// Live mode: Postgres, sign-in and the approvals module on the live backend. Needs a migrated
+// Live mode: Postgres, sign-in, and the approvals and catalog modules on the live backend. Needs a migrated
 // database and the two connection strings below (see docs/STRATEGY.md, "Run live locally").
 const PORT = 3101;
 export const MAILBOX = path.resolve(__dirname, 'test-results/mailbox');
@@ -22,7 +22,7 @@ export default defineConfig({
     env: {
       DATABASE_URL: process.env.TEST_APP_DATABASE_URL ?? '',
       BR_AUTH: 'required',
-      BR_LIVE_MODULES: 'approvals',
+      BR_LIVE_MODULES: 'approvals,catalog',
       AUTH_SECRET: 'live-e2e-secret-not-for-production-0123456789',
       APP_URL: `http://localhost:${PORT}`,
       AUTH_TEST_MAILBOX: MAILBOX,

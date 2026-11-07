@@ -17,14 +17,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: `Catalog: ${TITLE[tab as CatalogTab] ?? 'Not found'}` };
 }
 
-export function generateStaticParams() { return TABS.map((tab) => ({ tab })); }
-
 export default async function CatalogPage({ params, searchParams }: Props) {
   const { tab } = await params;
   if (!TABS.includes(tab as CatalogTab)) notFound();
   const q = await searchParams;
   const scenario = toScenario(q.state);
-  const view = <CatalogView data={getCatalog()} tab={tab as CatalogTab} initialId={q.id} />;
+  const view = <CatalogView data={await getCatalog()} tab={tab as CatalogTab} initialId={q.id} />;
   if (scenario === 'default') return <Page bare>{view}</Page>;
   return <Page><ScreenState scenario={scenario} copy={OPS_STATES.catalog} heading="Catalog">{view}</ScreenState></Page>;
 }

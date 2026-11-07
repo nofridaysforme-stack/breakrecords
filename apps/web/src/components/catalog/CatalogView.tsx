@@ -13,10 +13,10 @@ import type { Recording } from '@/data/ops';
 import o from '@/components/ops/Ops.module.css';
 import s from './Catalog.module.css';
 
-type Data = ReturnType<typeof getCatalog>;
+type Data = Awaited<ReturnType<typeof getCatalog>>;
 export type CatalogTab = 'songs' | 'recordings' | 'releases' | 'assets';
 
-const AI_USE = ['None', 'Partial, stems', 'Partial, vocals', 'Partial, artwork', 'Full'];
+const AI_USE = ['Not declared', 'None', 'Partial, stems', 'Partial, vocals', 'Partial, artwork', 'Full'];
 
 const scoreTone = (n: number) => (n >= 90 ? s.good : n >= 70 ? s.warn : s.critical);
 
@@ -28,6 +28,25 @@ export function CatalogView({ data, tab, initialId }: { data: Data; tab: Catalog
   const upload = useRef<HTMLDialogElement>(null);
   const edit = useRef<HTMLDialogElement>(null);
   const [queued, setQueued] = useState<string[]>([]);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  /** Shows the edit at once, then takes the server's version (rescored when live) or puts the old one back. */
+  const save = async (next: Recording) => {
+    const before = list.find((x) => x.id === next.id);
+    const put = (r: Recording) => setList((l) => l.map((x) => (x.id === r.id ? r : x)));
+    put(next); setSaveError(null);
+    try {
+      const res = await fetch(`/api/catalog/recordings/${encodeURIComponent(next.id)}`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ genre: next.genre, ai: next.ai }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) { if (before) put(before); setSaveError(json?.message ?? 'That didn’t save. Nothing was changed.'); return; }
+      put({ ...next, ...json });
+    } catch {
+      if (before) put(before);
+      setSaveError('Couldn’t reach the server. Nothing was changed.');
+    }
+  };
 
   const head = (
     <>
@@ -41,6 +60,7 @@ export function CatalogView({ data, tab, initialId }: { data: Data; tab: Catalog
         { label: 'Releases', href: '/catalog/releases', count: data.counts.releases },
         { label: 'Assets', href: '/catalog/assets', count: data.counts.assets },
       ]} />
+      {saveError && <p className={o.toast} role="alert"><CircleAlert size={16} className={o.critical} aria-hidden="true" />{saveError}</p>}
       {queued.length > 0 && (
         <p className={o.toast} role="status"><Check size={16} className={o.good} aria-hidden="true" />{queued.length} {queued.length === 1 ? 'file' : 'files'} queued. Metadata Agent will check {queued.length === 1 ? 'it' : 'them'} before anything is delivered.</p>
       )}
@@ -50,7 +70,7 @@ export function CatalogView({ data, tab, initialId }: { data: Data; tab: Catalog
   const dialogs = (
     <>
       <UploadDialog ref={upload} onQueue={(names) => setQueued((q) => [...q, ...names])} />
-      {selected && <EditDialog ref={edit} recording={selected} onSave={(r) => setList((l) => l.map((x) => (x.id === r.id ? r : x)))} />}
+      {selected && <EditDialog ref={edit} recording={selected} onSave={(r) => void save(r)} />}
     </>
   );
 
@@ -219,7 +239,7 @@ function EditDialog({ ref, recording, onSave }: { ref: React.RefObject<HTMLDialo
       <form className={o.form} onSubmit={(e) => { e.preventDefault(); onSave({ ...recording, genre: genre.trim() || null, ai }); ref.current?.close(); }}>
         <label className={o.field}>Genre<input className={o.input} value={genre} onChange={(e) => setGenre(e.target.value)} /></label>
         <label className={o.field}>AI use
-          <select className={o.input} value={ai} onChange={(e) => setAi(e.target.value)}>{AI_USE.map((v) => <option key={v} value={v}>{v === 'None' ? 'None declared' : v}</option>)}</select>
+          <select className={o.input} value={ai} onChange={(e) => setAi(e.target.value)}>{AI_USE.filter((v) => v !== 'Not declared' || ai === 'Not declared').map((v) => <option key={v} value={v}>{v === 'None' ? 'None declared' : v}</option>)}</select>
           <span className={o.hint}>Stores ask for this. Declare any AI in the audio, lyrics or art.</span>
         </label>
         <p className={o.small}>ISRC and credits come from your distributor and signed agreements, so Metadata Agent updates them.</p>

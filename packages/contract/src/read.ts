@@ -150,14 +150,24 @@ export const PayeeResponse = z.object({
 });
 
 // ---------- Catalog (5a) ----------
+/** What a store needs to know about AI in a recording. "None" is a declaration; "Not declared" is a gap. */
+export const AiUseLabel = z.enum(['Not declared', 'None', 'Partial, stems', 'Partial, vocals', 'Partial, artwork', 'Full']);
+export const Recording = z.object({
+  id: Id, title: z.string(), artist: z.string(), isrc: z.string().regex(/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/).nullable(),
+  score: z.number().int().min(0).max(100), ai: z.string(), duration: Display, upc: z.string().regex(/^\d{12,13}$/).nullable(),
+  song: z.string(), iswc: z.string().nullable(), genre: z.string().nullable(),
+  credits: z.array(z.object({ name: z.string(), role: z.string() })), note: z.string(),
+});
+/** PATCH /api/catalog/recordings/{id}. Identifiers and credits come from the distributor and signed agreements, so only these change here. */
+export const UpdateRecordingCommand = z.object({
+  genre: z.string().trim().max(60).nullable().optional(),
+  ai: AiUseLabel.optional(),
+}).refine((c) => c.genre !== undefined || c.ai !== undefined, 'Send a genre or an AI use.');
+export type Recording = z.infer<typeof Recording>;
+export type UpdateRecordingCommand = z.infer<typeof UpdateRecordingCommand>;
 export const CatalogResponse = z.object({
   counts: z.object({ songs: z.number().int(), recordings: z.number().int(), releases: z.number().int(), assets: z.number().int() }),
-  recordings: z.array(z.object({
-    id: Id, title: z.string(), artist: z.string(), isrc: z.string().regex(/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/).nullable(),
-    score: z.number().int().min(0).max(100), ai: z.string(), duration: Display, upc: z.string().regex(/^\d{12,13}$/).nullable(),
-    song: z.string(), iswc: z.string().nullable(), genre: z.string().nullable(),
-    credits: z.array(z.object({ name: z.string(), role: z.string() })), note: z.string(),
-  })),
+  recordings: z.array(Recording),
   songs: z.array(z.object({ id: Id, title: z.string(), writers: z.string(), iswc: z.string().nullable(), recordings: z.number().int(), mlc: RegistrationStatus })),
   releases: z.array(z.object({ id: Id, title: z.string(), artist: z.string(), kind: z.string(), date: Display, upc: z.string(), tracks: z.number().int(), href: Link.optional() })),
   assets: z.array(z.object({ name: z.string(), kind: z.string(), release: z.string(), ready: z.boolean() })),
