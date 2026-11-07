@@ -233,16 +233,16 @@ export function Gallery() {
 
       <Section title="Label Head, goal box and plan preview" frames="2c · 3a · 3c · undrawn plan preview">
         <LabelHeadBlock eyebrow="weekly brief" heading={<Hero as="h2">Good morning, Jana.</Hero>} action={<Button variant="onBrand">Ask the Label Head</Button>}>
-          Glasshouse is on track for March 6 and on budget. I drafted the producer agreement for Marco Dela; two terms need your eyes.
+          Glasshouse is on track for March 5 and on budget. I drafted the producer agreement for Marco Dela; two terms need your eyes.
         </LabelHeadBlock>
         <LabelHeadBlock eyebrow="writing this week's brief" writing />
         <GoalBox onSubmit={() => undefined} examples={['Plan an EP for May', "Find money I'm owed", 'Set up splits for my band', 'Find grants I qualify for']} />
         <PlanPreview
-          goal="Release a single March 6 on a $3,000 budget" budget="$3,000" dates="Jan 9 to Jun 4" approvals={6}
+          goal="Release a single March 5 on a $3,000 budget" budget="$3,000" dates="Jan 8 to Jun 3" approvals={6}
           phases={[
-            { name: '8 weeks out', date: 'Jan 9', tasks: [{ title: 'Split sheets signed', owner: 'Legal Agent' }, { title: 'Masters delivered', owner: 'Kesi Vale' }] },
-            { name: '4 weeks out', date: 'Feb 6', tasks: [{ title: 'Metadata complete', owner: 'Metadata Agent' }, { title: 'Deliver to distributor', owner: 'Distribution Agent' }] },
-            { name: 'Release week', date: 'Mar 6', tasks: [{ title: 'Release goes live', owner: 'Distribution Agent' }] },
+            { name: '8 weeks out', date: 'Jan 8', tasks: [{ title: 'Split sheets signed', owner: 'Legal Agent' }, { title: 'Masters delivered', owner: 'Kesi Vale' }] },
+            { name: '4 weeks out', date: 'Feb 5', tasks: [{ title: 'Metadata complete', owner: 'Metadata Agent' }, { title: 'Deliver to distributor', owner: 'Distribution Agent' }] },
+            { name: 'Release week', date: 'Mar 5', tasks: [{ title: 'Release goes live', owner: 'Distribution Agent' }] },
           ]}
           onApprove={() => undefined} onChange={() => undefined}
         />

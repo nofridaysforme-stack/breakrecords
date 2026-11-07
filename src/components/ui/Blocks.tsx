@@ -110,7 +110,7 @@ type GoalProps = {
   placeholder?: string;
 };
 
-export function GoalBox({ examples = [], onSubmit, placeholder = 'Release a single March 6 on a $3,000 budget' }: GoalProps) {
+export function GoalBox({ examples = [], onSubmit, placeholder = 'Release a single March 5 on a $3,000 budget' }: GoalProps) {
   const [goal, setGoal] = useState('');
   return (
     <form className={s.goal} onSubmit={(e) => { e.preventDefault(); if (goal.trim()) onSubmit(goal.trim()); }}>

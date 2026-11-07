@@ -9,7 +9,7 @@ const ramp = [
   { spec: 'Eyebrow · Plex Mono 500 11 · upper', el: <Eyebrow>Label Head · weekly brief</Eyebrow> },
   { spec: 'Eyebrow large · Plex Mono 600 12', el: <Eyebrow large>Agent activity</Eyebrow> },
   { spec: 'Meta · Hanken 13', el: <Meta>Royalties Agent · due Nov 10</Meta> },
-  { spec: 'Body · Hanken 14', el: <Body>Glasshouse is on track for March 6 and on budget.</Body> },
+  { spec: 'Body · Hanken 14', el: <Body>Glasshouse is on track for March 5 and on budget.</Body> },
   { spec: 'Card title · Hanken 600 16', el: <CardTitle as="div">Payout batch for October</CardTitle> },
   { spec: 'Section · Archivo 700 20', el: <SectionHead as="div">Needs you</SectionHead> },
   { spec: 'Number · Plex Mono 600 24', el: <BigNumber>$10,000.00</BigNumber> },

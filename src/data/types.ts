@@ -86,7 +86,7 @@ export type HomeData = {
 };
 
 export type RunbookTask = { title: string; owner: string; state: TaskState; gate?: { owner: string; waitingOn?: string } };
-/** `iso` is the phase date; phases after `now` move when the release date moves. `until` marks a range ("to Jun 4"). */
+/** `iso` is the phase date; phases after `now` move when the release date moves. `until` marks a range ("to Jun 3"). */
 export type RunbookPhase = { name: string; iso: string; until?: boolean; status: 'done' | 'now' | 'future'; tasks: RunbookTask[] };
 export type Release = {
   id: string;
