@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#2a2321;font-family:'Hanken Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#ef6a2a}a:hover{color:#ff8a4f}
+.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(255,255,255,.08);scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}
+.dv-tid{font:600 10px 'IBM Plex Mono',monospace;padding:3px 7px;background:#ef6a2a;color:#110c0b;border-radius:4px;text-decoration:none}
+.dv-tname{font:600 13px/1.2 'Hanken Grotesk',sans-serif;color:#f4ece6}
+.dv-opts{display:flex;flex-wrap:wrap;gap:48px 40px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:10px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(255,255,255,.12);color:#f4ece6;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 12px/1.3 'Hanken Grotesk',sans-serif;color:rgba(244,236,230,.7)}
+.dv-card{max-width:100%;border-radius:10px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.dv-opt:target .dv-oid{background:#ef6a2a;color:#110c0b}
+.dv-next{margin:28px 0 0;font:13px/1.5 'Hanken Grotesk',sans-serif;color:rgba(244,236,230,.6)}
+.dv-intro{max-width:900px;margin:0 0 28px;font:14px/1.6 'Hanken Grotesk',sans-serif;color:rgba(244,236,230,.75)}
+</style>
+</helmet>
+<section class="dv-turn" id="t4">
+<div class="dv-thd"><a class="dv-tid" href="#t4">4</a><span class="dv-tname">Batch 2 · Money. Same Ops room system as <a href="Break Records Batch 1.dc.html">Batch 1</a></span></div>
+<div class="dv-intro">Every figure ties to the Glasshouse worked example: $10,000.00 gross becomes $2,346.75 for Kesi Vale. Mobile covers the payee portal and statement, the two money screens people open on a phone.</div>
+<div class="dv-opts">
+
+<!-- 4a SPLITS -->
+<div class="dv-opt" id="4a" data-screen-label="Splits editor">
+<div class="dv-olabel"><a class="dv-oid" href="#4a">4a</a>Splits editor · Glasshouse recording income, with a draft that doesn't total 100%</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px 300px minmax(0,1fr);min-height:1020px">
+  <dc-import name="BR Sidebar" active="Splits" hint-size="240px,100%"></dc-import>
+  <div style="border-right:1px solid rgba(255,235,225,.08);padding:28px 16px;display:flex;flex-direction:column;gap:4px">
+    <div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e;padding:0 8px 10px">Split tree</div>
+    <sc-for list="{{ tree }}" as="n" hint-placeholder-count="9">
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 8px 8px {{ n.indent }};border-radius:8px;background:{{ n.bg }};font-size:14px;font-weight:{{ n.weight }}">
+        <span style="color:#7d6c65;font-size:11px;width:10px">{{ n.caret }}</span>
+        <span style="flex:1;color:{{ n.color }}">{{ n.label }}</span>
+        <sc-if value="{{ n.override }}"><span style="font:600 10px 'IBM Plex Mono',monospace;color:#ef6a2a;border:1px solid rgba(239,106,42,.5);border-radius:5px;padding:1px 5px">Override</span></sc-if>
+        <sc-if value="{{ n.inherit }}"><span style="font:500 10px 'IBM Plex Mono',monospace;color:#7d6c65">inherits</span></sc-if>
+      </div>
+    </sc-for>
+    <div style="margin-top:14px;padding:12px;border-radius:8px;background:#1b1312;font-size:12px;line-height:1.5;color:#cdbcb4">Below release level, nodes inherit their parent's split unless marked Override.</div>
+  </div>
+  <main style="padding:28px 36px;display:flex;flex-direction:column;gap:22px;min-width:0">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:20px">
+      <div style="min-width:0"><div style="font-size:13px;color:#a8968e">Kesi Vale / Glasshouse / Recording income</div><div style="font:800 30px/1.1 'Archivo',sans-serif;font-stretch:112%;letter-spacing:-.02em;margin-top:6px">Who gets what</div></div>
+      <div style="display:flex;gap:8px;flex:none;white-space:nowrap"><button style="font:600 14px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:10px 14px">Preview a payout</button><button style="font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:10px 16px">Send v5 for signatures</button></div>
+    </div>
+    <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:15px;font-weight:700">Version 4 · in effect since Oct 1, 2026</div><span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#7fc29b;font-weight:600"><span>✓</span>Signed by all 4 · totals 100%</span></div>
+      <div style="display:flex;height:40px;border-radius:8px;overflow:hidden;gap:2px">
+        <sc-for list="{{ barV4 }}" as="b" hint-placeholder-count="4">
+          <div style="flex:{{ b.flex }};background:{{ b.bg }};color:{{ b.fg }};display:flex;align-items:center;padding:0 10px;font:600 12px 'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden">{{ b.inBar }}</div>
+        </sc-for>
+      </div>
+      <div style="display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1.4fr) 90px 150px;gap:8px 16px;font-size:14px">
+        <span style="font:500 11px 'IBM Plex Mono',monospace;color:#a8968e">PARTY</span><span style="font:500 11px 'IBM Plex Mono',monospace;color:#a8968e">RULE</span><span style="font:500 11px 'IBM Plex Mono',monospace;color:#a8968e;text-align:right">SHARE</span><span style="font:500 11px 'IBM Plex Mono',monospace;color:#a8968e">SIGNATURE</span>
+        <sc-for list="{{ parties }}" as="p" hint-placeholder-count="4">
+          <span style="display:flex;align-items:center;gap:8px;font-weight:600"><span style="width:10px;height:10px;border-radius:3px;background:{{ p.bg }}"></span>{{ p.name }}</span>
+          <span style="color:#cdbcb4">{{ p.rule }}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;text-align:right">{{ p.share }}</span>
+          <span style="display:flex;align-items:center;gap:6px;color:#7fc29b;font-size:13px">✓ {{ p.signed }}</span>
+        </sc-for>
+      </div>
+    </div>
+    <div style="background:#1b1312;border:1px solid #ff5a4e;box-shadow:inset 4px 0 0 #ff5a4e;border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:15px;font-weight:700">Draft version 5 · effective Jan 1, 2027</div><span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#ff5a4e;font-weight:700"><span style="width:16px;height:16px;border-radius:4px;background:#ff5a4e;color:#110c0b;display:grid;place-items:center;font-size:11px">!</span>5% of net profit is unassigned</span></div>
+      <div style="display:flex;height:40px;border-radius:8px;overflow:hidden;gap:2px">
+        <sc-for list="{{ barV5 }}" as="b" hint-placeholder-count="5">
+          <div style="flex:{{ b.flex }};background:{{ b.bg }};color:{{ b.fg }};display:flex;align-items:center;padding:0 10px;font:600 12px 'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden">{{ b.inBar }}</div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px">
+        <sc-for list="{{ barV5 }}" as="b" hint-placeholder-count="5">
+          <span style="display:flex;align-items:center;gap:6px;color:{{ b.legendColor }};font-weight:{{ b.legendWeight }}"><span style="width:10px;height:10px;border-radius:3px;background:{{ b.bg }}"></span>{{ b.short }}</span>
+        </sc-for>
+      </div>
+      <div style="font-size:14px;color:#cdbcb4;line-height:1.5">You raised Kesi to 55% and lowered the label to 40%. Assign the missing 5% before sending. Payouts under v5 stay in suspense until every party signs.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px">
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:10px">
+        <div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e">Deal terms</div>
+        <div style="display:grid;grid-template-columns:110px minmax(0,1fr);gap:7px 10px;font-size:14px"><span style="color:#a8968e">Type</span><span>Net profit, 50/50</span><span style="color:#a8968e">Funded by</span><span>Label</span><span style="color:#a8968e">Recoupable</span><span>Recording, mix, art, marketing</span><span style="color:#a8968e">Term</span><span>3 years from release</span></div>
+      </div>
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:10px">
+        <div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e">◇ Worth a look</div>
+        <div style="font-size:14px;line-height:1.5">Producer points are usually 2 to 4 on an indie single. Marco's 3 is in range. Points are taken before the net profit split, so they reduce both shares.</div>
+        <div style="font:500 11px 'IBM Plex Mono',monospace;color:#7d6c65">Range last verified Oct 28, 2026 · source</div>
+      </div>
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:6px">
+        <div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e;margin-bottom:4px">Version history</div>
+        <sc-for list="{{ versions }}" as="v" hint-placeholder-count="4">
+          <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-top:1px solid rgba(255,235,225,.06)"><span style="font-weight:600">{{ v.v }}</span><span style="color:#cdbcb4">{{ v.d }}</span><span style="color:{{ v.c }}">{{ v.s }}</span></div>
+        </sc-for>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+<!-- 4b ROYALTIES -->
+<div class="dv-opt" id="4b" data-screen-label="Royalties overview">
+<div class="dv-olabel"><a class="dv-oid" href="#4b">4b</a>Royalties overview · October 2026</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px minmax(0,1fr);min-height:960px">
+  <dc-import name="BR Sidebar" active="Money" hint-size="240px,100%"></dc-import>
+  <main style="padding:28px 40px;display:flex;flex-direction:column;gap:24px;min-width:0">
+    <div style="display:flex;gap:6px;border-bottom:1px solid rgba(255,235,225,.08)">
+      <sc-for list="{{ moneyTabs }}" as="t" hint-placeholder-count="5">
+        <div style="padding:10px 14px;font-size:14px;font-weight:{{ t.weight }};color:{{ t.color }};border-bottom:2px solid {{ t.line }};margin-bottom:-1px">{{ t.label }}</div>
+      </sc-for>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end">
+      <div><div style="font:800 36px/1.05 'Archivo',sans-serif;font-stretch:112%;letter-spacing:-.02em">Royalties</div><div style="font-size:15px;color:#cdbcb4;margin-top:6px">October 2026 · all artists</div></div>
+      <div style="display:flex;gap:8px"><div style="border:1px solid rgba(255,235,225,.14);border-radius:8px;padding:9px 12px;font-size:14px"><span style="color:#a8968e">Period</span> Oct 2026 ⌄</div><div style="border:1px solid rgba(255,235,225,.14);border-radius:8px;padding:9px 12px;font-size:14px"><span style="color:#a8968e">Artist</span> All ⌄</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(255,235,225,.08);border:1px solid rgba(255,235,225,.08);border-radius:12px;overflow:hidden">
+      <sc-for list="{{ royStats }}" as="s" hint-placeholder-count="4">
+        <div style="background:#110c0b;padding:16px 18px;display:flex;flex-direction:column;gap:6px"><div style="font-size:12px;color:#a8968e">{{ s.k }}</div><div style="font:600 24px 'IBM Plex Mono',monospace;letter-spacing:-.02em">{{ s.v }}</div><div style="font-size:12px;color:#cdbcb4">{{ s.n }}</div></div>
+      </sc-for>
+    </div>
+    <div style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:20px">
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:14px">
+        <div style="font:700 18px 'Archivo',sans-serif;font-stretch:110%">By source</div>
+        <sc-for list="{{ sources }}" as="s" hint-placeholder-count="6">
+          <div style="display:grid;grid-template-columns:150px minmax(0,1fr) 110px;gap:14px;align-items:center;font-size:14px">
+            <span>{{ s.name }}</span>
+            <div style="height:10px;border-radius:3px;background:#2e201e"><div style="height:10px;border-radius:3px;background:{{ s.bg }};width:{{ s.pct }}"></div></div>
+            <span style="font-family:'IBM Plex Mono',monospace;text-align:right;color:{{ s.color }}">{{ s.amt }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:12px">
+        <div style="font:700 18px 'Archivo',sans-serif;font-stretch:110%">By artist</div>
+        <sc-for list="{{ byArtist }}" as="a" hint-placeholder-count="3">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid rgba(255,235,225,.06);font-size:14px"><div><div style="font-weight:600">{{ a.name }}</div><div style="font-size:12px;color:#a8968e">{{ a.meta }}</div></div><span style="font:600 15px 'IBM Plex Mono',monospace">{{ a.amt }}</span></div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px">
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font:700 18px 'Archivo',sans-serif;font-stretch:110%">Unmatched lines <span style="color:#ef6a2a">27</span></div><span style="font:500 13px 'IBM Plex Mono',monospace;color:#a8968e">1,204 of 1,231 matched</span></div>
+        <div style="height:8px;border-radius:3px;background:#2e201e;overflow:hidden"><div style="width:97.8%;height:8px;background:#7fc29b"></div></div>
+        <div style="font-size:14px;line-height:1.5;color:#cdbcb4">27 lines worth $41.12 have an ISRC we don't recognize. Royalties Agent thinks 24 are a typo in "Night Bus" metadata.</div>
+        <button style="align-self:flex-start;font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:10px 16px">Resolve 27 lines</button>
+      </div>
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:10px">
+        <div style="font:700 18px 'Archivo',sans-serif;font-stretch:110%">Tracks that earned $0.00</div>
+        <sc-for list="{{ zeroTracks }}" as="z" hint-placeholder-count="2">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:14px;padding:8px 0;border-top:1px solid rgba(255,235,225,.06)"><span>{{ z.name }} <span style="color:#a8968e">· {{ z.streams }}</span></span><span style="font-size:12px;color:#cdbcb4;border:1px solid rgba(255,235,225,.16);border-radius:6px;padding:3px 8px">Under 1,000 streams</span></div>
+        </sc-for>
+        <div style="font-size:13px;color:#a8968e;line-height:1.5">Spotify pays nothing on tracks under 1,000 yearly streams. This is expected, not an error. <span style="color:#7d6c65;font-family:'IBM Plex Mono',monospace;font-size:11px">Policy last verified Oct 12, 2026</span></div>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+<!-- 4c STATEMENT -->
+<div class="dv-opt" id="4c" data-screen-label="Statement detail">
+<div class="dv-olabel"><a class="dv-oid" href="#4c">4c</a>Statement detail · Kesi Vale, Glasshouse, October 2026</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px minmax(0,1fr) 340px;min-height:960px">
+  <dc-import name="BR Sidebar" active="Money" hint-size="240px,100%"></dc-import>
+  <main style="padding:28px 40px;display:flex;flex-direction:column;gap:22px;min-width:0">
+    <div style="font-size:13px;color:#a8968e">Money / Statements / Kesi Vale</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:20px">
+      <div><div style="font:800 34px/1.1 'Archivo',sans-serif;font-stretch:112%;letter-spacing:-.02em">Kesi Vale earned <span style="color:#ef6a2a">$2,346.75</span> from Glasshouse in October</div><div style="font-size:15px;color:#cdbcb4;margin-top:6px">Statement ST-2026-10-KV · split v4 · pays Jan 15 on the quarterly artist run</div></div>
+      <div style="display:flex;gap:8px;flex:none"><button style="font:600 14px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:10px 14px">CSV</button><button style="font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:10px 16px">Download PDF</button></div>
+    </div>
+    <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1.3fr) 130px 140px 110px;gap:16px;padding:12px 22px;font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#a8968e;border-bottom:1px solid rgba(255,235,225,.08)"><span>Step</span><span>Rule</span><span style="text-align:right">Amount</span><span style="text-align:right">Running balance</span><span style="text-align:right">Source</span></div>
+      <sc-for list="{{ waterfall }}" as="w" hint-placeholder-count="10">
+        <div style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1.3fr) 130px 140px 110px;gap:16px;padding:13px 22px;align-items:center;border-bottom:1px solid rgba(255,235,225,.06);background:{{ w.bg }};font-size:14px">
+          <span style="font-weight:{{ w.weight }}">{{ w.label }}</span>
+          <span style="color:#cdbcb4">{{ w.rule }}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;text-align:right;color:{{ w.amtColor }}">{{ w.amt }}</span>
+          <span style="font:600 14px 'IBM Plex Mono',monospace;text-align:right">{{ w.bal }}</span>
+          <a href="#" style="font:500 12px 'IBM Plex Mono',monospace;text-align:right;text-decoration:none">{{ w.src }}</a>
+        </div>
+      </sc-for>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 22px;background:#5c1424"><span style="font-size:16px;font-weight:700">Kesi Vale nets</span><span style="font:600 22px 'IBM Plex Mono',monospace">$2,346.75</span></div>
+    </div>
+    <div style="font-size:13px;color:#a8968e">Every line links to its row in the source statement. Audit ID AUD-7F3K-2302.</div>
+  </main>
+  <aside style="background:#1b1312;border-left:1px solid rgba(255,235,225,.08);padding:28px 24px;display:flex;flex-direction:column;gap:16px">
+    <div style="font:700 18px 'Archivo',sans-serif;font-stretch:110%">Ask about this statement</div>
+    <div style="align-self:flex-end;max-width:240px;background:#241817;border-radius:10px 10px 2px 10px;padding:10px 12px;font-size:14px">Why is this lower than September?</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:7px;font:600 11px 'IBM Plex Mono',monospace;color:#ef6a2a;text-transform:uppercase;letter-spacing:.08em"><span style="width:7px;height:7px;border-radius:2px;background:#ef6a2a"></span>Royalties Agent</div>
+      <div style="font-size:14px;line-height:1.55">October income was higher, but this is the month Glasshouse recouped. The last $4,000.00 of recording costs came out before the split. From November, nothing is deducted for costs, so the same income would net about $4,146.75.</div>
+      <div style="font-size:12px;color:#a8968e">Based on statements DS-0926 and DS-1026. I'm confident in the math; the November figure is an estimate.</div>
+    </div>
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:13px"><span style="border:1px solid rgba(255,235,225,.16);border-radius:8px;padding:6px 10px">What are platform fees?</span><span style="border:1px solid rgba(255,235,225,.16);border-radius:8px;padding:6px 10px">Show the costs</span></div>
+      <div style="border:1px solid rgba(255,235,225,.14);border-radius:8px;padding:11px 12px;font-size:14px;color:#a8968e">Ask a question</div>
+    </div>
+  </aside>
+</div>
+</div>
+
+<!-- 4d PAYOUTS -->
+<div class="dv-opt" id="4d" data-screen-label="Payouts">
+<div class="dv-olabel"><a class="dv-oid" href="#4d">4d</a>Payouts · batches, tax forms and carry-forward</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px minmax(0,1fr);min-height:900px">
+  <dc-import name="BR Sidebar" active="Money" hint-size="240px,100%"></dc-import>
+  <main style="padding:28px 40px;display:flex;flex-direction:column;gap:22px;min-width:0">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end">
+      <div><div style="font:800 36px/1.05 'Archivo',sans-serif;font-stretch:112%;letter-spacing:-.02em">Payouts</div><div style="font-size:15px;color:#cdbcb4;margin-top:6px">Monthly for collaborators, quarterly for artists · $25.00 minimum</div></div>
+    </div>
+    <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:minmax(0,1.2fr) 120px 140px 190px minmax(0,1fr) 170px;gap:16px;padding:12px 22px;font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#a8968e;border-bottom:1px solid rgba(255,235,225,.08)"><span>Batch</span><span>Payees</span><span style="text-align:right">Total</span><span>Status</span><span>Note</span><span></span></div>
+      <sc-for list="{{ batches }}" as="b" hint-placeholder-count="5">
+        <div style="display:grid;grid-template-columns:minmax(0,1.2fr) 120px 140px 190px minmax(0,1fr) 170px;gap:16px;padding:15px 22px;align-items:center;border-bottom:1px solid rgba(255,235,225,.06);font-size:14px">
+          <span style="font-weight:600">{{ b.name }}</span><span style="color:#cdbcb4">{{ b.payees }}</span>
+          <span style="font:600 14px 'IBM Plex Mono',monospace;text-align:right">{{ b.total }}</span>
+          <span style="display:flex;align-items:center;gap:7px;color:{{ b.color }};font-weight:600;font-size:13px"><span>{{ b.icon }}</span>{{ b.status }}</span>
+          <span style="color:#a8968e;font-size:13px">{{ b.note }}</span>
+          <span style="text-align:right"><sc-if value="{{ b.action }}"><button style="font:700 13px 'Hanken Grotesk',sans-serif;background:{{ b.btnBg }};color:{{ b.btnFg }};border:{{ b.btnBorder }};border-radius:8px;padding:8px 13px">{{ b.action }}</button></sc-if></span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:20px">
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:6px">
+        <div style="font:700 18px 'Archivo',sans-serif;font-stretch:110%;margin-bottom:8px">Tax forms</div>
+        <sc-for list="{{ taxForms }}" as="t" hint-placeholder-count="5">
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) 110px 170px 120px;gap:14px;align-items:center;padding:9px 0;border-top:1px solid rgba(255,235,225,.06);font-size:14px">
+            <span style="font-weight:600">{{ t.name }}</span><span style="color:#cdbcb4;font-family:'IBM Plex Mono',monospace;font-size:13px">{{ t.form }}</span>
+            <span style="display:flex;align-items:center;gap:6px;font-size:13px;color:{{ t.color }}"><span style="width:7px;height:7px;transform:rotate(45deg);background:{{ t.color }}"></span>{{ t.status }}</span>
+            <span style="text-align:right"><sc-if value="{{ t.fix }}"><a href="#" style="font-size:13px;font-weight:600;text-decoration:none">{{ t.fix }}</a></sc-if></span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:10px">
+        <div style="font:700 18px 'Archivo',sans-serif;font-stretch:110%">Carried forward</div>
+        <div style="font-size:14px;color:#cdbcb4;line-height:1.5">These balances are under the $25.00 minimum. They roll into the next batch automatically.</div>
+        <sc-for list="{{ carry }}" as="c" hint-placeholder-count="2">
+          <div style="display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid rgba(255,235,225,.06);font-size:14px"><span><strong>{{ c.name }}</strong> <span style="color:#a8968e">· {{ c.role }}</span></span><span style="font-family:'IBM Plex Mono',monospace">{{ c.amt }}</span></div>
+        </sc-for>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+<!-- 4e RECOUPMENT -->
+<div class="dv-opt" id="4e" data-screen-label="Recoupment">
+<div class="dv-olabel"><a class="dv-oid" href="#4e">4e</a>Recoupment · per release, costs by category</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px minmax(0,1fr);min-height:900px">
+  <dc-import name="BR Sidebar" active="Money" hint-size="240px,100%"></dc-import>
+  <main style="padding:28px 40px;display:flex;flex-direction:column;gap:22px;min-width:0">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end">
+      <div><div style="font:800 36px/1.05 'Archivo',sans-serif;font-stretch:112%;letter-spacing:-.02em">Recoupment</div><div style="font-size:15px;color:#cdbcb4;margin-top:6px">What each release owes back before profit splits begin</div></div>
+      <button style="font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:10px 16px">Add a cost</button>
+    </div>
+    <sc-for list="{{ recoup }}" as="r" hint-placeholder-count="2">
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:22px 24px;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:32px">
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font:800 24px 'Archivo',sans-serif;font-stretch:110%">{{ r.title }}</div><div style="font-size:14px;color:#a8968e">{{ r.artist }}</div></div><span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:{{ r.color }}"><span>{{ r.icon }}</span>{{ r.status }}</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="height:14px;border-radius:4px;background:#2e201e;overflow:hidden"><div style="height:14px;background:{{ r.barColor }};width:{{ r.pct }}"></div></div>
+            <div style="display:flex;justify-content:space-between;font:500 13px 'IBM Plex Mono',monospace;color:#cdbcb4"><span>{{ r.recouped }} recouped</span><span>{{ r.remaining }} to go</span></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(255,235,225,.08);border-radius:10px;overflow:hidden">
+            <div style="background:#110c0b;padding:12px 14px"><div style="font-size:12px;color:#a8968e">Advance</div><div style="font:600 17px 'IBM Plex Mono',monospace">{{ r.advance }}</div></div>
+            <div style="background:#110c0b;padding:12px 14px"><div style="font-size:12px;color:#a8968e">Recoupable costs</div><div style="font:600 17px 'IBM Plex Mono',monospace">{{ r.costs }}</div></div>
+            <div style="background:#110c0b;padding:12px 14px"><div style="font-size:12px;color:#a8968e">Total to recoup</div><div style="font:600 17px 'IBM Plex Mono',monospace">{{ r.total }}</div></div>
+            <div style="background:#110c0b;padding:12px 14px"><div style="font-size:12px;color:#a8968e">{{ r.dateLabel }}</div><div style="font:600 17px 'IBM Plex Mono',monospace">{{ r.date }}</div></div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e;margin-bottom:6px">Costs by category</div>
+          <sc-for list="{{ r.cats }}" as="c" hint-placeholder-count="4">
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) 70px 100px;gap:10px;padding:8px 0;border-top:1px solid rgba(255,235,225,.06);font-size:14px"><span>{{ c.name }}</span><span style="color:#a8968e;font-size:12px;text-align:right">{{ c.share }}</span><span style="font-family:'IBM Plex Mono',monospace;text-align:right">{{ c.amt }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-for>
+  </main>
+</div>
+</div>
+
+<!-- 4f PAYEE PORTAL -->
+<div class="dv-opt" id="4f" data-screen-label="Payee portal">
+<div class="dv-olabel"><a class="dv-oid" href="#4f">4f</a>Payee portal · Marco Dela, desktop</div>
+<div class="dv-card" style="width:1280px;background:#110c0b;color:#f4ece6;display:flex;flex-direction:column;min-height:820px">
+  <header style="display:flex;align-items:center;gap:32px;padding:18px 40px;border-bottom:1px solid rgba(255,235,225,.08)">
+    <div style="display:flex;align-items:center;gap:10px"><div style="width:28px;height:28px;border-radius:7px;background:#ef6a2a;color:#110c0b;display:grid;place-items:center;font:800 14px 'Archivo',sans-serif;font-stretch:125%">B</div><div style="font:800 15px 'Archivo',sans-serif;font-stretch:118%">Break Records.</div></div>
+    <nav style="display:flex;gap:4px;font-size:14px"><span style="background:#241817;padding:8px 12px;border-radius:8px;font-weight:600">Earnings</span><span style="padding:8px 12px;color:#cdbcb4">Statements</span><span style="padding:8px 12px;color:#cdbcb4">Tax forms</span><span style="padding:8px 12px;color:#cdbcb4">Profile</span></nav>
+    <div style="margin-left:auto;font-size:13px;color:#a8968e">Paid by Northline Records</div>
+  </header>
+  <main style="padding:36px 40px;display:flex;flex-direction:column;gap:24px">
+    <div style="font:800 36px/1.1 'Archivo',sans-serif;font-stretch:112%;letter-spacing:-.02em">Hi Marco. Your next payment is <span style="color:#ef6a2a">$285.00</span> on Nov 10.</div>
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(255,235,225,.08);border:1px solid rgba(255,235,225,.08);border-radius:12px;overflow:hidden">
+      <div style="background:#110c0b;padding:18px 20px"><div style="font-size:12px;color:#a8968e">Earned to date</div><div style="font:600 24px 'IBM Plex Mono',monospace">$1,146.30</div></div>
+      <div style="background:#110c0b;padding:18px 20px"><div style="font-size:12px;color:#a8968e">Paid so far</div><div style="font:600 24px 'IBM Plex Mono',monospace">$861.30</div></div>
+      <div style="background:#110c0b;padding:18px 20px"><div style="font-size:12px;color:#a8968e">Next payout</div><div style="font:600 24px 'IBM Plex Mono',monospace">Nov 10</div></div>
+      <div style="background:#110c0b;padding:18px 20px"><div style="font-size:12px;color:#a8968e">Tax form</div><div style="font-size:17px;font-weight:600;color:#7fc29b;margin-top:4px">✓ W-9 on file</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:20px">
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font:700 18px 'Archivo',sans-serif;font-stretch:110%">October statement</div><a href="#" style="font-size:14px;font-weight:600;text-decoration:none">Download PDF</a></div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:8px;font-size:14px">
+          <span style="color:#cdbcb4">Glasshouse income</span><span style="font-family:'IBM Plex Mono',monospace;text-align:right">$10,000.00</span>
+          <span style="color:#cdbcb4">Less platform fee</span><span style="font-family:'IBM Plex Mono',monospace;text-align:right">−$500.00</span>
+          <span style="color:#cdbcb4">Your 3 points of $9,500.00</span><span style="font-family:'IBM Plex Mono',monospace;text-align:right">$285.00</span>
+          <span style="color:#cdbcb4">Tax withheld</span><span style="font-family:'IBM Plex Mono',monospace;text-align:right">$0.00</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,235,225,.1);padding-top:10px;font-weight:700"><span>You receive</span><span style="font-family:'IBM Plex Mono',monospace">$285.00</span></div>
+      </div>
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:8px">
+        <div style="font:700 18px 'Archivo',sans-serif;font-stretch:110%;margin-bottom:4px">Splits you're part of</div>
+        <div style="display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid rgba(255,235,225,.06);font-size:14px"><span><strong>Glasshouse</strong> <span style="color:#a8968e">· Kesi Vale</span></span><span style="color:#7fc29b;font-size:13px">3 points · ✓ signed v4</span></div>
+        <div style="display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid rgba(255,235,225,.06);font-size:14px"><span><strong>Glasshouse (song)</strong> <span style="color:#a8968e">· writer</span></span><span style="color:#7fc29b;font-size:13px">25% · ✓ signed</span></div>
+        <div style="display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid rgba(255,235,225,.06);font-size:14px"><span><strong>Glasshouse</strong> <span style="color:#a8968e">· v5 draft</span></span><span style="color:#ef6a2a;font-size:13px;font-weight:600">○ Waiting for you to sign</span></div>
+        <div style="margin-top:auto;display:flex;gap:8px;padding-top:8px"><button style="font:600 14px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:10px 14px">Update bank details</button></div>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+<!-- 4g MOBILE PAYEE -->
+<div class="dv-opt" id="4g" data-screen-label="Mobile payee portal">
+<div class="dv-olabel"><a class="dv-oid" href="#4g">4g</a>Payee portal · mobile</div>
+<div class="dv-card" style="width:390px;height:844px;border-radius:44px;background:#110c0b;color:#f4ece6;display:flex;flex-direction:column;border:8px solid #000;box-sizing:border-box">
+  <div style="display:flex;justify-content:space-between;padding:14px 26px 6px;font:600 14px 'Hanken Grotesk',sans-serif"><span>9:41</span><span style="width:24px;height:11px;border:1.5px solid #f4ece6;border-radius:3px"></span></div>
+  <div style="flex:1;overflow:hidden;padding:14px 22px;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;justify-content:space-between;align-items:center"><div style="font:800 15px 'Archivo',sans-serif;font-stretch:118%">Break Records.</div><span style="font-size:12px;color:#a8968e">via Northline</span></div>
+    <div style="background:#5c1424;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:8px">
+      <div style="font:600 11px 'IBM Plex Mono',monospace;color:#f6c9d0;text-transform:uppercase;letter-spacing:.08em">Next payment · Nov 10</div>
+      <div style="font:600 40px/1 'IBM Plex Mono',monospace;letter-spacing:-.03em">$285.00</div>
+      <div style="font-size:14px;color:#fbe7ea">From Glasshouse, October. 3 points.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div style="border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:4px"><div style="font-size:12px;color:#a8968e">Earned to date</div><div style="font:600 18px 'IBM Plex Mono',monospace">$1,146.30</div></div>
+      <div style="border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:4px"><div style="font-size:12px;color:#a8968e">Tax form</div><div style="font-size:15px;font-weight:600;color:#7fc29b">✓ W-9 on file</div></div>
+    </div>
+    <div style="background:#1b1312;border:1px solid rgba(239,106,42,.4);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:15px;font-weight:600">Glasshouse split v5 needs your signature</div>
+      <div style="font-size:14px;color:#cdbcb4;line-height:1.5">Your 3 points don't change. Kesi's share does.</div>
+      <div style="display:flex;gap:10px"><button style="flex:1;height:48px;font:700 15px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px">Review and sign</button></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:0">
+      <div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e;padding-bottom:8px">Statements</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid rgba(255,235,225,.08);font-size:15px"><span>October 2026</span><span style="font-family:'IBM Plex Mono',monospace">$285.00 ›</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid rgba(255,235,225,.08);font-size:15px"><span>September 2026</span><span style="font-family:'IBM Plex Mono',monospace">$312.60 ›</span></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid rgba(255,235,225,.08);padding:10px 8px 22px;font-size:12px;text-align:center;color:#a8968e">
+    <div style="color:#ef6a2a;font-weight:700;padding:8px 0">Earnings</div><div style="padding:8px 0">Statements</div><div style="padding:8px 0">Tax</div><div style="padding:8px 0">Profile</div>
+  </div>
+</div>
+</div>
+
+<!-- 4h MOBILE STATEMENT -->
+<div class="dv-opt" id="4h" data-screen-label="Mobile statement">
+<div class="dv-olabel"><a class="dv-oid" href="#4h">4h</a>Statement · mobile, Kesi Vale</div>
+<div class="dv-card" style="width:390px;height:844px;border-radius:44px;background:#110c0b;color:#f4ece6;display:flex;flex-direction:column;border:8px solid #000;box-sizing:border-box">
+  <div style="display:flex;justify-content:space-between;padding:14px 26px 6px;font:600 14px 'Hanken Grotesk',sans-serif"><span>9:41</span><span style="width:24px;height:11px;border:1.5px solid #f4ece6;border-radius:3px"></span></div>
+  <div style="flex:1;overflow:hidden;padding:14px 22px;display:flex;flex-direction:column;gap:16px">
+    <div style="font-size:14px;color:#a8968e">‹ Statements</div>
+    <div><div style="font-size:13px;color:#a8968e">Glasshouse · October 2026</div><div style="font:600 38px/1.1 'IBM Plex Mono',monospace;letter-spacing:-.03em;margin-top:4px">$2,346.75</div><div style="font-size:14px;color:#cdbcb4;margin-top:4px">Pays Jan 15</div></div>
+    <div style="display:flex;flex-direction:column">
+      <sc-for list="{{ waterfallMobile }}" as="w" hint-placeholder-count="9">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-top:1px solid rgba(255,235,225,.07);font-size:14px">
+          <span style="font-weight:{{ w.weight }}">{{ w.label }}</span><span style="font-family:'IBM Plex Mono',monospace;color:{{ w.amtColor }}">{{ w.amt }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:auto"><button style="flex:1;height:48px;font:600 15px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px">Why this amount?</button><button style="flex:1;height:48px;font:700 15px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px">Download PDF</button></div>
+  </div>
+  <div style="height:30px"></div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "start Batch 3" · "show the Royalties overview with no distributor connected" · "preview a payout from <a class="dv-oid" href="#4a">4a</a>"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const OK = '#7fc29b', RED = '#ff5a4e', WARN = '#f2a65a', OR = '#ef6a2a', MUTED = '#a8968e';
+    const node = (label, depth, o = {}) => ({ label, indent: (8 + depth * 14) + 'px', caret: o.leaf ? '' : (o.open ? '▾' : '▸'), bg: o.sel ? '#241817' : 'transparent', weight: o.sel ? 700 : 500, color: o.sel ? '#f4ece6' : '#cdbcb4', override: !!o.override, inherit: !!o.inherit });
+    const seg = (short, flex, bg, fg) => ({ short, flex, bg, fg, inBar: flex >= 10 ? short : '', legendColor: bg.startsWith('repeating') ? RED : '#cdbcb4', legendWeight: bg.startsWith('repeating') ? 700 : 500 });
+    const money = n => (n < 0 ? '−' : '') + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    let bal = 0;
+    const wf = [
+      ['Gross income', 'Distributor, all stores', 10000, 'DS-1026', 'start'],
+      ['Distributor fee', '0% on this plan', 0, 'DS-1026'],
+      ['Platform fee', '5% of gross', -500, 'DS-1026'],
+      ['Producer, Marco Dela', '3 points of $9,500.00', -285, 'SPL-v4'],
+      ['Recoupable costs', 'Last of $4,000.00 recouped', -4000, 'RC-GH'],
+      ['Net profit', '', null, '', 'sub'],
+      ['Label share', '50% of net profit', -2607.5, 'SPL-v4'],
+      ['Artist share', '', null, '', 'sub'],
+      ['Feature, Ari Monroe', '10% of artist share', -260.75, 'SPL-v4'],
+      ['Withholding', 'W-9 on file', 0, 'TAX-KV']
+    ].map(([label, rule, amt, src, kind]) => {
+      if (kind === 'start') bal = amt; else if (amt !== null) bal += amt;
+      const sub = kind === 'sub';
+      return { label, rule, src, amt: sub ? '' : kind === 'start' ? money(amt) : money(amt), bal: money(bal), bg: sub ? '#241817' : 'transparent', weight: sub || kind === 'start' ? 700 : 500, amtColor: amt < 0 ? '#cdbcb4' : '#f4ece6' };
+    });
+    return {
+      tree: [
+        node('Northline Records', 0, { open: true }), node('Kesi Vale', 1, { open: true }), node('Glasshouse (single)', 2, { open: true }),
+        node('Recording income', 3, { sel: true, leaf: true, override: true }), node('Song income', 3, { leaf: true, inherit: true }), node('Sync', 3, { leaf: true, inherit: true }),
+        node('The Low Hours', 1), node('Night Bus EP', 2), node('Marco Dela', 1)
+      ],
+      barV4: [seg('Producer 3%', 3, '#5c1424', '#fbe7ea'), seg('Label 48.5%', 48.5, '#3a2a27', '#f4ece6'), seg('Kesi 43.65%', 43.65, OR, '#110c0b'), seg('Ari 4.85%', 4.85, '#f2a65a', '#110c0b')],
+      barV5: [seg('Producer 3%', 3, '#5c1424', '#fbe7ea'), seg('Label 38.8%', 38.8, '#3a2a27', '#f4ece6'), seg('Kesi 48.02%', 48.02, OR, '#110c0b'), seg('Ari 5.33%', 5.33, '#f2a65a', '#110c0b'), seg('4.85% unassigned', 4.85, 'repeating-linear-gradient(135deg,#ff5a4e 0 6px,#110c0b 6px 12px)', '#f4ece6')],
+      parties: [
+        { name: 'Marco Dela', rule: 'Producer, 3 points off the top', share: '3.00%', signed: 'Sep 28', bg: '#5c1424' },
+        { name: 'Northline Records', rule: '50% of net profit', share: '48.50%', signed: 'Sep 26', bg: '#3a2a27' },
+        { name: 'Kesi Vale', rule: '50% of net profit, less feature', share: '43.65%', signed: 'Sep 27', bg: OR },
+        { name: 'Ari Monroe', rule: 'Feature, 10% of artist share', share: '4.85%', signed: 'Sep 30', bg: '#f2a65a' }
+      ],
+      versions: [{ v: 'v5', d: 'Draft · Nov 6', s: '! Not 100%', c: RED }, { v: 'v4', d: 'Oct 1, 2026', s: '✓ In effect', c: OK }, { v: 'v3', d: 'Jun 1, 2026', s: 'Replaced', c: MUTED }, { v: 'v2', d: 'Feb 12, 2026', s: 'Replaced', c: MUTED }],
+      moneyTabs: ['Royalties', 'Statements', 'Payouts', 'Recoupment', 'Budgets'].map((l, i) => ({ label: l, weight: i ? 500 : 700, color: i ? '#cdbcb4' : '#f4ece6', line: i ? 'transparent' : OR })),
+      royStats: [{ k: 'Income this period', v: '$14,286.40', n: 'Up 18% on September' }, { k: 'Paid to payees', v: '$1,240.18', n: 'Awaiting your approval' }, { k: 'Matched lines', v: '97.8%', n: '1,204 of 1,231' }, { k: 'Unclaimed found', v: '$312.40', n: '2 sources to claim' }],
+      sources: [['Distributor', 11920.4], ['SoundExchange', 1104.2], ['MLC', 618.3], ['PRO', 402.1], ['Sync', 200], ['Bandcamp', 41.4]].map(([name, v]) => ({ name, amt: money(v), pct: (v / 11920.4 * 100).toFixed(1) + '%', bg: OR, color: '#f4ece6' })),
+      byArtist: [{ name: 'Kesi Vale', meta: 'Glasshouse and 2 catalog singles', amt: '$10,812.60' }, { name: 'The Low Hours', meta: 'Night Bus EP', amt: '$3,262.40' }, { name: 'Marco Dela', meta: 'Producer and writer income', amt: '$211.40' }],
+      zeroTracks: [{ name: 'Night Bus (demo)', streams: '412 streams' }, { name: 'Static Hymn', streams: '688 streams' }],
+      waterfall: wf,
+      waterfallMobile: wf.map(w => ({ label: w.label, amt: w.amt || w.bal, weight: w.weight, amtColor: w.amtColor })),
+      batches: [
+        { name: 'October 2026', payees: '6', total: '$1,240.18', status: 'Awaiting approval', icon: '○', color: OR, note: '2 carried forward', action: 'Review', btnBg: OR, btnFg: '#110c0b', btnBorder: '0' },
+        { name: 'Q3 artist run', payees: '2', total: '$6,904.15', status: 'Draft', icon: '–', color: MUTED, note: 'Opens Jan 15', action: '', btnBg: '', btnFg: '', btnBorder: '' },
+        { name: 'September 2026', payees: '5', total: '$1,018.44', status: 'Sent', icon: '✓', color: OK, note: 'Sent Oct 10', action: '', btnBg: '', btnFg: '', btnBorder: '' },
+        { name: 'August 2026', payees: '5', total: '$934.02', status: 'Failed for 1', icon: '!', color: RED, note: 'Theo Lind, bank details', action: 'Fix', btnBg: 'transparent', btnFg: '#f4ece6', btnBorder: '1px solid rgba(255,235,225,.18)' },
+        { name: 'July 2026', payees: '4', total: '$822.70', status: 'Sent', icon: '✓', color: OK, note: 'Sent Aug 10', action: '', btnBg: '', btnFg: '', btnBorder: '' }
+      ],
+      taxForms: [['Marco Dela', 'W-9', 'On file', OK, ''], ['Ari Monroe', 'W-9', 'On file', OK, ''], ['Theo Lind', 'W-8BEN', 'On file', OK, ''], ['Rue Sato', 'W-9', 'Expires Dec 1', WARN, 'Request new'], ['Jules Arden', 'None', 'Missing', RED, 'Request form']].map(([name, form, status, color, fix]) => ({ name, form, status, color, fix })),
+      carry: [{ name: 'Jules Arden', role: 'Session bass', amt: '$18.40' }, { name: 'Pia Novak', role: 'Artwork, 0.5 pt', amt: '$9.12' }],
+      recoup: [
+        { title: 'Glasshouse', artist: 'Kesi Vale · label-funded single', status: 'Recouped in October', icon: '✓', color: OK, barColor: OK, pct: '100%', recouped: '$4,000.00', remaining: '$0.00', advance: '$0.00', costs: '$4,000.00', total: '$4,000.00', dateLabel: 'Recouped', date: 'Oct 2026',
+          cats: [{ name: 'Recording', share: '100%', amt: '$2,200.00' }, { name: 'Mix and master', share: '100%', amt: '$800.00' }, { name: 'Artwork', share: '100%', amt: '$400.00' }, { name: 'Marketing', share: '50%', amt: '$600.00' }] },
+        { title: 'Night Bus EP', artist: 'The Low Hours · $5,000 advance', status: 'Recouping', icon: '○', color: OR, barColor: OR, pct: '37%', recouped: '$3,050.00', remaining: '$5,150.00', advance: '$5,000.00', costs: '$3,200.00', total: '$8,200.00', dateLabel: 'Projected', date: 'Aug 2027',
+          cats: [{ name: 'Recording', share: '100%', amt: '$1,800.00' }, { name: 'Mix and master', share: '100%', amt: '$650.00' }, { name: 'Video', share: '50%', amt: '$500.00' }, { name: 'Tour support', share: '100%', amt: '$250.00' }] }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

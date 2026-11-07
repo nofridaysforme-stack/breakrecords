@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#2a2321;font-family:'Hanken Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#ef6a2a}a:hover{color:#ff8a4f}
+.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(255,255,255,.08);scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}
+.dv-tid{font:600 10px 'IBM Plex Mono',monospace;padding:3px 7px;background:#ef6a2a;color:#110c0b;border-radius:4px;text-decoration:none}
+.dv-tname{font:600 13px/1.2 'Hanken Grotesk',sans-serif;color:#f4ece6}
+.dv-opts{display:flex;flex-wrap:wrap;gap:48px 40px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:10px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(255,255,255,.12);color:#f4ece6;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 12px/1.3 'Hanken Grotesk',sans-serif;color:rgba(244,236,230,.7)}
+.dv-card{max-width:100%;border-radius:10px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.dv-opt:target .dv-oid{background:#ef6a2a;color:#110c0b}
+.dv-next{margin:28px 0 0;font:13px/1.5 'Hanken Grotesk',sans-serif;color:rgba(244,236,230,.6)}
+.dv-intro{max-width:900px;margin:0 0 28px;font:14px/1.6 'Hanken Grotesk',sans-serif;color:rgba(244,236,230,.75)}
+</style>
+</helmet>
+<section class="dv-turn" id="t5">
+<div class="dv-thd"><a class="dv-tid" href="#t5">5</a><span class="dv-tname">Batch 3 · Rights and operations. Same system as <a href="Break Records Batch 1.dc.html">Batch 1</a> and <a href="Break Records Batch 2.dc.html">Batch 2</a></span></div>
+<div class="dv-intro">Nine desktop screens plus a mobile offer comparison, since funding decisions often happen away from a desk. Registration cells pair a shape with a word, so status never depends on color alone.</div>
+<div class="dv-opts">
+
+<!-- 5a CATALOG -->
+<div class="dv-opt" id="5a" data-screen-label="Catalog">
+<div class="dv-olabel"><a class="dv-oid" href="#5a">5a</a>Catalog · Recordings tab, Glasshouse selected</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px minmax(0,1fr) 380px;min-height:900px">
+  <dc-import name="BR Sidebar" active="Catalog" hint-size="240px,100%"></dc-import>
+  <main style="padding:28px 36px;display:flex;flex-direction:column;gap:20px;min-width:0">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end"><div style="font:800 36px/1.05 'Archivo',sans-serif;font-stretch:112%;letter-spacing:-.02em">Catalog</div><button style="font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:10px 16px">Upload assets</button></div>
+    <div style="display:flex;gap:6px;border-bottom:1px solid rgba(255,235,225,.08)">
+      <sc-for list="{{ catTabs }}" as="t" hint-placeholder-count="4"><div style="padding:10px 14px;font-size:14px;font-weight:{{ t.weight }};color:{{ t.color }};border-bottom:2px solid {{ t.line }};margin-bottom:-1px">{{ t.label }} <span style="font:500 12px 'IBM Plex Mono',monospace;color:#a8968e">{{ t.n }}</span></div></sc-for>
+    </div>
+    <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 150px 160px 90px;gap:14px;padding:12px 20px;font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#a8968e;border-bottom:1px solid rgba(255,235,225,.08)"><span>Recording</span><span>Artist</span><span>ISRC</span><span>Metadata</span><span>AI use</span></div>
+      <sc-for list="{{ recordings }}" as="r" hint-placeholder-count="7">
+        <div style="display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 150px 160px 90px;gap:14px;padding:13px 20px;align-items:center;border-bottom:1px solid rgba(255,235,225,.06);background:{{ r.bg }};font-size:14px">
+          <span style="display:flex;align-items:center;gap:10px;font-weight:600"><span style="width:32px;height:32px;border-radius:6px;background:repeating-linear-gradient(135deg,#2a1c1a 0 5px,#241817 5px 10px);flex:none"></span>{{ r.title }}</span>
+          <span style="color:#cdbcb4">{{ r.artist }}</span>
+          <span style="font:500 12px 'IBM Plex Mono',monospace;color:{{ r.isrcColor }}">{{ r.isrc }}</span>
+          <span style="display:flex;align-items:center;gap:8px"><span style="flex:1;height:6px;border-radius:3px;background:#2e201e"><span style="display:block;height:6px;border-radius:3px;background:{{ r.scoreColor }};width:{{ r.score }}"></span></span><span style="font:500 12px 'IBM Plex Mono',monospace;width:34px;text-align:right">{{ r.score }}</span></span>
+          <span style="font-size:13px;color:#cdbcb4">{{ r.ai }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </main>
+  <aside style="background:#1b1312;border-left:1px solid rgba(255,235,225,.08);padding:28px 24px;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;gap:14px;align-items:center"><div style="width:72px;height:72px;border-radius:8px;background:repeating-linear-gradient(135deg,#2a1c1a 0 6px,#241817 6px 12px);display:grid;place-items:center;font:500 10px 'IBM Plex Mono',monospace;color:#7d6c65">art</div><div><div style="font:800 22px 'Archivo',sans-serif;font-stretch:110%">Glasshouse</div><div style="font-size:13px;color:#a8968e">Recording <span style="color:#7d6c65">(master)</span> · 3:42</div></div></div>
+    <div style="display:grid;grid-template-columns:110px minmax(0,1fr);gap:9px 12px;font-size:14px">
+      <span style="color:#a8968e">ISRC</span><span style="font-family:'IBM Plex Mono',monospace;font-size:13px">USNL12600014</span>
+      <span style="color:#a8968e">UPC</span><span style="font-family:'IBM Plex Mono',monospace;font-size:13px">196922410037</span>
+      <span style="color:#a8968e">Song <span style="color:#7d6c65">(composition)</span></span><span>Glasshouse · ISWC pending</span>
+      <span style="color:#a8968e">Genre</span><span>R&amp;B</span>
+      <span style="color:#a8968e">AI use</span><span>None declared · <a href="#" style="text-decoration:none">edit</a></span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e">Credits</div>
+      <sc-for list="{{ credits }}" as="c" hint-placeholder-count="5"><div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid rgba(255,235,225,.06);font-size:14px"><span>{{ c.n }}</span><span style="color:#cdbcb4">{{ c.r }}</span></div></sc-for>
+    </div>
+    <div style="background:#241817;border-radius:10px;padding:14px;font-size:14px;line-height:1.5"><strong>92% complete.</strong> Missing the ISWC. Publishing Agent will add it once the MLC filing is confirmed.</div>
+    <button style="margin-top:auto;font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:11px 16px">Edit metadata</button>
+  </aside>
+</div>
+</div>
+
+<!-- 5b CONTRACTS -->
+<div class="dv-opt" id="5b" data-screen-label="Contracts">
+<div class="dv-olabel"><a class="dv-oid" href="#5b">5b</a>Contracts · active agreements, key dates and signatures</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px minmax(0,1fr);min-height:900px">
+  <dc-import name="BR Sidebar" active="Contracts" hint-size="240px,100%"></dc-import>
+  <main style="padding:28px 40px;display:flex;flex-direction:column;gap:22px;min-width:0">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:20px">
+      <div><div style="font:800 36px/1.05 'Archivo',sans-serif;font-stretch:112%;letter-spacing:-.02em">Contracts</div><div style="font-size:15px;color:#cdbcb4;margin-top:6px">7 active · 1 waiting on signatures · next key date Jan 9</div></div>
+      <div style="display:flex;gap:8px;flex:none"><button style="font:600 14px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:10px 14px">Upload a contract for review</button><button style="font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:10px 16px">Draft from template</button></div>
+    </div>
+    <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1.3fr) 170px 180px;gap:16px;padding:12px 20px;font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#a8968e;border-bottom:1px solid rgba(255,235,225,.08)"><span>Agreement</span><span>Parties</span><span>Key terms</span><span>Next date</span><span>Signatures</span></div>
+      <sc-for list="{{ contracts }}" as="c" hint-placeholder-count="6">
+        <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1.3fr) 170px 180px;gap:16px;padding:14px 20px;align-items:center;border-bottom:1px solid rgba(255,235,225,.06);font-size:14px">
+          <span><span style="font-weight:600">{{ c.name }}</span><br><span style="font-size:12px;color:#a8968e">{{ c.template }}</span></span>
+          <span style="color:#cdbcb4">{{ c.parties }}</span>
+          <span style="color:#cdbcb4">{{ c.terms }}</span>
+          <span><span style="font:500 13px 'IBM Plex Mono',monospace">{{ c.date }}</span><br><span style="font-size:12px;color:#a8968e">{{ c.dateWhat }}</span></span>
+          <span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:{{ c.color }}"><span>{{ c.icon }}</span>{{ c.sig }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font:700 18px 'Archivo',sans-serif;font-stretch:110%">Templates</div>
+      <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px">
+        <sc-for list="{{ templates }}" as="t" hint-placeholder-count="5">
+          <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:6px"><div style="font-size:15px;font-weight:600">{{ t.n }}</div><div style="font-size:12px;color:#a8968e">{{ t.v }}</div></div>
+        </sc-for>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+<!-- 5c REGISTRATIONS -->
+<div class="dv-opt" id="5c" data-screen-label="Registrations tracker">
+<div class="dv-olabel"><a class="dv-oid" href="#5c">5c</a>Rights · Registrations tracker</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px minmax(0,1fr);min-height:860px">
+  <dc-import name="BR Sidebar" active="Rights" hint-size="240px,100%"></dc-import>
+  <main style="padding:28px 40px;display:flex;flex-direction:column;gap:22px;min-width:0">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:20px">
+      <div><div style="font:800 36px/1.05 'Archivo',sans-serif;font-stretch:112%;letter-spacing:-.02em">Registrations</div><div style="font-size:15px;color:#cdbcb4;margin-top:6px">Every place a recording or song needs to be registered so it gets paid.</div></div>
+      <div style="display:flex;gap:6px;font-size:13px;flex-wrap:wrap;justify-content:flex-end">
+        <sc-for list="{{ legend }}" as="l" hint-placeholder-count="5"><span style="display:flex;align-items:center;gap:6px;border:1px solid {{ l.color }};color:{{ l.color }};border-radius:6px;padding:4px 9px;font-weight:600">{{ l.icon }} {{ l.s }}</span></sc-for>
+      </div>
+    </div>
+    <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:minmax(0,1.3fr) repeat(6,minmax(0,1fr));gap:1px;background:rgba(255,235,225,.06)">
+        <sc-for list="{{ regCols }}" as="h" hint-placeholder-count="7"><div style="background:#1b1312;padding:12px 14px;font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.05em;color:#a8968e;line-height:1.3">{{ h.n }}<br><span style="text-transform:none;letter-spacing:0;color:#7d6c65">{{ h.sub }}</span></div></sc-for>
+        <sc-for list="{{ regCells }}" as="c" hint-placeholder-count="35">
+          <div style="background:#110c0b;padding:14px;display:flex;flex-direction:column;justify-content:center;gap:3px;min-height:40px">
+            <sc-if value="{{ c.isName }}"><span style="font-size:15px;font-weight:600">{{ c.name }}</span><span style="font-size:12px;color:#a8968e">{{ c.artist }}</span></sc-if>
+            <sc-if value="{{ c.isCell }}"><span style="display:inline-flex;align-self:flex-start;align-items:center;gap:6px;font-size:13px;font-weight:600;color:{{ c.color }};border:1px solid {{ c.color }};background:{{ c.bg }};border-radius:6px;padding:4px 9px">{{ c.icon }} {{ c.s }}</span><span style="font:500 11px 'IBM Plex Mono',monospace;color:#7d6c65">{{ c.ref }}</span></sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px">
+      <div style="background:#241817;border:1px solid rgba(255,90,78,.35);border-radius:12px;padding:18px 20px;display:flex;align-items:center;gap:16px">
+        <div style="flex:1"><div style="font-size:15px;font-weight:700">! 3 MLC filings need you</div><div style="font-size:14px;color:#cdbcb4;margin-top:4px">Publishing Agent prepared them. Confirm the writers and shares, then I'll submit.</div></div>
+        <button style="font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:10px 16px;flex:none">Open filing</button>
+      </div>
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:18px 20px;display:flex;align-items:center;gap:16px">
+        <div style="flex:1"><div style="font-size:15px;font-weight:700">$312.40 unclaimed found</div><div style="font-size:14px;color:#cdbcb4;margin-top:4px">SoundExchange and the MLC are holding royalties for "Night Bus". Claim with one filing each.</div></div>
+        <button style="font:600 14px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:10px 16px;flex:none">Start claim</button>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+<!-- 5d FUNDING -->
+<div class="dv-opt" id="5d" data-screen-label="Funding">
+<div class="dv-olabel"><a class="dv-oid" href="#5d">5d</a>Funding · opportunities, applications, offers</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px minmax(0,1fr);min-height:880px">
+  <dc-import name="BR Sidebar" active="Funding" hint-size="240px,100%"></dc-import>
+  <main style="padding:28px 40px;display:flex;flex-direction:column;gap:22px;min-width:0">
+    <div><div style="font:800 36px/1.05 'Archivo',sans-serif;font-stretch:112%;letter-spacing:-.02em">Funding</div><div style="font-size:15px;color:#cdbcb4;margin-top:6px">Funding Scout checks sources weekly. Free money first, then offers, with the true cost of each.</div></div>
+    <div style="display:flex;gap:6px;border-bottom:1px solid rgba(255,235,225,.08)">
+      <sc-for list="{{ fundTabs }}" as="t" hint-placeholder-count="3"><div style="padding:10px 14px;font-size:14px;font-weight:{{ t.weight }};color:{{ t.color }};border-bottom:2px solid {{ t.line }};margin-bottom:-1px">{{ t.label }} <span style="font:500 12px 'IBM Plex Mono',monospace;color:#a8968e">{{ t.n }}</span></div></sc-for>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px">
+      <sc-for list="{{ funding }}" as="f" hint-placeholder-count="3">
+        <div style="background:#1b1312;border:1px solid {{ f.border }};border-radius:12px;padding:22px;display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:{{ f.typeColor }}">{{ f.type }}</span><span style="font:500 12px 'IBM Plex Mono',monospace;color:#cdbcb4">Fit {{ f.fit }}</span></div>
+          <div style="font:800 22px/1.15 'Archivo',sans-serif;font-stretch:108%">{{ f.title }}</div>
+          <div style="font:600 30px/1 'IBM Plex Mono',monospace;letter-spacing:-.03em">{{ f.amount }}</div>
+          <div style="display:grid;grid-template-columns:100px minmax(0,1fr);gap:8px 10px;font-size:14px">
+            <span style="color:#a8968e">It costs</span><span style="font-weight:600;color:{{ f.costColor }}">{{ f.cost }}</span>
+            <span style="color:#a8968e">Deadline</span><span>{{ f.deadline }}</span>
+            <span style="color:#a8968e">Draft</span><span>{{ f.draft }}</span>
+          </div>
+          <sc-if value="{{ f.permanent }}"><div style="background:rgba(255,90,78,.1);border:1px solid rgba(255,90,78,.4);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.45;color:#f4ece6"><strong style="color:#ff5a4e">! Permanent.</strong> You never get this income back.</div></sc-if>
+          <div style="font:500 11px 'IBM Plex Mono',monospace;color:#7d6c65">Last verified {{ f.verified }} · source</div>
+          <div style="display:flex;gap:8px;margin-top:auto">
+            <button style="flex:1;font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:11px 0">{{ f.primary }}</button>
+            <button style="flex:1;font:600 14px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:11px 0">Dismiss</button>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </main>
+</div>
+</div>
+
+<!-- 5e OFFER COMPARISON -->
+<div class="dv-opt" id="5e" data-screen-label="Offer comparison">
+<div class="dv-olabel"><a class="dv-oid" href="#5e">5e</a>Offer comparison · side by side with "no offer"</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px minmax(0,1fr);min-height:900px">
+  <dc-import name="BR Sidebar" active="Funding" hint-size="240px,100%"></dc-import>
+  <main style="padding:28px 40px;display:flex;flex-direction:column;gap:22px;min-width:0">
+    <div style="font-size:13px;color:#a8968e">Funding / Offers / Compare</div>
+    <div style="font:800 34px/1.12 'Archivo',sans-serif;font-stretch:110%;letter-spacing:-.02em;max-width:980px;text-wrap:pretty">The advance costs about <span style="color:#ef6a2a">$960</span>. The sale costs about <span style="color:#ff5a4e">$12,000 over 5 years</span>, and keeps going.</div>
+    <div style="display:grid;grid-template-columns:220px repeat(3,minmax(0,1fr));gap:1px;background:rgba(255,235,225,.08);border:1px solid rgba(255,235,225,.08);border-radius:12px;overflow:hidden">
+      <div style="background:#110c0b"></div>
+      <sc-for list="{{ offerCols }}" as="o" hint-placeholder-count="3">
+        <div style="background:{{ o.bg }};padding:18px 20px;display:flex;flex-direction:column;gap:6px"><span style="font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:{{ o.tagColor }}">{{ o.tag }}</span><span style="font:800 20px 'Archivo',sans-serif;font-stretch:108%">{{ o.name }}</span></div>
+      </sc-for>
+      <sc-for list="{{ offerRows }}" as="r" hint-placeholder-count="28">
+        <div style="background:{{ r.bg }};padding:14px 20px;font-size:{{ r.size }};font-weight:{{ r.weight }};color:{{ r.color }};font-family:{{ r.font }}">{{ r.v }}</div>
+      </sc-for>
+    </div>
+    <div style="font-size:13px;color:#a8968e;line-height:1.5;max-width:900px">Projection uses your last 12 months of streaming income ($13,200 a year) held flat. It's an estimate; if income grows, the sale costs you more. Terms from offer documents received Nov 2 and Nov 4.</div>
+    <div style="display:flex;gap:10px;border-top:1px solid rgba(255,235,225,.08);padding-top:20px">
+      <button style="font:700 15px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:13px 22px">Accept advance (goes to approval)</button>
+      <button style="font:600 15px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:13px 18px">Request more info</button>
+      <button style="margin-left:auto;font:600 15px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:13px 18px">Decline the sale</button>
+    </div>
+  </main>
+</div>
+</div>
+
+<!-- 5f DEPARTMENTS -->
+<div class="dv-opt" id="5f" data-screen-label="Departments">
+<div class="dv-olabel"><a class="dv-oid" href="#5f">5f</a>Departments · 14 with agent status and autonomy</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px minmax(0,1fr);min-height:1100px">
+  <dc-import name="BR Sidebar" active="Departments" hint-size="240px,100%"></dc-import>
+  <main style="padding:28px 40px;display:flex;flex-direction:column;gap:22px;min-width:0">
+    <div><div style="font:800 36px/1.05 'Archivo',sans-serif;font-stretch:112%;letter-spacing:-.02em">Departments</div><div style="font-size:15px;color:#cdbcb4;margin-top:6px">11 active · 3 coming in Phase 2. Money, signatures, filings and public posts always need your approval.</div></div>
+    <div style="background:#1b1312;border:1px solid rgba(239,106,42,.45);border-radius:12px;padding:22px 24px;display:grid;grid-template-columns:260px minmax(0,1fr);gap:28px">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e">Editing</div>
+        <div style="font:800 24px 'Archivo',sans-serif;font-stretch:110%">Royalties</div>
+        <div style="font-size:14px;color:#cdbcb4">Royalties Agent · 9 tasks this week</div>
+        <div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 12px;font-size:14px;margin-top:8px"><span style="color:#a8968e">Spend cap</span><span style="font-family:'IBM Plex Mono',monospace">$50 / month</span><span style="color:#a8968e">Person</span><span>Not assigned · <a href="#" style="text-decoration:none">Hand to a person</a></span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e">Autonomy</div>
+        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;background:#110c0b;border-radius:10px;padding:4px">
+          <sc-for list="{{ dial }}" as="d" hint-placeholder-count="4">
+            <div style="border-radius:8px;padding:12px 14px;background:{{ d.bg }};color:{{ d.fg }};opacity:{{ d.op }};display:flex;flex-direction:column;gap:4px"><span style="font-size:14px;font-weight:700">{{ d.n }}</span><span style="font-size:12px;line-height:1.4;color:{{ d.sub }}">{{ d.desc }}</span></div>
+          </sc-for>
+        </div>
+        <div style="font-size:13px;color:#a8968e">"Act within limits" is available for Royalties: it can match statement lines and fix metadata typos on its own. Payouts still come to you.</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
+      <sc-for list="{{ depts }}" as="d" hint-placeholder-count="14">
+        <div style="background:{{ d.bg }};border:1px solid {{ d.border }};border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px;opacity:{{ d.op }}">
+          <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:15px;font-weight:700">{{ d.name }}</span><sc-if value="{{ d.locked }}"><span style="font:500 10px 'IBM Plex Mono',monospace;border:1px solid rgba(255,235,225,.14);padding:1px 6px;border-radius:5px;color:#a8968e">Phase 2</span></sc-if></div>
+          <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#cdbcb4"><span style="width:7px;height:7px;border-radius:50%;background:{{ d.dot }}"></span>{{ d.agent }} · {{ d.state }}</div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:#a8968e;border-top:1px solid rgba(255,235,225,.06);padding-top:8px"><span>{{ d.level }}</span><span style="font-family:'IBM Plex Mono',monospace">{{ d.tasks }}</span></div>
+        </div>
+      </sc-for>
+    </div>
+  </main>
+</div>
+</div>
+
+<!-- 5g ACTIVITY LOG -->
+<div class="dv-opt" id="5g" data-screen-label="Activity log">
+<div class="dv-olabel"><a class="dv-oid" href="#5g">5g</a>Activity log · one run expanded</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px minmax(0,1fr);min-height:880px">
+  <dc-import name="BR Sidebar" active="none" hint-size="240px,100%"></dc-import>
+  <main style="padding:28px 40px;display:flex;flex-direction:column;gap:20px;min-width:0">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end">
+      <div><div style="font:800 36px/1.05 'Archivo',sans-serif;font-stretch:112%;letter-spacing:-.02em">Activity log</div><div style="font-size:15px;color:#cdbcb4;margin-top:6px">Everything agents and people did, with inputs and outputs.</div></div>
+      <div style="display:flex;gap:8px"><div style="border:1px solid rgba(255,235,225,.14);border-radius:8px;padding:9px 12px;font-size:14px"><span style="color:#a8968e">Type</span> All ⌄</div><div style="border:1px solid rgba(255,235,225,.14);border-radius:8px;padding:9px 12px;font-size:14px"><span style="color:#a8968e">Dept</span> All ⌄</div><button style="font:600 14px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:9px 14px">Export</button></div>
+    </div>
+    <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;overflow:hidden">
+      <sc-for list="{{ log }}" as="l" hint-placeholder-count="8">
+        <div style="border-bottom:1px solid rgba(255,235,225,.06);background:{{ l.bg }}">
+          <div style="display:grid;grid-template-columns:110px 130px minmax(0,1fr) 180px 150px;gap:16px;padding:13px 20px;align-items:center;font-size:14px">
+            <span style="font:500 12px 'IBM Plex Mono',monospace;color:#a8968e">{{ l.when }}</span>
+            <span style="font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:{{ l.kindColor }}">{{ l.kind }}</span>
+            <span>{{ l.text }}</span>
+            <span style="color:#cdbcb4;font-size:13px">{{ l.who }}</span>
+            <span style="font:500 12px 'IBM Plex Mono',monospace;color:#7d6c65;text-align:right">{{ l.id }}</span>
+          </div>
+          <sc-if value="{{ l.open }}">
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:0 20px 18px 276px">
+              <div style="background:#110c0b;border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:6px"><span style="font:500 11px 'IBM Plex Mono',monospace;color:#a8968e">INPUTS</span><span style="font:500 12px/1.6 'IBM Plex Mono',monospace;color:#cdbcb4">night_bus_streams_oct.csv<br>baseline: 30-day median<br>threshold: 4× median</span></div>
+              <div style="background:#110c0b;border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:6px"><span style="font:500 11px 'IBM Plex Mono',monospace;color:#a8968e">REASONING</span><span style="font-size:13px;line-height:1.5;color:#cdbcb4">Streams jumped from about 1,100 to 6,840 a day on Oct 28, mostly from one country with very short listens. That pattern often means artificial streams. I haven't confirmed it.</span></div>
+              <div style="background:#110c0b;border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:6px"><span style="font:500 11px 'IBM Plex Mono',monospace;color:#a8968e">OUTPUT</span><span style="font-size:13px;line-height:1.5;color:#cdbcb4">Flag raised on Home. Suggested asking the distributor for a stream report. No money held.</span></div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </main>
+</div>
+</div>
+
+<!-- 5h SETTINGS -->
+<div class="dv-opt" id="5h" data-screen-label="Settings">
+<div class="dv-olabel"><a class="dv-oid" href="#5h">5h</a>Settings · approval routing and integrations</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px 220px minmax(0,1fr);min-height:900px">
+  <dc-import name="BR Sidebar" active="none" hint-size="240px,100%"></dc-import>
+  <nav style="border-right:1px solid rgba(255,235,225,.08);padding:28px 14px;display:flex;flex-direction:column;gap:2px;font-size:14px">
+    <div style="font:800 24px 'Archivo',sans-serif;font-stretch:112%;padding:0 10px 16px">Settings</div>
+    <sc-for list="{{ settingsNav }}" as="s" hint-placeholder-count="8"><div style="padding:9px 10px;border-radius:8px;background:{{ s.bg }};color:{{ s.color }};font-weight:{{ s.weight }}">{{ s.n }}</div></sc-for>
+  </nav>
+  <main style="padding:28px 40px;display:flex;flex-direction:column;gap:24px;min-width:0">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="font:700 20px 'Archivo',sans-serif;font-stretch:110%">Approval routing</div>
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;overflow:hidden">
+        <sc-for list="{{ routing }}" as="r" hint-placeholder-count="5">
+          <div style="display:grid;grid-template-columns:160px minmax(0,1fr) 200px 140px;gap:16px;padding:14px 20px;align-items:center;border-bottom:1px solid rgba(255,235,225,.06);font-size:14px">
+            <span style="font-weight:600">{{ r.type }}</span><span style="color:#cdbcb4">{{ r.rule }}</span><span>{{ r.who }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#cdbcb4">{{ r.cap }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:16px 18px"><div style="font-size:12px;color:#a8968e">Statement period</div><div style="font-size:16px;font-weight:600;margin-top:4px">Monthly, artists quarterly</div></div>
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:16px 18px"><div style="font-size:12px;color:#a8968e">Minimum payout</div><div style="font:600 16px 'IBM Plex Mono',monospace;margin-top:4px">$25.00</div></div>
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:16px 18px"><div style="font-size:12px;color:#a8968e">Monthly agent spend cap</div><div style="font:600 16px 'IBM Plex Mono',monospace;margin-top:4px">$300.00</div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="font:700 20px 'Archivo',sans-serif;font-stretch:110%">Integrations</div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+        <sc-for list="{{ integrations }}" as="i" hint-placeholder-count="6">
+          <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:16px 18px;display:flex;align-items:center;gap:12px">
+            <div style="width:38px;height:38px;border-radius:8px;background:#241817;display:grid;place-items:center;font:600 11px 'IBM Plex Mono',monospace;color:#a8968e;flex:none">{{ i.abbr }}</div>
+            <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600">{{ i.n }}</div><div style="font-size:12px;color:{{ i.color }}">{{ i.icon }} {{ i.s }}</div></div>
+            <button style="font:{{ i.btnWeight }} 13px 'Hanken Grotesk',sans-serif;background:{{ i.btnBg }};color:{{ i.btnFg }};border:{{ i.btnBorder }};border-radius:8px;padding:8px 12px;flex:none">{{ i.action }}</button>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+<!-- 5i WHITE-LABEL -->
+<div class="dv-opt" id="5i" data-screen-label="White-label theming">
+<div class="dv-olabel"><a class="dv-oid" href="#5i">5i</a>White-label theming · licensee editing a sub-tenant, live preview</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px 440px minmax(0,1fr);min-height:880px">
+  <dc-import name="BR Sidebar" active="none" hint-size="240px,100%"></dc-import>
+  <div style="border-right:1px solid rgba(255,235,225,.08);padding:28px 28px;display:flex;flex-direction:column;gap:22px">
+    <div><div style="font-size:13px;color:#a8968e">Settings / White label</div><div style="font:800 28px 'Archivo',sans-serif;font-stretch:112%;margin-top:6px">Theme for Harbor Sound</div></div>
+    <div style="display:flex;flex-direction:column;gap:8px"><div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e">Logo</div><div style="height:90px;border-radius:10px;border:1px dashed rgba(255,235,225,.2);background:repeating-linear-gradient(135deg,#1b1312 0 8px,#170f0e 8px 16px);display:grid;place-items:center;font:500 12px 'IBM Plex Mono',monospace;color:#7d6c65">drop logo · SVG or PNG</div></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e">Colors</div>
+      <sc-for list="{{ themeTokens }}" as="t" hint-placeholder-count="5">
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid rgba(255,235,225,.06);font-size:14px"><span style="width:28px;height:28px;border-radius:7px;background:{{ t.v }};border:1px solid rgba(255,235,225,.15)"></span><span style="flex:1">{{ t.n }}</span><span style="font:500 12px 'IBM Plex Mono',monospace;color:#cdbcb4">{{ t.v }}</span></div>
+      </sc-for>
+      <div style="font-size:12px;color:#7fc29b">✓ All text pairs pass WCAG AA</div>
+    </div>
+    <div style="display:grid;grid-template-columns:110px minmax(0,1fr);gap:10px 12px;font-size:14px"><span style="color:#a8968e">Domain</span><span style="font-family:'IBM Plex Mono',monospace;font-size:13px">app.harborsound.co</span><span style="color:#a8968e">Email sender</span><span style="font-family:'IBM Plex Mono',monospace;font-size:13px">team@harborsound.co</span><span style="color:#a8968e">DNS</span><span style="color:#f2a65a">○ Waiting for CNAME</span></div>
+    <div style="display:flex;flex-direction:column;gap:6px"><div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e">Sub-tenants</div>
+      <div style="display:flex;justify-content:space-between;font-size:14px;padding:7px 0;border-top:1px solid rgba(255,235,225,.06)"><span>Harbor Sound</span><span style="color:#cdbcb4">4 artists</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:14px;padding:7px 0;border-top:1px solid rgba(255,235,225,.06)"><span>Northline Records</span><span style="color:#cdbcb4">3 artists</span></div>
+    </div>
+  </div>
+  <div style="padding:28px 32px;display:flex;flex-direction:column;gap:14px;background:#0b0807">
+    <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e">Preview</span><button style="font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:9px 14px">Publish theme</button></div>
+    <div style="flex:1;border-radius:12px;overflow:hidden;background:#0f1a1c;color:#e8f0ef;display:grid;grid-template-columns:150px minmax(0,1fr);border:1px solid rgba(255,255,255,.08)">
+      <div style="background:#0a1315;padding:16px 12px;display:flex;flex-direction:column;gap:6px;font-size:12px"><div style="font:800 13px 'Archivo',sans-serif;padding:0 6px 10px">Harbor Sound</div><div style="background:#16282b;border-radius:8px;padding:7px 8px;font-weight:600">Home</div><div style="padding:7px 8px;color:#a9bdbb">Approvals</div><div style="padding:7px 8px;color:#a9bdbb">Releases</div><div style="padding:7px 8px;color:#a9bdbb">Money</div></div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+        <div style="background:#1d4a4f;border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:6px"><span style="font:600 10px 'IBM Plex Mono',monospace;color:#bfe2df">LABEL HEAD · WEEKLY BRIEF</span><span style="font:800 20px 'Archivo',sans-serif">Good morning.</span><span style="font-size:12px;color:#d6ecea">Your release is on track and two items need you.</span></div>
+        <div style="background:#13221f;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px"><span style="font-size:13px;font-weight:600">Payout batch for October</span><span style="font:600 13px 'IBM Plex Mono',monospace">$1,240.18 to 6 payees</span><div style="display:flex;gap:6px"><span style="flex:1;text-align:center;background:#e2b33c;color:#0f1a1c;border-radius:8px;padding:7px 0;font-size:12px;font-weight:700">Approve</span><span style="flex:1;text-align:center;border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:7px 0;font-size:12px">Review</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- 5j MOBILE OFFER -->
+<div class="dv-opt" id="5j" data-screen-label="Mobile offer comparison">
+<div class="dv-olabel"><a class="dv-oid" href="#5j">5j</a>Offer comparison · mobile</div>
+<div class="dv-card" style="width:390px;height:844px;border-radius:44px;background:#110c0b;color:#f4ece6;display:flex;flex-direction:column;border:8px solid #000;box-sizing:border-box">
+  <div style="display:flex;justify-content:space-between;padding:14px 26px 6px;font:600 14px 'Hanken Grotesk',sans-serif"><span>9:41</span><span style="width:24px;height:11px;border:1.5px solid #f4ece6;border-radius:3px"></span></div>
+  <div style="flex:1;overflow:hidden;padding:14px 22px;display:flex;flex-direction:column;gap:16px">
+    <div style="font-size:14px;color:#a8968e">‹ Funding</div>
+    <div style="font:800 24px/1.15 'Archivo',sans-serif;font-stretch:108%">Two offers. Here's what each really costs.</div>
+    <sc-for list="{{ offerMobile }}" as="o" hint-placeholder-count="3">
+      <div style="background:#1b1312;border:1px solid {{ o.border }};border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="font-size:15px;font-weight:700">{{ o.name }}</span><span style="font:600 11px 'IBM Plex Mono',monospace;color:{{ o.tagColor }};white-space:nowrap">{{ o.tag }}</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;font-size:13px"><span style="color:#a8968e">Cash now</span><span style="color:#a8968e">Costs over 5 yrs</span><span style="font:600 18px 'IBM Plex Mono',monospace">{{ o.cash }}</span><span style="font:600 18px 'IBM Plex Mono',monospace;color:{{ o.costColor }}">{{ o.cost }}</span></div>
+        <div style="font-size:13px;color:#cdbcb4;line-height:1.45">{{ o.note }}</div>
+      </div>
+    </sc-for>
+    <div style="display:flex;gap:10px;margin-top:auto"><button style="flex:1;height:48px;font:600 15px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px">Ask a question</button><button style="flex:1;height:48px;font:700 15px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px">Accept advance</button></div>
+  </div>
+  <div style="height:30px"></div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "build the Claude Code handoff package" · "show the Registrations tracker on mobile" · "add an empty state for Funding"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const OK = '#7fc29b', RED = '#ff5a4e', WARN = '#f2a65a', OR = '#ef6a2a', MUTED = '#a8968e';
+    const tabs = (arr, on = 0) => arr.map(([label, n], i) => ({ label, n: n ?? '', weight: i === on ? 700 : 500, color: i === on ? '#f4ece6' : '#cdbcb4', line: i === on ? OR : 'transparent' }));
+    const ST = { 'Confirmed': ['✓', OK], 'Submitted': ['↑', '#9fb6d9'], 'Needs you': ['!', RED], 'Prepared': ['○', OR], 'Not started': ['–', MUTED], 'Blocked': ['■', RED] };
+    const cell = (s, ref = '') => ({ isCell: true, s, ref, icon: ST[s][0], color: ST[s][1], bg: s === 'Needs you' ? 'rgba(255,90,78,.1)' : 'transparent' });
+    const regRows = [
+      ['Glasshouse', 'Kesi Vale', ['Confirmed', 'BMI #8821'], ['Needs you'], ['Confirmed', 'SX-44120'], ['Prepared'], ['Not started'], ['Not started']],
+      ['Night Bus', 'The Low Hours', ['Confirmed', 'ASCAP #1193'], ['Needs you'], ['Confirmed', 'SX-40018'], ['Confirmed', 'SX-40019'], ['Submitted', 'SR 1-2291'], ['Prepared']],
+      ['Static Hymn', 'The Low Hours', ['Confirmed', 'ASCAP #1194'], ['Needs you'], ['Submitted'], ['Submitted'], ['Not started'], ['Not started']],
+      ['Velvet Hours', 'Kesi Vale', ['Confirmed', 'BMI #8204'], ['Confirmed', 'MLC 77310'], ['Confirmed'], ['Confirmed'], ['Confirmed', 'SR 1-1840'], ['Submitted']],
+      ['Low Light', 'Marco Dela', ['Prepared'], ['Prepared'], ['Blocked', 'needs ISRC'], ['Not started'], ['Not started'], ['Not started']]
+    ];
+    const regCells = []; regRows.forEach(([name, artist, ...cs]) => { regCells.push({ isName: true, name, artist }); cs.forEach(c => regCells.push(cell(c[0], c[1]))); });
+    const offerCols = [
+      { tag: 'Baseline', name: 'No offer', bg: '#1b1312', tagColor: MUTED },
+      { tag: 'Royalty advance', name: '$8,000 now', bg: '#241817', tagColor: OR },
+      { tag: '! Permanent sale', name: '$15,000 now', bg: '#2a1214', tagColor: RED }
+    ];
+    const rowsDef = [
+      ['Cash now', '$0', '$8,000', '$15,000', true],
+      ['You give up', 'Nothing', '60% of streaming income until $8,960 is repaid', '50% of Velvet Hours album income, forever'],
+      ['Term', 'n/a', 'About 14 months', 'Permanent'],
+      ['Buy-back', 'n/a', 'Repay early, no penalty', 'None offered'],
+      ['Effective yearly cost', '$0', 'About 10%', 'About 16% a year, forever'],
+      ['Your income, next 5 years', '$66,000', '$65,040', '$54,000 + $15,000 now'],
+      ['Cost over 5 years', '$0', '$960', '$12,000 and continuing', true]
+    ];
+    const offerRows = []; rowsDef.forEach(([k, a, b, c, big]) => {
+      offerRows.push({ v: k, bg: '#110c0b', size: '13px', weight: 500, color: MUTED, font: "'Hanken Grotesk',sans-serif" });
+      [[a, '#1b1312', '#cdbcb4'], [b, '#241817', '#f4ece6'], [c, '#2a1214', k.startsWith('Cost') || k === 'Term' ? '#ff8178' : '#f4ece6']].forEach(([v, bg, color]) =>
+        offerRows.push({ v, bg, color, size: big ? '20px' : '14px', weight: big ? 600 : 500, font: big || /^\$/.test(v) ? "'IBM Plex Mono',monospace" : "'Hanken Grotesk',sans-serif" }));
+    });
+    const deptDef = [
+      ['Release', 'Release Agent', 'working', OR, 'Draft and wait', '12'], ['Distribution', 'Distribution Agent', 'idle', MUTED, 'Draft and wait', '2'],
+      ['Metadata', 'Metadata Agent', 'done', OK, 'Act within limits', '8'], ['Legal', 'Legal Agent', 'waiting on you', RED, 'Draft and wait', '3'],
+      ['Royalties', 'Royalties Agent', 'working', OR, 'Draft and wait', '9', true], ['Finance', 'Finance Agent', 'idle', MUTED, 'Suggest', '1'],
+      ['Publishing', 'Publishing Agent', 'waiting on you', RED, 'Draft and wait', '4'], ['Rights', 'Rights Agent', 'working', OR, 'Draft and wait', '5'],
+      ['Funding', 'Funding Scout', 'done', OK, 'Draft and wait', '3'], ['Audit', 'Audit Agent', 'blocked', RED, 'Observe', '2'],
+      ['Artist relations', 'Roster Agent', 'idle', MUTED, 'Suggest', '1'],
+      ['Marketing', 'Not active', 'coming later', MUTED, 'Phase 2', '', false, true], ['Press and radio', 'Not active', 'coming later', MUTED, 'Phase 2', '', false, true], ['Content studio', 'Not active', 'coming later', MUTED, 'Phase 2', '', false, true]
+    ];
+    const integ = [['Distributor', 'DS', 'Connected', 'ok'], ['PRO (BMI)', 'PRO', 'Connected', 'ok'], ['SoundExchange', 'SX', 'Not connected', 'off'], ['Payouts', '$', 'Connected', 'ok'], ['Accounting', 'ACC', 'Token expired', 'err'], ['E-signature', 'SIG', 'Connected', 'ok']];
+    return {
+      catTabs: tabs([['Songs', 18], ['Recordings', 21], ['Releases', 9], ['Assets', 146]], 1),
+      recordings: [
+        ['Glasshouse', 'Kesi Vale', 'USNL12600014', 92, 'None', true], ['Night Bus', 'The Low Hours', 'USNL12500031', 100, 'None'], ['Static Hymn', 'The Low Hours', 'USNL12500032', 84, 'None'],
+        ['Velvet Hours', 'Kesi Vale', 'USNL12400007', 100, 'None'], ['Low Light', 'Marco Dela', 'Not assigned', 46, 'Partial, stems'], ['Night Bus (demo)', 'The Low Hours', 'USNL12500029', 71, 'None'], ['Paper Moons', 'Kesi Vale', 'USNL12400008', 96, 'None']
+      ].map(([title, artist, isrc, s, ai, sel]) => ({ title, artist, isrc, ai, score: s + '%', scoreColor: s >= 90 ? OK : s >= 70 ? WARN : RED, isrcColor: isrc.startsWith('Not') ? RED : '#cdbcb4', bg: sel ? '#241817' : 'transparent' })),
+      credits: [{ n: 'Kesi Vale', r: 'Artist, writer' }, { n: 'Marco Dela', r: 'Producer, writer' }, { n: 'Ari Monroe', r: 'Featured vocal' }, { n: 'Ines Pardo', r: 'Mix engineer' }, { n: 'Jules Arden', r: 'Bass' }],
+      contracts: [
+        ['Producer agreement, Glasshouse', 'Northline producer v3 · 2 edits', 'Marco Dela', '3 points, $1,500 advance', 'Nov 9', 'Approval due', 'Waiting on you', '!', RED],
+        ['Artist agreement', 'Northline artist v2', 'Kesi Vale', '50/50 net profit, 3 years', 'Mar 6, 2029', 'Option period', 'Signed', '✓', OK],
+        ['Band agreement', 'Northline artist v2', 'The Low Hours (3)', '50/50 net profit, $5,000 advance', 'Jan 9', 'Audit window closes', 'Signed', '✓', OK],
+        ['Feature agreement', 'Northline feature v1', 'Ari Monroe', '10% of artist share', 'n/a', '', 'Signed', '✓', OK],
+        ['Split sheet, Glasshouse song', 'Split sheet v1', 'Kesi, Marco', '75 / 25', 'n/a', '', '1 of 2 signed', '○', OR],
+        ['Distribution agreement', 'Third party · reviewed', 'Distributor', '0% fee, 1 year auto-renew', 'Aug 1', 'Renewal', 'Signed', '✓', OK]
+      ].map(([name, template, parties, terms, date, dateWhat, sig, icon, color]) => ({ name, template, parties, terms, date, dateWhat, sig, icon, color })),
+      templates: [{ n: 'Artist agreement', v: 'v2 · net profit' }, { n: 'Producer agreement', v: 'v3 · points' }, { n: 'Feature agreement', v: 'v1' }, { n: 'Split sheet', v: 'v1 · song' }, { n: 'Sync license', v: 'v1 · one-off' }],
+      legend: Object.entries(ST).map(([s, [icon, color]]) => ({ s, icon, color })),
+      regCols: [{ n: 'Recording', sub: '' }, { n: 'PRO', sub: 'performance' }, { n: 'MLC', sub: 'mechanical' }, { n: 'SoundExchange', sub: 'owner' }, { n: 'SoundExchange', sub: 'artist' }, { n: 'Copyright', sub: 'US Office' }, { n: 'Neighboring', sub: 'outside US' }],
+      regCells,
+      fundTabs: tabs([['Opportunities', 3], ['Applications', 1], ['Offers', 2]]),
+      funding: [
+        { type: 'Grant · non-repayable', title: 'State arts council project grant', amount: 'Up to $5,000', cost: 'Nothing to repay', costColor: OK, deadline: 'Nov 15 · 9 days', draft: '80% done', fit: '86%', verified: 'Nov 3, 2026', permanent: false, primary: 'Open draft', border: 'rgba(239,106,42,.45)', typeColor: OK },
+        { type: 'Royalty advance', title: '$8,000 for 60% of streaming until repaid', amount: '$8,000', cost: 'About $960, 14 months', costColor: '#f4ece6', deadline: 'Offer open to Dec 1', draft: 'Compare', fit: '71%', verified: 'Nov 2, 2026', permanent: false, primary: 'Compare', border: 'rgba(255,235,225,.08)', typeColor: OR },
+        { type: 'Partial catalog sale', title: '$15,000 for 50% of one album, forever', amount: '$15,000', cost: 'About $12,000 over 5 yrs', costColor: RED, deadline: 'Offer open to Nov 30', draft: 'Compare', fit: '38%', verified: 'Nov 4, 2026', permanent: true, primary: 'Compare', border: 'rgba(255,90,78,.4)', typeColor: RED }
+      ],
+      offerCols, offerRows,
+      offerMobile: [
+        { name: 'No offer', tag: 'Baseline', tagColor: MUTED, cash: '$0', cost: '$0', costColor: '#f4ece6', note: 'You keep all income, about $13,200 a year.', border: 'rgba(255,235,225,.08)' },
+        { name: 'Royalty advance', tag: '14 months', tagColor: OR, cash: '$8,000', cost: '$960', costColor: '#f4ece6', note: '60% of streaming until $8,960 is repaid. Then it ends.', border: 'rgba(239,106,42,.45)' },
+        { name: 'Catalog sale', tag: '! Permanent', tagColor: RED, cash: '$15,000', cost: '$12,000+', costColor: '#ff8178', note: 'Half of Velvet Hours income, forever. No buy-back.', border: 'rgba(255,90,78,.4)' }
+      ],
+      dial: [['Observe', 'Watch and report'], ['Suggest', 'Say what it would do'], ['Draft and wait', 'Prepare, wait for you'], ['Act within limits', 'Finish routine tasks under caps']]
+        .map(([n, desc], i) => ({ n, desc, bg: i === 2 ? OR : 'transparent', fg: i === 2 ? '#110c0b' : '#f4ece6', sub: i === 2 ? '#3a1a0a' : MUTED, op: 1 })),
+      depts: deptDef.map(([name, agent, state, dot, level, tasks, sel, locked]) => ({ name, agent, state, dot, level, tasks: tasks ? tasks + ' this week' : '', locked: !!locked, op: locked ? .55 : 1, bg: sel ? '#241817' : '#1b1312', border: sel ? 'rgba(239,106,42,.45)' : 'rgba(255,235,225,.08)' })),
+      log: [
+        ['Nov 6, 9:12', 'Agent run', OK, 'Completed credits for 4 tracks', 'Metadata Agent', 'RUN-88123'],
+        ['Nov 6, 8:40', 'Flag', RED, 'Unusual stream spike on "Night Bus"', 'Audit Agent', 'RUN-88119', true],
+        ['Nov 6, 8:02', 'Error', RED, 'Distributor import failed, retried at 8:05', 'Royalties Agent', 'RUN-88110'],
+        ['Nov 5, 17:30', 'Approval', OR, 'Approved Glasshouse budget, $3,000', 'Jana', 'APR-2210'],
+        ['Nov 5, 16:12', 'Tool call', MUTED, 'e-signature.send(producer_v3, Marco Dela)', 'Legal Agent', 'TC-55120'],
+        ['Nov 5, 11:47', 'Edit', MUTED, 'Changed split draft v5: Kesi 50% to 55%', 'Jana', 'EDT-0912'],
+        ['Nov 4, 9:00', 'Agent run', OK, 'Found 2 new grants', 'Funding Scout', 'RUN-87940']
+      ].map(([when, kind, kindColor, text, who, id, open]) => ({ when, kind, kindColor, text, who, id, open: !!open, bg: open ? '#241817' : 'transparent' })),
+      settingsNav: ['Profile', 'Approval routing', 'Limits and caps', 'Statements and payouts', 'Integrations', 'Team and roles', 'White label', 'Billing'].map((n, i) => ({ n, bg: i === 1 ? '#241817' : 'transparent', color: i === 1 ? '#f4ece6' : '#cdbcb4', weight: i === 1 ? 600 : 400 })),
+      routing: [
+        { type: 'Money', rule: 'Payouts, refunds, spend over cap', who: 'Jana', cap: 'Over $0' },
+        { type: 'Signature', rule: 'Any agreement. Never bulk-approved.', who: 'Jana', cap: 'Always' },
+        { type: 'Filing', rule: 'PRO, MLC, SoundExchange, copyright', who: 'Jana or Rights lead', cap: 'Always' },
+        { type: 'Public', rule: 'Posts, pitches, press (Phase 2)', who: 'Jana', cap: 'Always' },
+        { type: 'Plan', rule: 'New goals and budget changes', who: 'Jana', cap: 'Over $250' }
+      ],
+      integrations: integ.map(([n, abbr, s, k]) => ({ n, abbr, s, icon: k === 'ok' ? '✓' : k === 'err' ? '!' : '–', color: k === 'ok' ? OK : k === 'err' ? RED : MUTED, action: k === 'ok' ? 'Manage' : k === 'err' ? 'Reconnect' : 'Connect',
+        btnBg: k === 'ok' ? 'transparent' : OR, btnFg: k === 'ok' ? '#f4ece6' : '#110c0b', btnBorder: k === 'ok' ? '1px solid rgba(255,235,225,.18)' : '0', btnWeight: k === 'ok' ? 600 : 700 })),
+      themeTokens: [{ n: 'Background', v: '#0f1a1c' }, { n: 'Surface', v: '#13221f' }, { n: 'Brand block', v: '#1d4a4f' }, { n: 'Primary action', v: '#e2b33c' }, { n: 'Text', v: '#e8f0ef' }]
+    };
+  }
+}
+</script>
+</body>
+</html>

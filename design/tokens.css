@@ -1,0 +1,81 @@
+/* Break Records design tokens. Dark is the default theme. White-label tenants override :root values. */
+:root, [data-theme="dark"] {
+  /* surfaces */
+  --bg: #110c0b;
+  --bg-sidebar: #0b0807;
+  --surface: #1b1312;
+  --surface-raised: #241817;   /* selected rows, hover, banners */
+  --track: #2e201e;            /* progress tracks */
+  --surface-sheet: #f2ebe4;    /* document preview */
+  --on-sheet: #1c1412;
+
+  /* text */
+  --text: #f4ece6;
+  --text-2: #cdbcb4;
+  --text-muted: #a8968e;
+  --text-faint: #7d6c65;
+
+  /* lines */
+  --line: rgba(255,235,225,.08);
+  --line-soft: rgba(255,235,225,.06);
+  --line-control: rgba(255,235,225,.18);
+  --line-chip: rgba(255,235,225,.14);
+
+  /* brand */
+  --accent: #ef6a2a;           /* primary action + Label Head */
+  --accent-hover: #ff8a4f;
+  --on-accent: #110c0b;
+  --accent-line: rgba(239,106,42,.45);
+  --brand: #5c1424;            /* burgundy blocks */
+  --on-brand: #fbe7ea;
+  --on-brand-2: #f0bcc4;
+  --on-brand-label: #f6c9d0;
+  --brand-line: rgba(251,231,234,.35);
+
+  /* status (always paired with icon + label) */
+  --good: #7fc29b;
+  --warn: #f2a65a;
+  --critical: #ff5a4e;
+  --critical-line: rgba(255,90,78,.4);
+  --critical-tint: rgba(255,90,78,.1);
+  --info: #9fb6d9;
+
+  /* split bar party colors */
+  --party-1: #5c1424;
+  --party-2: #3a2a27;
+  --party-3: #ef6a2a;
+  --party-4: #f2a65a;
+
+  /* type */
+  --font-display: 'Archivo', system-ui, sans-serif;
+  --font-ui: 'Hanken Grotesk', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* radius */
+  --r-chip: 6px;
+  --r-control: 8px;            /* buttons, inputs, nav items */
+  --r-card: 12px;
+  --r-card-mobile: 14px;
+
+  /* shadow (used only for floating overlays) */
+  --shadow-overlay: 0 10px 40px rgba(0,0,0,.4);
+
+  /* layout */
+  --sidebar-w: 240px;
+  --rail-w: 310px;
+  --page-pad-x: 40px;
+  --page-pad-y: 28px;
+  --tap-min: 44px;
+}
+
+/* Light theme: NOT designed yet. Placeholder values so components can be built theme-aware. */
+[data-theme="light"] {
+  --bg: #f7f2ee; --bg-sidebar: #efe8e3; --surface: #ffffff; --surface-raised: #f3e9e3; --track: #e6dad3;
+  --text: #1a1210; --text-2: #4a3c37; --text-muted: #6e5f59; --text-faint: #8f817b;
+  --line: rgba(40,20,15,.10); --line-soft: rgba(40,20,15,.07); --line-control: rgba(40,20,15,.22); --line-chip: rgba(40,20,15,.16);
+  --accent: #c94f14; --on-accent: #ffffff; --brand: #5c1424; --on-brand: #fbe7ea;
+  --good: #2e7d50; --warn: #a15c12; --critical: #c5271c; --info: #3c5f94;
+}
+
+/* density */
+[data-density="compact"] { --page-pad-x: 28px; --page-pad-y: 20px; }

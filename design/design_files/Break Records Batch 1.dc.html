@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#2a2321;font-family:'Hanken Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#ef6a2a}a:hover{color:#ff8a4f}
+.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(255,255,255,.08);scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}
+.dv-tid{font:600 10px 'IBM Plex Mono',monospace;padding:3px 7px;background:#ef6a2a;color:#110c0b;border-radius:4px;text-decoration:none}
+.dv-tname{font:600 13px/1.2 'Hanken Grotesk',sans-serif;color:#f4ece6}
+.dv-opts{display:flex;flex-wrap:wrap;gap:48px 40px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:10px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(255,255,255,.12);color:#f4ece6;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 12px/1.3 'Hanken Grotesk',sans-serif;color:rgba(244,236,230,.7)}
+.dv-card{max-width:100%;border-radius:10px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.dv-opt:target .dv-oid{background:#ef6a2a;color:#110c0b}
+.dv-next{margin:28px 0 0;font:13px/1.5 'Hanken Grotesk',sans-serif;color:rgba(244,236,230,.6)}
+.dv-intro{max-width:900px;margin:0 0 28px;font:14px/1.6 'Hanken Grotesk',sans-serif;color:rgba(244,236,230,.75)}
+</style>
+</helmet>
+<section class="dv-turn" id="t3">
+<div class="dv-thd"><a class="dv-tid" href="#t3">3</a><span class="dv-tname">States for Home (<a class="dv-oid" href="#2c">2c</a>) and Approval inbox (<a class="dv-oid" href="#2d">2d</a>)</span></div>
+<div class="dv-intro">Main content area only; the sidebar stays as shown in turn 2. "Waiting on you" is the default state already in <a class="dv-oid" href="#2c">2c</a> and <a class="dv-oid" href="#2d">2d</a>. Status always pairs a shape and a word with its color.</div>
+<div class="dv-opts" style="display:grid;grid-template-columns:repeat(2,700px);gap:40px">
+
+<div class="dv-opt" id="3a" data-screen-label="Home: empty"><div class="dv-olabel"><a class="dv-oid" href="#3a">3a</a>Home · empty, first use</div>
+<div class="dv-card" style="background:#110c0b;color:#f4ece6;padding:32px;display:flex;flex-direction:column;gap:20px;height:420px;box-sizing:border-box">
+  <div style="font:800 32px/1.1 'Archivo',sans-serif;font-stretch:112%;letter-spacing:-.02em">Welcome, Jana. What are you working on?</div>
+  <div style="font-size:15px;color:#cdbcb4;line-height:1.5">Tell me a goal in your own words. I'll come back with a plan, a budget and dates for you to approve.</div>
+  <div style="background:#1b1312;border:2px solid #ef6a2a;border-radius:12px;padding:16px 18px;display:flex;align-items:center;gap:12px"><span style="flex:1;font-size:16px;color:#a8968e">Release a single March 6 on a $3,000 budget</span><button style="font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:10px 16px">Draft a plan</button></div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e">Or start from one of these</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:14px">
+      <span style="border:1px solid rgba(255,235,225,.16);border-radius:8px;padding:8px 12px">Plan an EP for May</span><span style="border:1px solid rgba(255,235,225,.16);border-radius:8px;padding:8px 12px">Find money I'm owed</span><span style="border:1px solid rgba(255,235,225,.16);border-radius:8px;padding:8px 12px">Set up splits for my band</span><span style="border:1px solid rgba(255,235,225,.16);border-radius:8px;padding:8px 12px">Find grants I qualify for</span>
+    </div>
+  </div>
+</div></div>
+
+<div class="dv-opt" id="3b" data-screen-label="Inbox: empty"><div class="dv-olabel"><a class="dv-oid" href="#3b">3b</a>Approvals · empty, all clear</div>
+<div class="dv-card" style="background:#110c0b;color:#f4ece6;padding:32px;display:flex;flex-direction:column;gap:20px;height:420px;box-sizing:border-box">
+  <div style="font:800 32px 'Archivo',sans-serif;font-stretch:112%">Approvals</div>
+  <div style="flex:1;border:1px dashed rgba(255,235,225,.16);border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px">
+    <div style="width:44px;height:44px;border-radius:10px;background:#241817;color:#7fc29b;display:grid;place-items:center;font-size:20px;font-weight:700">✓</div>
+    <div style="font:700 20px 'Archivo',sans-serif;font-stretch:110%">Nothing needs you right now</div>
+    <div style="font-size:14px;color:#cdbcb4;max-width:400px;line-height:1.5">Your staff are working on 6 tasks. The next approval I expect is the MLC filing for The Low Hours, around Nov 20.</div>
+    <button style="font:600 14px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:10px 16px">See what agents are doing</button>
+  </div>
+</div></div>
+
+<div class="dv-opt" id="3c" data-screen-label="Home: working"><div class="dv-olabel"><a class="dv-oid" href="#3c">3c</a>Home · loading and agent working</div>
+<div class="dv-card" style="background:#110c0b;color:#f4ece6;padding:32px;display:flex;flex-direction:column;gap:18px;height:420px;box-sizing:border-box">
+  <div style="background:#5c1424;border-radius:12px;padding:22px 24px;display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;align-items:center;gap:8px;font:600 12px 'IBM Plex Mono',monospace;color:#f6c9d0;text-transform:uppercase;letter-spacing:.08em"><span style="width:8px;height:8px;border-radius:2px;background:#ef6a2a"></span>Label Head · writing this week's brief</div>
+    <div style="height:14px;width:78%;border-radius:4px;background:rgba(251,231,234,.14)"></div><div style="height:14px;width:62%;border-radius:4px;background:rgba(251,231,234,.14)"></div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+    <div style="height:120px;border-radius:12px;background:#1b1312"></div><div style="height:120px;border-radius:12px;background:#1b1312"></div><div style="height:120px;border-radius:12px;background:#1b1312"></div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <span style="display:flex;align-items:center;gap:7px;font-size:13px;border:1px solid rgba(239,106,42,.4);border-radius:8px;padding:6px 10px"><span style="width:7px;height:7px;border-radius:50%;background:#ef6a2a"></span>Royalties Agent · importing October statements</span>
+    <span style="display:flex;align-items:center;gap:7px;font-size:13px;border:1px solid rgba(239,106,42,.4);border-radius:8px;padding:6px 10px"><span style="width:7px;height:7px;border-radius:50%;background:#ef6a2a"></span>Metadata Agent · working</span>
+  </div>
+  <div style="font-size:13px;color:#a8968e">Numbers refresh when the statements finish. Usually under a minute.</div>
+</div></div>
+
+<div class="dv-opt" id="3d" data-screen-label="Inbox: working"><div class="dv-olabel"><a class="dv-oid" href="#3d">3d</a>Approvals · agents preparing</div>
+<div class="dv-card" style="background:#110c0b;color:#f4ece6;padding:32px;display:flex;flex-direction:column;gap:14px;height:420px;box-sizing:border-box">
+  <div style="font:800 32px 'Archivo',sans-serif;font-stretch:112%">Approvals</div>
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:16px 18px">
+    <div><div style="font-size:16px;font-weight:600">Payout batch for October</div><div style="font-size:13px;color:#a8968e;margin-top:3px">Royalties Agent · ready in about 2 minutes</div></div>
+    <span style="display:flex;align-items:center;gap:7px;font-size:13px;color:#ef6a2a"><span style="width:7px;height:7px;border-radius:50%;background:#ef6a2a"></span>Preparing</span>
+  </div>
+  <div style="height:72px;border-radius:12px;background:#1b1312"></div>
+  <div style="height:72px;border-radius:12px;background:#1b1312;opacity:.6"></div>
+  <div style="font-size:13px;color:#a8968e">I'll let you know when these are ready. You don't need to wait here.</div>
+</div></div>
+
+<div class="dv-opt" id="3e" data-screen-label="Home: blocked"><div class="dv-olabel"><a class="dv-oid" href="#3e">3e</a>Home · blocked goal</div>
+<div class="dv-card" style="background:#110c0b;color:#f4ece6;padding:32px;display:flex;flex-direction:column;gap:16px;height:420px;box-sizing:border-box">
+  <div style="font:700 20px 'Archivo',sans-serif;font-stretch:110%">Active goals</div>
+  <div style="background:#1b1312;border:1px solid rgba(255,90,78,.4);border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:16px;font-weight:600">Glasshouse single</div><span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#ff5a4e"><span style="width:8px;height:8px;transform:rotate(45deg);background:#ff5a4e"></span>Blocked</span></div>
+    <div style="height:6px;border-radius:3px;background:#2e201e"><div style="width:62%;height:6px;border-radius:3px;background:#ef6a2a"></div></div>
+    <div style="font-size:14px;line-height:1.5"><strong>Delivery can't start.</strong> The split sheet needs Marco Dela's signature. Legal Agent sent it Nov 9 and reminded him Nov 12.</div>
+    <div style="display:flex;gap:8px"><button style="font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:10px 16px">Send another reminder</button><button style="font:600 14px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:10px 16px">Open runbook</button></div>
+  </div>
+  <div style="font-size:13px;color:#a8968e">If it isn't signed by Jan 9, I'll suggest moving the release date.</div>
+</div></div>
+
+<div class="dv-opt" id="3f" data-screen-label="Inbox: blocked"><div class="dv-olabel"><a class="dv-oid" href="#3f">3f</a>Approvals · blocked card</div>
+<div class="dv-card" style="background:#110c0b;color:#f4ece6;padding:32px;display:flex;flex-direction:column;gap:14px;height:420px;box-sizing:border-box">
+  <div style="font:800 32px 'Archivo',sans-serif;font-stretch:112%">Approvals</div>
+  <div style="background:#1b1312;border:1px solid rgba(255,90,78,.4);border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;justify-content:space-between;font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#a8968e"><span>● Money · due Nov 10</span><span style="display:flex;align-items:center;gap:6px;color:#ff5a4e"><span style="width:7px;height:7px;transform:rotate(45deg);background:#ff5a4e"></span>Blocked</span></div>
+    <div style="font-size:16px;font-weight:600">Payout batch for October</div>
+    <div style="font-size:14px;line-height:1.5">Can't approve yet. <strong>Rue Sato's tax form is missing</strong>, so her $214.20 would need 24% withheld. Owner: Rue Sato.</div>
+    <div style="display:flex;gap:8px"><button style="font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:10px 16px">Ask Rue for a W-9</button><button style="font:600 14px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:10px 16px">Pay the other 5 now</button></div>
+  </div>
+</div></div>
+
+<div class="dv-opt" id="3g" data-screen-label="Home: error"><div class="dv-olabel"><a class="dv-oid" href="#3g">3g</a>Home · error</div>
+<div class="dv-card" style="background:#110c0b;color:#f4ece6;padding:32px;display:flex;flex-direction:column;gap:16px;height:420px;box-sizing:border-box">
+  <div style="background:#1b1312;border:1px solid rgba(255,90,78,.4);border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#ff5a4e"><span style="width:18px;height:18px;border-radius:5px;background:#ff5a4e;color:#110c0b;display:grid;place-items:center;font-size:12px;font-weight:800">!</span>The distributor import failed</div>
+    <div style="font-size:15px;line-height:1.5">I couldn't read the October statement. <strong>No money moved and nothing was filed.</strong> Income and forecast below still show September.</div>
+    <div style="font:500 12px 'IBM Plex Mono',monospace;color:#a8968e">Error DS-401 · Nov 6, 8:02 · Audit AUD-7F3K-2288</div>
+    <div style="display:flex;gap:8px"><button style="font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:10px 16px">Retry import</button><button style="font:600 14px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:10px 16px">Reconnect distributor</button></div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(255,235,225,.08);border-radius:12px;overflow:hidden">
+    <div style="background:#110c0b;padding:14px 16px"><div style="font-size:12px;color:#a8968e">Income, Sep</div><div style="font:600 20px 'IBM Plex Mono',monospace;color:#cdbcb4">$8,412.60</div></div>
+    <div style="background:#110c0b;padding:14px 16px"><div style="font-size:12px;color:#a8968e">Owed to payees</div><div style="font:600 20px 'IBM Plex Mono',monospace;color:#cdbcb4">$0.00</div></div>
+    <div style="background:#110c0b;padding:14px 16px"><div style="font-size:12px;color:#a8968e">Cash, 90 days</div><div style="font:600 20px 'IBM Plex Mono',monospace;color:#cdbcb4">Stale</div></div>
+  </div>
+</div></div>
+
+<div class="dv-opt" id="3h" data-screen-label="Inbox: error"><div class="dv-olabel"><a class="dv-oid" href="#3h">3h</a>Approvals · approved, then failed</div>
+<div class="dv-card" style="background:#110c0b;color:#f4ece6;padding:32px;display:flex;flex-direction:column;gap:14px;height:420px;box-sizing:border-box">
+  <div style="font:800 32px 'Archivo',sans-serif;font-stretch:112%">Approvals</div>
+  <div style="background:#1b1312;border:1px solid rgba(255,90,78,.4);border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#ff5a4e"><span style="width:18px;height:18px;border-radius:5px;background:#ff5a4e;color:#110c0b;display:grid;place-items:center;font-size:12px;font-weight:800">!</span>Payout partly failed</div>
+    <div style="font-size:15px;line-height:1.5">5 of 6 payments sent ($1,025.98). <strong>Theo Lind's $214.20 bounced</strong>; the bank details look out of date. The money is back in the balance.</div>
+    <div style="display:flex;gap:8px"><button style="font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:10px 16px">Ask Theo to update details</button><button style="font:600 14px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:10px 16px">Retry payment</button></div>
+  </div>
+</div></div>
+
+<div class="dv-opt" id="3i" data-screen-label="Home: partial"><div class="dv-olabel"><a class="dv-oid" href="#3i">3i</a>Home · partial data</div>
+<div class="dv-card" style="background:#110c0b;color:#f4ece6;padding:32px;display:flex;flex-direction:column;gap:16px;height:420px;box-sizing:border-box">
+  <div style="font:700 20px 'Archivo',sans-serif;font-stretch:110%">This period</div>
+  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:rgba(255,235,225,.08);border-radius:12px;overflow:hidden">
+    <div style="background:#110c0b;padding:14px 16px"><div style="font-size:12px;color:#a8968e">Income this period</div><div style="font:600 20px 'IBM Plex Mono',monospace">$10,000.00</div><div style="font-size:12px;color:#cdbcb4">Distributor only</div></div>
+    <div style="background:#110c0b;padding:14px 16px"><div style="font-size:12px;color:#a8968e">Owed to payees</div><div style="font:600 20px 'IBM Plex Mono',monospace">$1,240.18</div></div>
+    <div style="background:#1b1312;padding:14px 16px;display:flex;flex-direction:column;gap:6px"><div style="font-size:12px;color:#a8968e">Unclaimed found</div><div style="font-size:14px;color:#cdbcb4">Connect your PRO to search</div></div>
+  </div>
+  <div style="background:#241817;border-radius:12px;padding:16px 18px;display:flex;align-items:center;gap:14px">
+    <div style="flex:1;font-size:14px;line-height:1.5"><strong>Your PRO and SoundExchange aren't connected.</strong> Performance royalties aren't in these numbers yet.</div>
+    <button style="font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:10px 16px">Connect</button>
+  </div>
+</div></div>
+
+<div class="dv-opt" id="3j" data-screen-label="Inbox: partial"><div class="dv-olabel"><a class="dv-oid" href="#3j">3j</a>Approvals · partial data</div>
+<div class="dv-card" style="background:#110c0b;color:#f4ece6;padding:32px;display:flex;flex-direction:column;gap:14px;height:420px;box-sizing:border-box">
+  <div style="font:800 32px 'Archivo',sans-serif;font-stretch:112%">Approvals</div>
+  <div style="background:#241817;border-radius:12px;padding:16px 18px;display:flex;align-items:center;gap:14px">
+    <div style="flex:1;font-size:14px;line-height:1.5"><strong>E-signature isn't connected.</strong> Agreements will wait here as drafts until it is.</div>
+    <button style="font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:10px 16px">Connect</button>
+  </div>
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:16px 18px">
+    <div><div style="font-size:16px;font-weight:600">Producer agreement, Marco Dela</div><div style="font-size:13px;color:#a8968e;margin-top:3px">Legal Agent · draft ready, can't send yet</div></div>
+    <span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#a8968e"><span style="width:7px;height:7px;transform:rotate(45deg);background:#a8968e"></span>Draft</span>
+  </div>
+</div></div>
+
+</div>
+<p class="dv-next">Try next: "light theme for all of Batch 1" · "start Batch 2, Money" · "show <a class="dv-oid" href="#3f">3f</a> on mobile"</p>
+</section>
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Batch 1 · core loop, in the Ops room direction (1a from <a href="Break Records Home Directions.dc.html">Home directions</a>)</span></div>
+<div class="dv-intro">Five screens plus mobile Home and Approvals. One Northline Records story runs through all of them: the October payout, Marco Dela's producer agreement, the Glasshouse MLC filing and the arts council grant. Desktop at 1440, mobile at 390.</div>
+<div class="dv-opts">
+
+<!-- 2a ONBOARDING: profile -->
+<div class="dv-opt" id="2a" data-screen-label="Onboarding: profile">
+<div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Onboarding, step 2 of 9: profile pick</div>
+<div class="dv-card" style="width:1440px;height:900px;background:#110c0b;color:#f4ece6;display:flex;flex-direction:column">
+  <header style="display:flex;align-items:center;justify-content:space-between;padding:22px 40px;border-bottom:1px solid rgba(255,235,225,.08)">
+    <div style="display:flex;align-items:center;gap:10px"><div style="width:28px;height:28px;border-radius:7px;background:#ef6a2a;color:#110c0b;display:grid;place-items:center;font:800 14px 'Archivo',sans-serif;font-stretch:125%">B</div><div style="font:800 15px 'Archivo',sans-serif;font-stretch:118%">Break Records.</div></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <sc-for list="{{ steps }}" as="s" hint-placeholder-count="9">
+        <div style="display:flex;align-items:center;gap:6px"><div style="width:{{ s.w }};height:6px;border-radius:3px;background:{{ s.bg }}"></div></div>
+      </sc-for>
+      <span style="margin-left:10px;font:500 12px 'IBM Plex Mono',monospace;color:#a8968e">2 / 9 · Profile</span>
+    </div>
+    <div style="font-size:13px;color:#a8968e">About 8 minutes left</div>
+  </header>
+  <div style="flex:1;padding:56px 80px 40px;display:flex;flex-direction:column;gap:36px">
+    <div style="display:flex;flex-direction:column;gap:12px;max-width:760px">
+      <div style="font:800 44px/1.05 'Archivo',sans-serif;font-stretch:112%;letter-spacing:-.02em">How do you put out music?</div>
+      <div style="font-size:17px;line-height:1.5;color:#cdbcb4">Your pick decides which departments switch on. You can change it any time in Settings.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px">
+      <sc-for list="{{ profiles }}" as="p" hint-placeholder-count="5">
+        <div style="background:{{ p.bg }};border:2px solid {{ p.border }};border-radius:14px;padding:22px 20px;display:flex;flex-direction:column;gap:14px;min-height:360px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="width:20px;height:20px;border-radius:50%;border:2px solid {{ p.border }};display:grid;place-items:center"><div style="width:10px;height:10px;border-radius:50%;background:{{ p.radio }}"></div></div>
+            <sc-if value="{{ p.selected }}"><span style="font:600 11px 'IBM Plex Mono',monospace;color:#ef6a2a">Selected</span></sc-if>
+          </div>
+          <div style="font:800 22px/1.1 'Archivo',sans-serif;font-stretch:110%">{{ p.name }}</div>
+          <div style="font-size:14px;line-height:1.45;color:#cdbcb4">{{ p.who }}</div>
+          <div style="margin-top:auto;display:flex;flex-direction:column;gap:7px;border-top:1px solid rgba(255,235,225,.08);padding-top:14px">
+            <div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e">Turns on</div>
+            <div style="font-size:13px;line-height:1.5;color:#f4ece6">{{ p.on }}</div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  <footer style="display:flex;justify-content:space-between;align-items:center;padding:20px 80px;border-top:1px solid rgba(255,235,225,.08)">
+    <button style="font:600 15px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:12px 20px">Back</button>
+    <div style="font-size:13px;color:#a8968e">Everything here is editable later.</div>
+    <button style="font:700 15px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:12px 26px">Continue as Small label</button>
+  </footer>
+</div>
+</div>
+
+<!-- 2b ONBOARDING: autonomy -->
+<div class="dv-opt" id="2b" data-screen-label="Onboarding: autonomy">
+<div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>Onboarding, step 8 of 9: autonomy dial</div>
+<div class="dv-card" style="width:1440px;height:900px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:minmax(0,1fr) 520px">
+  <div style="padding:56px 80px;display:flex;flex-direction:column;gap:32px">
+    <div style="font:500 12px 'IBM Plex Mono',monospace;color:#a8968e">8 / 9 · How much should your staff do alone?</div>
+    <div style="font:800 44px/1.05 'Archivo',sans-serif;font-stretch:112%;letter-spacing:-.02em;max-width:720px">Set how much your agents do before checking with you.</div>
+    <div style="display:flex;flex-direction:column;gap:12px;max-width:760px">
+      <sc-for list="{{ autonomy }}" as="o" hint-placeholder-count="4">
+        <div style="display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:16px;align-items:center;padding:18px 20px;border-radius:12px;background:{{ o.bg }};border:2px solid {{ o.border }}">
+          <div style="font:600 14px 'IBM Plex Mono',monospace;color:{{ o.numColor }}">{{ o.n }}</div>
+          <div><div style="font-size:17px;font-weight:700">{{ o.name }}</div><div style="font-size:14px;line-height:1.45;color:#cdbcb4">{{ o.desc }}</div></div>
+          <div style="font:600 11px 'IBM Plex Mono',monospace;color:#ef6a2a">{{ o.tag }}</div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="font-size:14px;color:#cdbcb4;max-width:720px;line-height:1.5">Money, signatures, filings and anything public always come to you as an approval, at every level.</div>
+  </div>
+  <div style="background:#5c1424;padding:56px 44px;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;align-items:center;gap:8px;font:600 12px 'IBM Plex Mono',monospace;color:#f6c9d0;text-transform:uppercase;letter-spacing:.08em"><span style="width:8px;height:8px;border-radius:2px;background:#ef6a2a"></span>Label Head</div>
+    <div style="font-size:19px;line-height:1.5;color:#fbe7ea">With "Draft and wait", I prepare the producer agreement, the split sheet and the MLC filing. Nothing goes out until you press Approve.</div>
+    <div style="background:rgba(0,0,0,.22);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:10px;margin-top:10px">
+      <div style="font:500 11px 'IBM Plex Mono',monospace;color:#f6c9d0;text-transform:uppercase;letter-spacing:.08em">You've set so far</div>
+      <div style="display:grid;grid-template-columns:120px minmax(0,1fr);gap:8px;font-size:14px;color:#fbe7ea"><span style="color:#f0bcc4">Profile</span><span>Small label</span><span style="color:#f0bcc4">Name</span><span>Northline Records</span><span style="color:#f0bcc4">Country</span><span>United States</span><span style="color:#f0bcc4">Distributor</span><span>Connected</span><span style="color:#f0bcc4">Catalog</span><span>14 recordings imported</span><span style="color:#f0bcc4">PRO</span><span>Affiliated</span></div>
+    </div>
+    <div style="margin-top:auto;display:flex;gap:10px">
+      <button style="font:600 15px 'Hanken Grotesk',sans-serif;background:transparent;color:#fbe7ea;border:1px solid rgba(251,231,234,.35);border-radius:8px;padding:12px 20px">Back</button>
+      <button style="flex:1;font:700 15px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:12px 20px">Continue</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- 2c HOME -->
+<div class="dv-opt" id="2c" data-screen-label="Home">
+<div class="dv-olabel"><a class="dv-oid" href="#2c">2c</a>Home, Label Head brief</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px minmax(0,1fr) 310px;min-height:1000px">
+  <dc-import name="BR Sidebar" active="Home" hint-size="240px,100%"></dc-import>
+  <main style="padding:28px 36px;display:flex;flex-direction:column;gap:28px;min-width:0">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:16px">
+      <div style="flex:1;max-width:520px;display:flex;align-items:center;gap:10px;background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:8px;padding:10px 14px;color:#a8968e;font-size:14px">Search or tell me a goal<span style="margin-left:auto;font:500 11px 'IBM Plex Mono',monospace;border:1px solid rgba(255,235,225,.14);padding:2px 6px;border-radius:5px">⌘K</span></div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#cdbcb4">Fri, Nov 6<div style="width:32px;height:32px;border-radius:8px;background:#5c1424;color:#f6c9d0;display:grid;place-items:center;font-weight:700">J</div></div>
+    </div>
+    <div style="background:#5c1424;border-radius:12px;padding:28px 32px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end">
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:center;gap:8px;font:600 12px 'IBM Plex Mono',monospace;color:#f6c9d0;text-transform:uppercase;letter-spacing:.08em"><span style="width:8px;height:8px;border-radius:2px;background:#ef6a2a"></span>Label Head · weekly brief</div>
+        <div style="font:800 40px/1.05 'Archivo',sans-serif;font-stretch:112%;letter-spacing:-.02em">Good morning, Jana.</div>
+        <p style="margin:0;font-size:17px;line-height:1.55;color:#fbe7ea;max-width:720px;text-wrap:pretty">Glasshouse is on track for March 6 and on budget. I drafted the producer agreement for Marco Dela; two terms need your eyes. Funding Scout found two new grants, and the state arts council application closes in 9 days.</p>
+      </div>
+      <button style="font:600 14px 'Hanken Grotesk',sans-serif;background:transparent;color:#fbe7ea;border:1px solid rgba(251,231,234,.35);border-radius:8px;padding:11px 16px">Ask the Label Head</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font:700 20px 'Archivo',sans-serif;font-stretch:110%">Needs you <span style="color:#ef6a2a">4</span></div><a href="#2d" style="font-size:14px;font-weight:600;text-decoration:none">Open approvals</a></div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px">
+        <sc-for list="{{ approvals3 }}" as="a" hint-placeholder-count="3">
+          <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#a8968e"><span>{{ a.icon }} {{ a.type }}</span><span style="display:flex;align-items:center;gap:6px;color:{{ a.riskColor }}"><span style="width:7px;height:7px;transform:rotate(45deg);background:{{ a.riskColor }}"></span>{{ a.risk }}</span></div>
+            <div style="font-size:16px;font-weight:600;line-height:1.3">{{ a.title }}</div>
+            <div style="font-size:13px;color:#a8968e">{{ a.agent }} · due {{ a.due }}</div>
+            <div style="font:600 15px 'IBM Plex Mono',monospace">{{ a.impact }}</div>
+            <div style="display:flex;gap:8px;margin-top:4px">
+              <button style="flex:1;font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:11px 0">{{ a.primary }}</button>
+              <button style="flex:1;font:600 14px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:11px 0">Review</button>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:rgba(255,235,225,.08);border:1px solid rgba(255,235,225,.08);border-radius:12px;overflow:hidden">
+      <sc-for list="{{ numbers }}" as="n" hint-placeholder-count="5">
+        <div style="background:#110c0b;padding:16px 18px;display:flex;flex-direction:column;gap:6px">
+          <div style="font-size:12px;color:#a8968e">{{ n.label }}</div>
+          <div style="font:600 22px 'IBM Plex Mono',monospace;letter-spacing:-.02em">{{ n.value }}</div>
+          <div style="font-size:12px;color:#cdbcb4">{{ n.note }}</div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:20px">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font:700 20px 'Archivo',sans-serif;font-stretch:110%">Active goals</div>
+        <sc-for list="{{ goals }}" as="g" hint-placeholder-count="3">
+          <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;justify-content:space-between;gap:12px"><div style="font-size:15px;font-weight:600">{{ g.title }}</div><div style="font:600 13px 'IBM Plex Mono',monospace">{{ g.pct }}</div></div>
+            <div style="height:6px;border-radius:3px;background:#2e201e"><div style="height:6px;border-radius:3px;background:#ef6a2a;width:{{ g.pct }}"></div></div>
+            <div style="font-size:13px;color:#a8968e">{{ g.meta }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font:700 20px 'Archivo',sans-serif;font-stretch:110%">Coming up</div>
+        <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:6px 18px">
+          <sc-for list="{{ dates }}" as="d" hint-placeholder-count="4">
+            <div style="display:grid;grid-template-columns:62px minmax(0,1fr);gap:12px;padding:12px 0;border-bottom:1px solid rgba(255,235,225,.06)">
+              <div style="font:600 13px 'IBM Plex Mono',monospace;color:#ef6a2a">{{ d.date }}</div>
+              <div><div style="font-size:14px;font-weight:600">{{ d.title }}</div><div style="font-size:12px;color:#a8968e">{{ d.meta }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </main>
+  <aside style="border-left:1px solid rgba(255,235,225,.08);padding:28px 22px;display:flex;flex-direction:column;gap:16px">
+    <div style="font:600 12px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e">Agent activity</div>
+    <sc-for list="{{ feed }}" as="f" hint-placeholder-count="5">
+      <div style="display:flex;flex-direction:column;gap:6px;padding-bottom:14px;border-bottom:1px solid rgba(255,235,225,.06)">
+        <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#cdbcb4"><span style="width:7px;height:7px;border-radius:50%;background:{{ f.dot }}"></span>{{ f.agent }} · {{ f.state }}<span style="margin-left:auto;color:#7d6c65">{{ f.when }}</span></div>
+        <div style="font-size:13px;line-height:1.45">{{ f.text }}</div>
+      </div>
+    </sc-for>
+  </aside>
+</div>
+</div>
+
+<!-- 2d APPROVAL INBOX -->
+<div class="dv-opt" id="2d" data-screen-label="Approval inbox">
+<div class="dv-olabel"><a class="dv-oid" href="#2d">2d</a>Approval inbox, two low-risk items selected for bulk approve</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px minmax(0,1fr);min-height:960px">
+  <dc-import name="BR Sidebar" active="Approvals" hint-size="240px,100%"></dc-import>
+  <main style="padding:28px 40px;display:flex;flex-direction:column;gap:22px;min-width:0">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end">
+      <div><div style="font:800 36px/1.05 'Archivo',sans-serif;font-stretch:112%;letter-spacing:-.02em">Approvals</div><div style="font-size:15px;color:#cdbcb4;margin-top:6px">4 decisions waiting. Nothing moves until you approve.</div></div>
+      <div style="display:flex;gap:8px">
+        <sc-for list="{{ filters }}" as="f" hint-placeholder-count="3">
+          <div style="display:flex;align-items:center;gap:8px;border:1px solid rgba(255,235,225,.14);border-radius:8px;padding:9px 12px;font-size:14px"><span style="color:#a8968e">{{ f.k }}</span>{{ f.v }}<span style="color:#a8968e">⌄</span></div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;border-bottom:1px solid rgba(255,235,225,.08)">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="6">
+        <div style="padding:10px 14px;font-size:14px;font-weight:{{ t.weight }};color:{{ t.color }};border-bottom:2px solid {{ t.line }};margin-bottom:-1px">{{ t.label }} <span style="font:500 12px 'IBM Plex Mono',monospace;color:#a8968e">{{ t.n }}</span></div>
+      </sc-for>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;background:#241817;border:1px solid rgba(239,106,42,.35);border-radius:10px;padding:12px 16px">
+      <div style="width:18px;height:18px;border-radius:5px;background:#ef6a2a;color:#110c0b;display:grid;place-items:center;font-size:12px;font-weight:800">✓</div>
+      <div style="font-size:14px"><strong>2 low-risk items selected</strong> <span style="color:#a8968e">· $1,240.18 payout and 1 filing</span></div>
+      <div style="font-size:13px;color:#a8968e">Signatures are always approved one at a time.</div>
+      <button style="margin-left:auto;font:600 14px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:9px 14px">Clear</button>
+      <button style="font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:9px 16px">Approve 2</button>
+    </div>
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="5">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px;font:600 12px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e"><span style="color:#f4ece6">{{ g.icon }}</span>{{ g.name }} <span>· {{ g.count }}</span></div>
+        <sc-if value="{{ g.empty }}"><div style="border:1px dashed rgba(255,235,225,.14);border-radius:12px;padding:14px 18px;font-size:14px;color:#a8968e">{{ g.emptyText }}</div></sc-if>
+        <sc-for list="{{ g.items }}" as="a" hint-placeholder-count="1">
+          <div style="display:grid;grid-template-columns:22px minmax(0,1fr) 230px 90px 160px 190px;gap:18px;align-items:center;background:#1b1312;border:1px solid {{ a.rowBorder }};border-radius:12px;padding:16px 18px">
+            <div style="width:18px;height:18px;border-radius:5px;border:1.5px solid {{ a.boxBorder }};background:{{ a.boxBg }};color:#110c0b;display:grid;place-items:center;font-size:12px;font-weight:800;opacity:{{ a.boxOpacity }}">{{ a.check }}</div>
+            <div><div style="font-size:16px;font-weight:600">{{ a.title }}</div><div style="font-size:13px;color:#a8968e;margin-top:3px">Prepared by {{ a.agent }} · {{ a.context }}</div></div>
+            <div style="font:600 14px 'IBM Plex Mono',monospace">{{ a.impact }}</div>
+            <div style="font:500 13px 'IBM Plex Mono',monospace;color:#cdbcb4">{{ a.due }}</div>
+            <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:{{ a.riskColor }}"><span style="width:8px;height:8px;transform:rotate(45deg);background:{{ a.riskColor }}"></span>{{ a.risk }}</div>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+              <button style="font:600 14px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:9px 14px">Review</button>
+              <button style="font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:9px 16px;opacity:{{ a.approveOpacity }}">Approve</button>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-for>
+  </main>
+</div>
+</div>
+
+<!-- 2e APPROVAL DETAIL: payout -->
+<div class="dv-opt" id="2e" data-screen-label="Approval detail: payout">
+<div class="dv-olabel"><a class="dv-oid" href="#2e">2e</a>Approval detail, payout batch, evidence drawer open</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px minmax(0,1fr) 380px;min-height:960px">
+  <dc-import name="BR Sidebar" active="Approvals" hint-size="240px,100%"></dc-import>
+  <main style="padding:28px 40px;display:flex;flex-direction:column;gap:24px;min-width:0">
+    <div style="font-size:13px;color:#a8968e"><a href="#2d" style="color:#a8968e;text-decoration:none">Approvals</a> / Money</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:10px;font:500 12px 'IBM Plex Mono',monospace;color:#a8968e;text-transform:uppercase;letter-spacing:.06em"><span>● Money</span><span>· Royalties Agent</span><span>· due Nov 10</span><span style="color:#7fc29b">◆ Low risk</span></div>
+      <div style="font:800 34px/1.12 'Archivo',sans-serif;font-stretch:110%;letter-spacing:-.02em;max-width:860px;text-wrap:pretty">If you approve, <span style="color:#ef6a2a">$1,240.18</span> goes to 6 payees on Nov 10 from October statements.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:rgba(255,235,225,.08);border:1px solid rgba(255,235,225,.08);border-radius:12px;overflow:hidden">
+      <sc-for list="{{ batchStats }}" as="s" hint-placeholder-count="4">
+        <div style="background:#110c0b;padding:14px 18px"><div style="font-size:12px;color:#a8968e">{{ s.k }}</div><div style="font:600 20px 'IBM Plex Mono',monospace;margin-top:4px">{{ s.v }}</div></div>
+      </sc-for>
+    </div>
+    <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1.3fr) 150px 110px 120px;gap:16px;padding:12px 20px;font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:#a8968e;border-bottom:1px solid rgba(255,235,225,.08)"><span>Payee</span><span>Source</span><span>Tax form</span><span style="text-align:right">Withheld</span><span style="text-align:right">Net</span></div>
+      <sc-for list="{{ payees }}" as="p" hint-placeholder-count="6">
+        <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1.3fr) 150px 110px 120px;gap:16px;padding:14px 20px;align-items:center;border-bottom:1px solid rgba(255,235,225,.06);font-size:14px">
+          <div><div style="font-weight:600">{{ p.name }}</div><div style="font-size:12px;color:#a8968e">{{ p.role }}</div></div>
+          <div style="color:#cdbcb4">{{ p.source }}</div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:{{ p.taxColor }}"><span style="width:7px;height:7px;transform:rotate(45deg);background:{{ p.taxColor }}"></span>{{ p.tax }}</div>
+          <div style="font-family:'IBM Plex Mono',monospace;text-align:right;color:#cdbcb4">$0.00</div>
+          <div style="font:600 14px 'IBM Plex Mono',monospace;text-align:right">{{ p.amt }}</div>
+        </div>
+      </sc-for>
+      <div style="display:flex;justify-content:space-between;padding:14px 20px;background:#241817;font-weight:600"><span>Total to 6 payees</span><span style="font-family:'IBM Plex Mono',monospace">$1,240.18</span></div>
+    </div>
+    <div style="font-size:14px;color:#cdbcb4">Every amount opens its waterfall. <a href="#" style="text-decoration:none;font-weight:600">See how Marco Dela's $285.00 was calculated</a></div>
+    <div style="margin-top:auto;display:flex;gap:10px;align-items:center;border-top:1px solid rgba(255,235,225,.08);padding-top:20px">
+      <button style="font:700 15px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:13px 22px">Approve and send $1,240.18</button>
+      <button style="font:600 15px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:13px 18px">Edit then approve</button>
+      <button style="font:600 15px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:13px 18px">Ask the agent</button>
+      <button style="margin-left:auto;font:600 15px 'Hanken Grotesk',sans-serif;background:transparent;color:#ff5a4e;border:1px solid rgba(255,90,78,.4);border-radius:8px;padding:13px 18px">Reject with reason</button>
+    </div>
+  </main>
+  <aside style="background:#1b1312;border-left:1px solid rgba(255,235,225,.08);padding:28px 24px;display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center"><div style="font:700 18px 'Archivo',sans-serif;font-stretch:110%">Evidence</div><span style="font-size:13px;color:#a8968e">Close</span></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e">Why this batch</div>
+      <div style="font-size:14px;line-height:1.55">I applied the signed split versions to October income, carried forward anyone under the $25 minimum and checked every payee has a valid tax form. Two payees were carried forward and are not in this batch.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e">Inputs used</div>
+      <sc-for list="{{ inputs }}" as="i" hint-placeholder-count="4">
+        <div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:9px 12px;background:#110c0b;border-radius:8px"><span>{{ i.k }}</span><a href="#" style="text-decoration:none;font-family:'IBM Plex Mono',monospace;font-size:12px">{{ i.v }}</a></div>
+      </sc-for>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e">Steps the agent ran</div>
+      <sc-for list="{{ toolcalls }}" as="t" hint-placeholder-count="4">
+        <div style="display:grid;grid-template-columns:16px minmax(0,1fr);gap:8px;font-size:13px;color:#cdbcb4"><span style="color:#7fc29b">✓</span>{{ t }}</div>
+      </sc-for>
+    </div>
+    <div style="margin-top:auto;font:500 12px 'IBM Plex Mono',monospace;color:#a8968e;border-top:1px solid rgba(255,235,225,.08);padding-top:14px">Audit ID AUD-7F3K-2291 · <a href="#" style="text-decoration:none">Open in log</a></div>
+  </aside>
+</div>
+</div>
+
+<!-- 2f APPROVAL DETAIL: contract -->
+<div class="dv-opt" id="2f" data-screen-label="Approval detail: contract">
+<div class="dv-olabel"><a class="dv-oid" href="#2f">2f</a>Approval detail, producer agreement with flagged clauses</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px minmax(0,1fr);min-height:960px">
+  <dc-import name="BR Sidebar" active="Approvals" hint-size="240px,100%"></dc-import>
+  <main style="padding:28px 40px;display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:32px;min-width:0">
+    <div style="display:flex;flex-direction:column;gap:22px">
+      <div style="font-size:13px;color:#a8968e">Approvals / Signature</div>
+      <div style="display:flex;gap:10px;font:500 12px 'IBM Plex Mono',monospace;color:#a8968e;text-transform:uppercase;letter-spacing:.06em"><span>◆ Signature</span><span>· Legal Agent</span><span>· due Nov 9</span><span style="color:#ff5a4e">◆ Needs your eyes</span></div>
+      <div style="font:800 34px/1.12 'Archivo',sans-serif;font-stretch:110%;letter-spacing:-.02em;text-wrap:pretty">If you approve, I send Marco Dela the producer agreement for Glasshouse to sign.</div>
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:12px">
+        <div style="font:500 11px 'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#a8968e">In plain words</div>
+        <div style="display:grid;grid-template-columns:180px minmax(0,1fr);gap:10px 16px;font-size:15px;line-height:1.45">
+          <span style="color:#a8968e">Marco gets</span><span>3 points (3% of recording income), paid after costs are recouped</span>
+          <span style="color:#a8968e">Advance</span><span>$1,500 against his royalties</span>
+          <span style="color:#a8968e">Credit</span><span>"Produced by Marco Dela" on all platforms</span>
+          <span style="color:#a8968e">Who owns the master</span><span>Northline Records</span>
+          <span style="color:#a8968e">Template</span><span>Northline producer v3 · 2 edits from Marco's manager</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font:700 18px 'Archivo',sans-serif;font-stretch:110%">2 terms differ from your playbook</div>
+        <sc-for list="{{ clauses }}" as="c" hint-placeholder-count="2">
+          <div style="background:#1b1312;border:1px solid rgba(255,90,78,.35);border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:16px;font-weight:700">{{ c.title }}</div><span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#ff5a4e"><span style="width:8px;height:8px;transform:rotate(45deg);background:#ff5a4e"></span>Differs from playbook</span></div>
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+              <div style="background:#110c0b;border-radius:8px;padding:12px 14px"><div style="font:500 11px 'IBM Plex Mono',monospace;color:#a8968e;margin-bottom:6px">THIS DRAFT · {{ c.ref }}</div><div style="font-size:14px;line-height:1.5">{{ c.draft }}</div></div>
+              <div style="background:#110c0b;border-radius:8px;padding:12px 14px"><div style="font:500 11px 'IBM Plex Mono',monospace;color:#a8968e;margin-bottom:6px">YOUR PLAYBOOK</div><div style="font-size:14px;line-height:1.5">{{ c.playbook }}</div></div>
+            </div>
+            <div style="font-size:14px;line-height:1.5;color:#cdbcb4"><span style="color:#f4ece6;font-weight:600">Why it matters.</span> {{ c.why }}</div>
+            <div style="display:flex;gap:8px"><button style="font:600 13px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:8px 12px">Use playbook wording</button><button style="font:600 13px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:8px 12px">Accept as drafted</button></div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;border-top:1px solid rgba(255,235,225,.08);padding-top:20px">
+        <button style="font:700 15px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:13px 22px">Approve and send for signature</button>
+        <button style="font:600 15px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:13px 18px">Edit then approve</button>
+        <button style="font:600 15px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:13px 18px">Ask the agent</button>
+        <button style="margin-left:auto;font:600 15px 'Hanken Grotesk',sans-serif;background:transparent;color:#ff5a4e;border:1px solid rgba(255,90,78,.4);border-radius:8px;padding:13px 18px">Reject</button>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="background:#5c1424;border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:8px">
+        <div style="font:600 12px 'IBM Plex Mono',monospace;color:#f6c9d0;text-transform:uppercase;letter-spacing:.08em">Label Head</div>
+        <div style="font-size:15px;line-height:1.5;color:#fbe7ea">I drafted this from your template. The manager's two edits are common in producer deals, but I can't tell you they're right for you. Attorney review is optional here.</div>
+      </div>
+      <div style="flex:1;background:#f2ebe4;color:#1c1412;border-radius:12px;padding:28px 30px;display:flex;flex-direction:column;gap:12px;font-size:13px;line-height:1.6;min-height:520px">
+        <div style="font:500 11px 'IBM Plex Mono',monospace;color:#6b5d57">FULL DOCUMENT · page 2 of 9</div>
+        <div style="font-weight:700;font-size:15px">4. Royalties</div>
+        <div>4.1 Producer shall receive a royalty of three percent (3%) of net receipts from exploitation of the Master, payable following recoupment of recording costs at the Artist's net rate.</div>
+        <div style="background:rgba(214,49,43,.12);border-radius:4px;padding:6px 8px;outline:1px solid rgba(214,49,43,.35)">4.2 The Advance of One Thousand Five Hundred Dollars ($1,500) shall be non-recoupable.</div>
+        <div style="font-weight:700;font-size:15px">5. Credit and approvals</div>
+        <div>5.1 Producer shall be credited as "Produced by Marco Dela" in all metadata.</div>
+        <div style="background:rgba(214,49,43,.12);border-radius:4px;padding:6px 8px;outline:1px solid rgba(214,49,43,.35)">5.2 No remix of the Master shall be released without Producer's prior written approval.</div>
+        <div style="color:#6b5d57">Version 3 · edited Nov 4 · <span style="text-decoration:underline">Download PDF</span></div>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+<!-- 2g RELEASE RUNBOOK -->
+<div class="dv-opt" id="2g" data-screen-label="Release runbook">
+<div class="dv-olabel"><a class="dv-oid" href="#2g">2g</a>Release runbook, Glasshouse</div>
+<div class="dv-card" style="width:1440px;background:#110c0b;color:#f4ece6;display:grid;grid-template-columns:240px minmax(0,1fr);min-height:1100px">
+  <dc-import name="BR Sidebar" active="Releases" hint-size="240px,100%"></dc-import>
+  <main style="display:flex;flex-direction:column;min-width:0">
+    <div style="display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:28px;align-items:end;padding:28px 40px;background:#1b1312;border-bottom:1px solid rgba(255,235,225,.08)">
+      <div style="width:150px;height:150px;border-radius:10px;background:repeating-linear-gradient(135deg,#2a1c1a 0 8px,#241817 8px 16px);display:grid;place-items:center;font:500 11px 'IBM Plex Mono',monospace;color:#a8968e">cover art</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:13px;color:#a8968e">Releases / Single</div>
+        <div style="font:800 52px/1 'Archivo',sans-serif;font-stretch:115%;letter-spacing:-.03em">Glasshouse</div>
+        <div style="display:flex;gap:18px;align-items:center;font-size:15px;color:#cdbcb4"><span>Kesi Vale</span><span>Fri, Mar 6, 2027</span><span style="display:flex;align-items:center;gap:6px;color:#7fc29b;font-weight:600"><span style="width:8px;height:8px;transform:rotate(45deg);background:#7fc29b"></span>On track</span></div>
+        <div style="display:flex;align-items:center;gap:12px;max-width:440px"><div style="flex:1;height:6px;border-radius:3px;background:#2e201e"><div style="width:62%;height:6px;border-radius:3px;background:#ef6a2a"></div></div><span style="font:500 13px 'IBM Plex Mono',monospace">$1,860 of $3,000</span></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button style="font:600 14px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px;padding:11px 16px">Change date</button>
+        <button style="font:700 14px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:11px 16px">What blocks delivery?</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:28px;padding:28px 40px">
+      <div style="display:flex;flex-direction:column;gap:0">
+        <sc-for list="{{ phases }}" as="ph" hint-placeholder-count="6">
+          <div style="display:grid;grid-template-columns:130px minmax(0,1fr);gap:20px">
+            <div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding-top:16px;border-right:2px solid {{ ph.rail }};padding-right:14px">
+              <div style="font:700 15px 'Archivo',sans-serif;font-stretch:105%;color:{{ ph.labelColor }}">{{ ph.name }}</div>
+              <div style="font:500 12px 'IBM Plex Mono',monospace;color:#a8968e">{{ ph.date }}</div>
+              <sc-if value="{{ ph.now }}"><div style="margin-top:4px;font:600 11px 'IBM Plex Mono',monospace;background:#ef6a2a;color:#110c0b;padding:2px 7px;border-radius:5px">You are here</div></sc-if>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;padding:12px 0 18px">
+              <sc-for list="{{ ph.tasks }}" as="t" hint-placeholder-count="2">
+                <div style="display:grid;grid-template-columns:minmax(0,1fr) 170px 120px;gap:14px;align-items:center;background:{{ t.bg }};border:1px solid {{ t.border }};border-radius:10px;padding:11px 14px">
+                  <div style="display:flex;align-items:center;gap:10px;font-size:14px"><span style="font-size:13px;color:{{ t.iconColor }}">{{ t.icon }}</span><span style="font-weight:{{ t.weight }}">{{ t.title }}</span></div>
+                  <div style="font-size:12px;color:#a8968e">{{ t.owner }}</div>
+                  <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:{{ t.statusColor }}"><span style="width:7px;height:7px;transform:rotate(45deg);background:{{ t.statusColor }}"></span>{{ t.status }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:18px">
+        <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:18px">
+          <div style="font:700 16px 'Archivo',sans-serif;font-stretch:110%;margin-bottom:12px">Assets <span style="font:500 12px 'IBM Plex Mono',monospace;color:#a8968e">4 of 6</span></div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+            <sc-for list="{{ assets }}" as="a" hint-placeholder-count="6">
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <div style="aspect-ratio:1;border-radius:8px;background:repeating-linear-gradient(135deg,#2a1c1a 0 6px,#241817 6px 12px);border:1px solid {{ a.border }};display:grid;place-items:center;font:500 10px 'IBM Plex Mono',monospace;color:#7d6c65">{{ a.ph }}</div>
+                <div style="font-size:12px;line-height:1.3"><span style="color:{{ a.color }}">{{ a.mark }}</span> {{ a.name }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:2px">
+          <div style="font:700 16px 'Archivo',sans-serif;font-stretch:110%;margin-bottom:8px">Registrations</div>
+          <sc-for list="{{ regs }}" as="r" hint-placeholder-count="5">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid rgba(255,235,225,.06);font-size:14px"><span>{{ r.name }}</span><span style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:{{ r.color }};border:1px solid {{ r.color }};border-radius:6px;padding:3px 8px">{{ r.icon }} {{ r.status }}</span></div>
+          </sc-for>
+        </div>
+        <div style="background:#5c1424;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><div style="font:700 16px 'Archivo',sans-serif;font-stretch:110%">Playlist pitch draft</div><span style="font:500 11px 'IBM Plex Mono',monospace;color:#f6c9d0">298 / 500</span></div>
+          <div style="font-size:14px;line-height:1.55;color:#fbe7ea">A late-night R&amp;B single about outgrowing a small town. Warm Rhodes, sparse drums and Kesi's close-mic vocal. For fans of slow, confessional soul.</div>
+          <button style="align-self:flex-start;font:700 13px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px;padding:9px 14px">Copy for Spotify for Artists</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+<!-- 2h MOBILE HOME -->
+<div class="dv-opt" id="2h" data-screen-label="Mobile Home">
+<div class="dv-olabel"><a class="dv-oid" href="#2h">2h</a>Mobile Home, 390</div>
+<div class="dv-card" style="width:390px;height:844px;border-radius:44px;background:#110c0b;color:#f4ece6;display:flex;flex-direction:column;border:8px solid #000;box-sizing:border-box">
+  <div style="display:flex;justify-content:space-between;padding:14px 26px 6px;font:600 14px 'Hanken Grotesk',sans-serif"><span>9:41</span><span style="width:24px;height:11px;border:1.5px solid #f4ece6;border-radius:3px"></span></div>
+  <div style="flex:1;overflow:hidden;padding:14px 22px;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;justify-content:space-between;align-items:center"><div style="font:800 15px 'Archivo',sans-serif;font-stretch:118%">Northline ⌄</div><div style="width:36px;height:36px;border-radius:8px;background:#5c1424;color:#f6c9d0;display:grid;place-items:center;font-weight:700">J</div></div>
+    <div style="background:#5c1424;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:12px">
+      <div style="font:600 11px 'IBM Plex Mono',monospace;color:#f6c9d0;text-transform:uppercase;letter-spacing:.08em">Label Head · this week</div>
+      <div style="font:800 26px/1.05 'Archivo',sans-serif;font-stretch:110%">Good morning, Jana.</div>
+      <div style="font-size:15px;line-height:1.5;color:#fbe7ea">Glasshouse is on track and on budget. Two terms in Marco's agreement need your eyes. A grant closes in 9 days.</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font:700 18px 'Archivo',sans-serif;font-stretch:110%">Needs you <span style="color:#ef6a2a">4</span></div><span style="font-size:14px;font-weight:600;color:#ef6a2a">See all</span></div>
+    <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;justify-content:space-between;font:500 11px 'IBM Plex Mono',monospace;color:#a8968e;text-transform:uppercase"><span>● Money · Nov 10</span><span style="color:#7fc29b">◆ Low risk</span></div>
+      <div style="font-size:16px;font-weight:600">Payout batch for October</div>
+      <div style="font:600 15px 'IBM Plex Mono',monospace">$1,240.18 to 6 payees</div>
+      <div style="display:flex;gap:10px;margin-top:2px"><button style="flex:1;height:48px;font:700 15px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px">Approve</button><button style="flex:1;height:48px;font:600 15px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px">Review</button></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div style="border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:4px"><div style="font-size:12px;color:#a8968e">Income, Oct</div><div style="font:600 18px 'IBM Plex Mono',monospace">$10,000.00</div></div>
+      <div style="border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:4px"><div style="font-size:12px;color:#a8968e">Owed to payees</div><div style="font:600 18px 'IBM Plex Mono',monospace">$1,240.18</div></div>
+    </div>
+    <div style="border:1px solid rgba(255,235,225,.08);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;justify-content:space-between"><span style="font-size:14px;font-weight:600">Glasshouse single</span><span style="font:600 13px 'IBM Plex Mono',monospace">62%</span></div>
+      <div style="height:6px;border-radius:3px;background:#2e201e"><div style="width:62%;height:6px;border-radius:3px;background:#ef6a2a"></div></div>
+      <div style="font-size:12px;color:#a8968e">Mar 6 · $1,860 of $3,000</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid rgba(255,235,225,.08);padding:10px 8px 22px;font-size:12px;text-align:center;color:#a8968e">
+    <div style="color:#ef6a2a;font-weight:700;padding:8px 0">Home</div><div style="padding:8px 0">Approvals 4</div><div style="padding:8px 0">Releases</div><div style="padding:8px 0">Money</div>
+  </div>
+</div>
+</div>
+
+<!-- 2i MOBILE INBOX -->
+<div class="dv-opt" id="2i" data-screen-label="Mobile Approvals">
+<div class="dv-olabel"><a class="dv-oid" href="#2i">2i</a>Mobile Approvals, one-handed, no swipe</div>
+<div class="dv-card" style="width:390px;height:844px;border-radius:44px;background:#110c0b;color:#f4ece6;display:flex;flex-direction:column;border:8px solid #000;box-sizing:border-box">
+  <div style="display:flex;justify-content:space-between;padding:14px 26px 6px;font:600 14px 'Hanken Grotesk',sans-serif"><span>9:41</span><span style="width:24px;height:11px;border:1.5px solid #f4ece6;border-radius:3px"></span></div>
+  <div style="flex:1;overflow:hidden;padding:14px 22px;display:flex;flex-direction:column;gap:16px">
+    <div style="font:800 28px 'Archivo',sans-serif;font-stretch:112%">Approvals</div>
+    <div style="display:flex;gap:8px;font-size:13px;flex-wrap:wrap">
+      <span style="background:#f4ece6;color:#110c0b;padding:7px 12px;border-radius:8px;font-weight:600">All 4</span><span style="border:1px solid rgba(255,235,225,.14);padding:7px 12px;border-radius:8px">Money 1</span><span style="border:1px solid rgba(255,235,225,.14);padding:7px 12px;border-radius:8px">Sign 1</span><span style="border:1px solid rgba(255,235,225,.14);padding:7px 12px;border-radius:8px">Filing 1</span>
+    </div>
+    <sc-for list="{{ approvals3 }}" as="a" hint-placeholder-count="3">
+      <div style="background:#1b1312;border:1px solid rgba(255,235,225,.08);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;gap:8px;white-space:nowrap;font:500 11px 'IBM Plex Mono',monospace;color:#a8968e;text-transform:uppercase"><span>{{ a.icon }} {{ a.type }}</span><span style="color:{{ a.riskColor }}">◆ {{ a.risk }}</span></div>
+        <div style="font-size:15px;font-weight:600;line-height:1.3">{{ a.title }}</div>
+        <div style="font:600 14px 'IBM Plex Mono',monospace">{{ a.impact }} <span style="font-weight:400;color:#a8968e">· due {{ a.due }}</span></div>
+        <div style="display:flex;gap:10px;margin-top:2px"><button style="flex:1;height:46px;font:700 15px 'Hanken Grotesk',sans-serif;background:#ef6a2a;color:#110c0b;border:0;border-radius:8px">{{ a.primary }}</button><button style="flex:1;height:46px;font:600 15px 'Hanken Grotesk',sans-serif;background:transparent;color:#f4ece6;border:1px solid rgba(255,235,225,.18);border-radius:8px">{{ a.secondary }}</button></div>
+      </div>
+    </sc-for>
+    <div style="text-align:center;font-size:14px;font-weight:600;color:#ef6a2a;padding:4px 0">1 more below · Grant draft, due Nov 15</div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid rgba(255,235,225,.08);padding:10px 8px 22px;font-size:12px;text-align:center;color:#a8968e">
+    <div style="padding:8px 0">Home</div><div style="color:#ef6a2a;font-weight:700;padding:8px 0">Approvals 4</div><div style="padding:8px 0">Releases</div><div style="padding:8px 0">Money</div>
+  </div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "add the empty, working, blocked and error states for <a class="dv-oid" href="#2c">2c</a> and <a class="dv-oid" href="#2d">2d</a>" · "light theme for all of Batch 1" · "start Batch 2, Money"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const RED = '#ff5a4e', OK = '#7fc29b', WARN = '#f2a65a', OR = '#ef6a2a', MUTED = '#a8968e', LINE = 'rgba(255,235,225,.08)';
+    const ap = [
+      { icon: '●', type: 'Money', title: 'Payout batch for October', agent: 'Royalties Agent', context: 'October statements', due: 'Nov 10', impact: '$1,240.18 to 6 payees', risk: 'Low risk', riskColor: OK, primary: 'Approve', secondary: 'Review', low: true, sel: true },
+      { icon: '◆', type: 'Signature', title: 'Producer agreement, Marco Dela', agent: 'Legal Agent', context: 'Glasshouse', due: 'Nov 9', impact: '3 points · 2 flagged terms', risk: 'Needs your eyes', riskColor: RED, primary: 'Review', secondary: 'Ask agent', sig: true },
+      { icon: '■', type: 'Filing', title: 'MLC registration for 3 songs', agent: 'Publishing Agent', context: 'Glasshouse and 2 catalog songs', due: 'Nov 12', impact: '3 songs', risk: 'Low risk', riskColor: OK, primary: 'Approve', secondary: 'Review', low: true, sel: true },
+      { icon: '▲', type: 'Plan', title: 'State arts council grant draft', agent: 'Funding Scout', context: 'Project grant, non-repayable', due: 'Nov 15', impact: 'Up to $5,000', risk: 'Due in 9 days', riskColor: WARN, primary: 'Review', secondary: 'Ask agent' }
+    ];
+    const row = a => ({ ...a,
+      check: a.sel ? '✓' : '', boxBg: a.sel ? OR : 'transparent', boxBorder: a.sel ? OR : 'rgba(255,235,225,.3)', boxOpacity: a.sig ? .3 : 1,
+      rowBorder: a.sel ? 'rgba(239,106,42,.4)' : LINE, approveOpacity: a.sig ? .45 : 1,
+      context: a.sig ? 'Glasshouse · signatures are never bulk-approved' : a.context });
+    const pick = t => ap.filter(a => a.type === t).map(row);
+    const grp = (name, icon, t, emptyText) => { const items = pick(t); return { name, icon, items, count: items.length, empty: !items.length, emptyText }; };
+    const st = (status) => ({ Done: ['✓', OK], 'In progress': ['○', OR], 'Needs you': ['!', RED], 'Waiting': ['○', MUTED], 'Locked': ['🔒', MUTED] })[status];
+    const task = (title, owner, status, gate) => { const [icon, c] = gate ? ['⌧', status === 'Done' ? OK : RED] : st(status);
+      return { title: gate ? 'Gate: ' + title : title, owner, status, icon: gate ? '◼' : icon, iconColor: c, statusColor: status === 'Waiting' ? MUTED : c,
+        bg: gate ? '#190f0e' : '#1b1312', border: gate ? (status === 'Done' ? LINE : 'rgba(255,90,78,.35)') : LINE, weight: gate ? 700 : 500 }; };
+    const phase = (name, date, tasks, opts = {}) => ({ name, date, tasks, now: !!opts.now, rail: opts.done ? OK : opts.now ? OR : 'rgba(255,235,225,.12)', labelColor: opts.now ? OR : '#f4ece6' });
+    const reg = (name, status) => { const m = { Confirmed: ['✓', OK], 'Needs you': ['!', RED], Prepared: ['○', OR], 'Not started': ['–', MUTED] }[status]; return { name, status, icon: m[0], color: m[1] }; };
+    const profiles = [
+      ['Solo artist', 'You release your own music and want the business handled.', 'Releases, Royalties, Rights, Funding'],
+      ['Band', 'Several co-owners who need fair, visible splits.', 'Everything in Solo, plus shared split signing'],
+      ['Small label', '2 to 10 artists, one owner calling the shots.', 'Roster, deal templates, statements, payouts', true],
+      ['Growing label', 'A label with some human staff.', 'Everything in Small label, plus roles and approval chains'],
+      ['Label services', 'You run releases for artists you do not own.', 'Client separation, service fees, client statements']
+    ].map(([name, who, on, s]) => ({ name, who, on, selected: !!s, bg: s ? '#241817' : '#1b1312', border: s ? OR : LINE, radio: s ? OR : 'transparent' }));
+    return {
+      steps: Array.from({ length: 9 }, (_, i) => ({ w: i === 1 ? '28px' : '14px', bg: i < 1 ? OR : i === 1 ? OR : '#2e201e' })),
+      profiles,
+      autonomy: [
+        ['Observe', 'Agents watch and report. They prepare nothing.'],
+        ['Suggest', 'Agents tell you what they would do. You do the work.'],
+        ['Draft and wait', 'Agents prepare the work and wait for your approval.', 'Recommended'],
+        ['Act within limits', 'Agents finish routine tasks under spend caps you set.']
+      ].map(([name, desc, tag], i) => ({ n: '0' + (i + 1), name, desc, tag: tag || '', bg: tag ? '#241817' : '#1b1312', border: tag ? OR : LINE, numColor: tag ? OR : MUTED })),
+      approvals3: ap.slice(0, 3), approvals4: ap,
+      numbers: [
+        { label: 'Income this period', value: '$10,000.00', note: 'Glasshouse, Oct' },
+        { label: 'Owed to payees', value: '$1,240.18', note: '6 payees, awaiting you' },
+        { label: 'Recoupment', value: '$4,000.00', note: 'Glasshouse fully recouped' },
+        { label: 'Cash, next 90 days', value: '$7,850.00', note: 'Forecast, after payouts' },
+        { label: 'Unclaimed found', value: '$312.40', note: '2 sources to claim' }
+      ],
+      goals: [
+        { title: 'Glasshouse single', pct: '62%', meta: 'Kesi Vale · Mar 6 · $1,860 of $3,000 · on budget' },
+        { title: 'Register catalog with MLC', pct: '58%', meta: '7 of 12 songs · 3 waiting on you' },
+        { title: 'The Low Hours EP plan', pct: '18%', meta: 'Draft plan · May target · not yet approved' }
+      ],
+      dates: [
+        { date: 'Nov 15', title: 'Arts council grant due', meta: 'Funding Scout has a draft' },
+        { date: 'Jan 9', title: 'Glasshouse masters due', meta: 'Hard gate for delivery' },
+        { date: 'Feb 6', title: 'Delivery to distributor', meta: '4 weeks before release' },
+        { date: 'Mar 6', title: 'Glasshouse release', meta: 'Kesi Vale · Friday' }
+      ],
+      feed: [
+        { agent: 'Release Agent', state: 'working', text: 'Building the Glasshouse pitch draft.', when: 'now', dot: OR },
+        { agent: 'Metadata Agent', state: 'done', text: 'Completed credits for 4 tracks.', when: '9:12', dot: OK },
+        { agent: 'Audit Agent', state: 'waiting on you', text: 'Flagged an unusual stream spike on "Night Bus" (The Low Hours).', when: '8:40', dot: RED },
+        { agent: 'Funding Scout', state: 'done', text: 'Found 2 new grants.', when: '7:55', dot: OK },
+        { agent: 'Royalties Agent', state: 'idle', text: 'Matched 1,204 of 1,231 statement lines.', when: 'Thu', dot: MUTED }
+      ],
+      filters: [{ k: 'Artist', v: 'All' }, { k: 'Release', v: 'All' }, { k: 'Dept', v: 'All' }],
+      tabs: [['All', 4, 1], ['Money', 1], ['Signature', 1], ['Filing', 1], ['Public', 0], ['Plan', 1]].map(([label, n, on]) => ({ label, n, weight: on ? 700 : 500, color: on ? '#f4ece6' : '#cdbcb4', line: on ? OR : 'transparent' })),
+      groups: [grp('Money', '●', 'Money'), grp('Signature', '◆', 'Signature'), grp('Filing', '■', 'Filing'), grp('Public', '◇', 'Public', 'Nothing public is waiting. Phase 2 marketing will route posts and press here.'), grp('Plan', '▲', 'Plan')],
+      batchStats: [{ k: 'Payees', v: '6' }, { k: 'Withheld', v: '$0.00' }, { k: 'Carried forward', v: '2 under $25' }, { k: 'Pays out', v: 'Nov 10' }],
+      payees: [
+        ['Marco Dela', 'Producer, 3 points', 'Glasshouse · Distributor Oct', 'W-9 on file', '$285.00', OK],
+        ['Ari Monroe', 'Feature, 10% of artist share', 'Glasshouse · Distributor Oct', 'W-9 on file', '$260.75', OK],
+        ['Dana Okafor', 'The Low Hours', 'Night Bus · Distributor Oct', 'W-9 on file', '$214.20', OK],
+        ['Theo Lind', 'The Low Hours', 'Night Bus · Distributor Oct', 'W-8BEN on file', '$214.20', OK],
+        ['Rue Sato', 'The Low Hours', 'Night Bus · Distributor Oct', 'Expires Dec 1', '$214.20', WARN],
+        ['Ines Pardo', 'Mix engineer, 1 point', 'Night Bus · SoundExchange Q3', 'W-9 on file', '$51.83', OK]
+      ].map(([name, role, source, tax, amt, taxColor]) => ({ name, role, source, tax, amt, taxColor })),
+      inputs: [{ k: 'Distributor statement, Oct', v: 'DS-1026' }, { k: 'SoundExchange, Q3', v: 'SX-Q3-26' }, { k: 'Glasshouse splits', v: 'v4 signed' }, { k: 'Night Bus splits', v: 'v2 signed' }],
+      toolcalls: ['Imported 1,231 statement lines', 'Matched 1,204 lines to recordings', 'Applied split versions in effect Oct 1 to 31', 'Checked tax forms for 8 payees'],
+      clauses: [
+        { title: 'The $1,500 advance is non-recoupable', ref: '§4.2', draft: 'Advance of $1,500 shall be non-recoupable.', playbook: 'Advance recoupable from producer royalties only.', why: 'Marco keeps the $1,500 and starts earning points right away, so Glasshouse pays out about $1,500 more before you break even. Producer advances are usually recoupable from their own royalties.' },
+        { title: 'Marco must approve any remix', ref: '§5.2', draft: 'No remix released without Producer\'s prior written approval.', playbook: 'Producer is credited on remixes; no approval right.', why: 'An approval right can slow or block remix deals and sync edits. A consultation right is a common middle ground.' }
+      ],
+      phases: [
+        phase('Now', 'Nov 6', [task('Producer agreement, Marco Dela', 'Legal Agent', 'Needs you'), task('Budget approved, $3,000', 'Label Head', 'Done'), task('Cover art final', 'Release Agent', 'Done')], { now: true }),
+        phase('8 weeks out', 'Jan 9', [task('Split sheets signed (2 of 3)', 'Owner: Legal · waiting on Marco Dela', 'Locked', true), task('Masters delivered', 'Kesi Vale', 'Waiting')]),
+        phase('6 weeks out', 'Jan 23', [task('Masters accepted', 'Owner: Distribution Agent', 'Locked', true), task('ISRC and UPC assigned', 'Metadata Agent', 'Waiting')]),
+        phase('4 weeks out', 'Feb 6', [task('Metadata complete', 'Owner: Metadata Agent', 'Locked', true), task('Deliver to distributor', 'Distribution Agent', 'Waiting')]),
+        phase('2 weeks out', 'Feb 20', [task('Pitch submitted to playlists', 'Release Agent', 'Waiting')]),
+        phase('Release week', 'Mar 6', [task('Release goes live', 'Distribution Agent', 'Waiting')]),
+        phase('After release', 'to Jun 4', [task('First statement reconciled', 'Royalties Agent', 'Waiting'), task('90 day review', 'Label Head', 'Waiting')])
+      ],
+      assets: [['Cover art', '3000px', true], ['Master WAV', 'audio', false], ['Instrumental', 'audio', false], ['Lyrics', 'text', true], ['Press photo', 'photo', true], ['Credits', 'text', true]]
+        .map(([name, ph, ok]) => ({ name, ph, mark: ok ? '✓' : '!', color: ok ? OK : RED, border: ok ? LINE : 'rgba(255,90,78,.4)' })),
+      regs: [reg('PRO', 'Confirmed'), reg('MLC', 'Needs you'), reg('SoundExchange owner', 'Confirmed'), reg('SoundExchange artist', 'Prepared'), reg('Copyright Office', 'Not started')]
+    };
+  }
+}
+</script>
+</body>
+</html>

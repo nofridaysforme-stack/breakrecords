@@ -1,0 +1,76 @@
+{
+  "_note": "All names are invented. Values marked _assumed were added during design and are not in the original brief; confirm before shipping.",
+  "label": { "id": "lbl_northline", "name": "Northline Records", "profile": "small_label", "country": "US", "autonomyDefault": "draft_and_wait", "statementPeriod": "monthly; artists quarterly", "minimumPayout": 25.0, "monthlyAgentSpendCap": 300.0 },
+  "user": { "name": "Jana", "role": "owner" },
+  "artists": [
+    { "id": "art_kesi", "name": "Kesi Vale", "type": "solo", "genre": "R&B" },
+    { "id": "art_lowhours", "name": "The Low Hours", "type": "band", "members": ["Dana Okafor", "Theo Lind", "Rue Sato"], "genre": "indie rock" },
+    { "id": "art_marco", "name": "Marco Dela", "type": "producer_writer" }
+  ],
+  "releases": [
+    { "id": "rel_glasshouse", "title": "Glasshouse", "artistId": "art_kesi", "type": "single", "date": "2027-03-06", "budget": 3000.0, "spent": 1860.0, "status": "on_track", "tasksDonePct": 62, "isrc": "USNL12600014", "upc": "196922410037" },
+    { "id": "rel_nightbus", "title": "Night Bus EP", "artistId": "art_lowhours", "type": "ep", "_assumed": true }
+  ],
+  "deal": { "releaseId": "rel_glasshouse", "type": "net_profit", "split": { "label": 50, "artist": 50 }, "fundedBy": "label", "termYears": 3 },
+  "splitVersions": [
+    { "version": 4, "effectiveFrom": "2026-10-01", "status": "signed", "shares": [
+      { "party": "Marco Dela", "rule": "producer 3 points off the top", "pctOfTotal": 3.0 },
+      { "party": "Northline Records", "rule": "50% of net profit", "pctOfTotal": 48.5 },
+      { "party": "Kesi Vale", "rule": "50% of net profit less feature", "pctOfTotal": 43.65 },
+      { "party": "Ari Monroe", "rule": "feature 10% of artist share", "pctOfTotal": 4.85 }
+    ] },
+    { "version": 5, "effectiveFrom": "2027-01-01", "status": "draft_invalid", "netProfitAssignedPct": 95, "shares": [
+      { "party": "Marco Dela", "pctOfTotal": 3.0 }, { "party": "Northline Records", "pctOfTotal": 38.8 },
+      { "party": "Kesi Vale", "pctOfTotal": 48.02 }, { "party": "Ari Monroe", "pctOfTotal": 5.33 }, { "party": "unassigned", "pctOfTotal": 4.85 }
+    ] }
+  ],
+  "waterfallGlasshouseOct2026": [
+    { "label": "Gross income", "rule": "Distributor, all stores", "amount": 10000.0, "balance": 10000.0, "source": "DS-1026" },
+    { "label": "Distributor fee", "rule": "0% on this plan", "amount": 0.0, "balance": 10000.0, "source": "DS-1026" },
+    { "label": "Platform fee", "rule": "5% of gross", "amount": -500.0, "balance": 9500.0, "source": "DS-1026" },
+    { "label": "Producer, Marco Dela", "rule": "3 points of $9,500.00", "amount": -285.0, "balance": 9215.0, "source": "SPL-v4" },
+    { "label": "Recoupable costs", "rule": "Last of $4,000.00 recouped", "amount": -4000.0, "balance": 5215.0, "source": "RC-GH" },
+    { "label": "Net profit", "subtotal": true, "balance": 5215.0 },
+    { "label": "Label share", "rule": "50% of net profit", "amount": -2607.5, "balance": 2607.5, "source": "SPL-v4" },
+    { "label": "Artist share", "subtotal": true, "balance": 2607.5 },
+    { "label": "Feature, Ari Monroe", "rule": "10% of artist share", "amount": -260.75, "balance": 2346.75, "source": "SPL-v4" },
+    { "label": "Withholding", "rule": "W-9 on file", "amount": 0.0, "balance": 2346.75, "source": "TAX-KV" }
+  ],
+  "artistNet": 2346.75,
+  "approvals": [
+    { "id": "apr_payout_oct", "type": "money", "title": "Payout batch for October", "agent": "Royalties Agent", "due": "2026-11-10", "impact": "$1,240.18 to 6 payees", "risk": "low" },
+    { "id": "apr_producer", "type": "signature", "title": "Producer agreement, Marco Dela", "agent": "Legal Agent", "due": "2026-11-09", "impact": "3 points · 2 flagged terms", "risk": "needs_your_eyes" },
+    { "id": "apr_mlc", "type": "filing", "title": "MLC registration for 3 songs", "agent": "Publishing Agent", "due": "2026-11-12", "impact": "3 songs", "risk": "low" },
+    { "id": "apr_grant", "type": "plan", "title": "State arts council grant draft", "agent": "Funding Scout", "due": "2026-11-15", "impact": "Up to $5,000", "risk": "due_soon" }
+  ],
+  "payoutBatchOct": { "total": 1240.18, "payDate": "2026-11-10", "payees": [
+    { "name": "Marco Dela", "role": "Producer, 3 points", "net": 285.0, "taxForm": "W-9" },
+    { "name": "Ari Monroe", "role": "Feature, 10% of artist share", "net": 260.75, "taxForm": "W-9" },
+    { "name": "Dana Okafor", "role": "The Low Hours", "net": 214.2, "taxForm": "W-9", "_assumed": true },
+    { "name": "Theo Lind", "role": "The Low Hours", "net": 214.2, "taxForm": "W-8BEN", "_assumed": true },
+    { "name": "Rue Sato", "role": "The Low Hours", "net": 214.2, "taxForm": "W-9, expires 2026-12-01", "_assumed": true },
+    { "name": "Ines Pardo", "role": "Mix engineer, 1 point", "net": 51.83, "taxForm": "W-9", "_assumed": true }
+  ], "carryForward": [ { "name": "Jules Arden", "amount": 18.4 }, { "name": "Pia Novak", "amount": 9.12 } ] },
+  "producerAgreementFlags": [
+    { "ref": "4.2", "draft": "Advance of $1,500 shall be non-recoupable.", "playbook": "Advance recoupable from producer royalties only." },
+    { "ref": "5.2", "draft": "No remix released without Producer's prior written approval.", "playbook": "Producer is credited on remixes; no approval right." }
+  ],
+  "homeNumbers": { "incomeThisPeriod": 10000.0, "owedToPayees": 1240.18, "recouped": 4000.0, "cash90Days_assumed": 7850.0, "unclaimedFound_assumed": 312.4 },
+  "goals": [
+    { "title": "Glasshouse single", "pct": 62, "meta": "Kesi Vale · Mar 6 · $1,860 of $3,000 · on budget" },
+    { "title": "Register catalog with MLC", "pct": 58, "meta": "7 of 12 songs · 3 waiting on you", "_assumed": true },
+    { "title": "The Low Hours EP plan", "pct": 18, "meta": "Draft plan · May target", "_assumed": true }
+  ],
+  "registrationsGlasshouse": { "PRO": "confirmed", "MLC": "needs_you", "SX_OWNER": "confirmed", "SX_ARTIST": "prepared", "COPYRIGHT": "not_started", "NEIGHBORING": "not_started" },
+  "funding": [
+    { "type": "grant", "title": "State arts council project grant", "amount": "up to 5000", "repayable": false, "deadline": "2026-11-15" },
+    { "type": "advance", "title": "Royalty advance", "amount": 8000, "terms": "60% of streaming income until repaid", "repayTotal_assumed": 8960, "termMonths_assumed": 14 },
+    { "type": "sale", "title": "Partial catalog sale", "amount": 15000, "terms": "50% of one album's income", "permanent": true, "album_assumed": "Velvet Hours" }
+  ],
+  "offerAssumptions_assumed": { "annualStreamingIncome": 13200, "growth": 0, "albumAnnualIncome": 4800 },
+  "agentFeed": [
+    { "agent": "Metadata Agent", "state": "done", "text": "Completed credits for 4 tracks." },
+    { "agent": "Audit Agent", "state": "waiting_on_you", "text": "Flagged an unusual stream spike on \"Night Bus\" (The Low Hours)." },
+    { "agent": "Funding Scout", "state": "done", "text": "Found 2 new grants." }
+  ]
+}
