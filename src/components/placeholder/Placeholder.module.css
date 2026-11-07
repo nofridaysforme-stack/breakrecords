@@ -1,0 +1,9 @@
+.card {
+  max-width: 640px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: 24px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.frames { color: var(--text-2); }

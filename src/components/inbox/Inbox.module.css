@@ -1,0 +1,32 @@
+/* Frames 2d (desktop) and 2i (phone), states 3b, 3d, 3f, 3h, 3j. */
+.head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.sub { font-size: var(--fs-body-lg); color: var(--text-2); margin-top: 6px; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; }
+.filter {
+  position: relative; display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--line-chip); border-radius: var(--r-control); padding: 0 12px; min-height: 40px; font-size: var(--fs-body);
+}
+.filter:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.filterKey { color: var(--text-muted); }
+.select { field-sizing: content; appearance: none; background: transparent; border: 0; color: var(--text); font-size: var(--fs-body); padding: 8px 18px 8px 0; cursor: pointer; outline: none; }
+.select option { background: var(--surface); color: var(--text); }
+.chev { position: absolute; right: 10px; pointer-events: none; color: var(--text-muted); }
+.list { display: flex; flex-direction: column; gap: 22px; }
+.note { font-size: var(--fs-meta); color: var(--text-muted); }
+.stack { display: flex; flex-direction: column; gap: 14px; }
+
+.desk { display: flex; flex-direction: column; gap: 22px; }
+.phone { display: none; }
+
+/* phone (2i) */
+.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-inline: calc(-1 * var(--mobile-pad-x)); padding-inline: var(--mobile-pad-x); }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: 0 0 auto; min-height: 36px; padding: 7px 12px; border-radius: var(--r-control); border: 1px solid var(--line-chip); background: transparent; color: var(--text); font-size: var(--fs-meta); }
+.chip[aria-pressed='true'] { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 600; }
+.more { align-self: center; min-height: var(--tap-min); padding: 4px 8px; background: none; border: 0; color: var(--accent); font-size: var(--fs-body); font-weight: 600; text-align: center; }
+.phoneTitle { font: 800 28px var(--font-display); font-stretch: var(--stretch-display); }
+
+@media (max-width: 767px) {
+  .desk { display: none; }
+  .phone { display: flex; flex-direction: column; gap: 16px; }
+}

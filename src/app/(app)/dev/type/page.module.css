@@ -1,0 +1,8 @@
+.row { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 16px; align-items: baseline; padding: 14px 0; border-bottom: 1px solid var(--line-soft); }
+.spec { font-family: var(--font-mono); font-size: var(--fs-eyebrow); color: var(--text-muted); }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.swatch { border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden; background: var(--surface); }
+.chip { height: 48px; }
+.swatchName { padding: 8px 10px; font-family: var(--font-mono); font-size: var(--fs-eyebrow); color: var(--text-2); }
+.row > * { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 767px) { .row { grid-template-columns: minmax(0, 1fr); gap: 6px; } }

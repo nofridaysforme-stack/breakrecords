@@ -1,0 +1,14 @@
+.section { display: flex; flex-direction: column; gap: 16px; padding-bottom: 36px; border-bottom: 1px solid var(--line); }
+.head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.frames { font: 500 var(--fs-eyebrow) var(--font-mono); color: var(--text-muted); }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+.stack { display: flex; flex-direction: column; gap: 8px; }
+.label { font: 500 var(--fs-eyebrow) var(--font-mono); color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+.panel { border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden; max-width: 380px; }
+.treeCol { max-width: 280px; }
+.splits { display: grid; grid-template-columns: minmax(0, 280px) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 1023px) { .splits { grid-template-columns: minmax(0, 1fr); } }
+.p { font-size: var(--fs-body); color: var(--text-2); }
+@media (max-width: 1023px) { .grid3, .grid2 { grid-template-columns: minmax(0, 1fr); } }

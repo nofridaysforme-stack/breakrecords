@@ -1,0 +1,33 @@
+/* 5g */
+.log { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden; }
+.entry { border-bottom: 1px solid var(--line-soft); }
+.entry:last-child { border-bottom: 0; }
+.open { background: var(--surface-raised); }
+.row { width: 100%; display: grid; grid-template-columns: 110px 130px minmax(0, 1fr) 180px 150px; gap: 16px; padding: calc(var(--cell-pad-y) - 1px) 20px; align-items: center; background: none; border: 0; color: var(--text); font: inherit; font-size: var(--fs-body); text-align: left; cursor: pointer; min-height: var(--tap-min); }
+.row:hover { background: var(--surface-raised); }
+.when { font: 500 var(--fs-eyebrow-lg) var(--font-mono); color: var(--text-muted); }
+.kind { display: inline-flex; align-items: center; gap: 5px; font: 600 var(--fs-eyebrow) var(--font-mono); text-transform: uppercase; letter-spacing: .06em; }
+.kGood { color: var(--good); } .kCritical { color: var(--critical); } .kAccent { color: var(--accent); } .kMuted { color: var(--text-muted); }
+.text { min-width: 0; }
+.who { color: var(--text-2); font-size: var(--fs-meta); }
+.id { font: 500 var(--fs-eyebrow-lg) var(--font-mono); color: var(--text-muted); text-align: right; display: inline-flex; justify-content: flex-end; align-items: center; gap: 6px; }
+.chev { transition: transform var(--dur-fast) var(--ease); }
+.row[aria-expanded='true'] .chev { transform: rotate(180deg); }
+.detail { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 0 20px 18px 276px; }
+.detail[hidden] { display: none; }
+.box { background: var(--bg); border-radius: var(--r-control); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.boxHead { font: 500 var(--fs-eyebrow) var(--font-mono); text-transform: uppercase; color: var(--text-muted); }
+.inputs { font: 500 var(--fs-eyebrow-lg)/1.6 var(--font-mono); color: var(--text-2); }
+.boxText { font-size: var(--fs-meta); line-height: 1.5; color: var(--text-2); }
+
+@media (max-width: 1279px) {
+  .row { grid-template-columns: 100px 110px minmax(0, 1fr) 150px; }
+  .id { display: none; }
+  .detail { padding-left: 20px; }
+}
+@media (max-width: 767px) {
+  .row { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
+  .text { grid-column: 1 / -1; order: 3; }
+  .who { order: 4; }
+  .detail { grid-template-columns: minmax(0, 1fr); }
+}

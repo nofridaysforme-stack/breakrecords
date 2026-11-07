@@ -1,0 +1,9 @@
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 20px 22px; display: flex; flex-direction: column; gap: 16px; }
+.top { display: flex; gap: 14px; align-items: center; }
+.photo { width: 56px; height: 56px; border-radius: var(--r-control); }
+.name { font: 800 var(--fs-section) var(--font-display); font-stretch: var(--stretch-section); }
+.open { margin-top: auto; display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: var(--tap-min); padding: 0 12px; border-radius: var(--r-control); background: var(--surface-raised); font-size: var(--fs-meta); }
+.open:hover { color: var(--accent-hover); }
+@media (max-width: 1279px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 767px) { .grid { grid-template-columns: minmax(0, 1fr); } }

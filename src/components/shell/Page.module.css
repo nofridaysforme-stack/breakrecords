@@ -1,0 +1,71 @@
+/* Content area: main plus an optional right rail (2c: 240 | 1fr | 310). */
+.page { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 100dvh; }
+.withRail { grid-template-columns: minmax(0, 1fr) var(--rail-w); }
+
+.main {
+  min-width: 0;
+  padding: var(--page-pad-y) var(--page-pad-x);
+  display: flex; flex-direction: column; gap: var(--page-gap);
+}
+
+.rail {
+  border-left: 1px solid var(--line);
+  padding: var(--page-pad-y) var(--rail-pad-x);
+  display: flex; flex-direction: column; gap: var(--rail-gap);
+}
+
+/* A screen that lays out its own columns. */
+.bare { min-width: 0; min-height: 100dvh; }
+
+/* Toggle and drawer only exist below the inline-rail breakpoint. */
+.toggle { display: none; }
+
+/* flows.md: the right rail collapses into a toggle at 1280 and below. */
+@media (max-width: 1359px) {
+  .withRail { grid-template-columns: minmax(0, 1fr); }
+  .rail { display: none; }
+  .toggle {
+    position: fixed; right: 24px; bottom: 24px; z-index: 15;
+    display: inline-flex; align-items: center; gap: 8px;
+    min-height: var(--tap-min); padding: 0 16px;
+    border-radius: var(--r-control);
+    border: 1px solid var(--line-control);
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 600;
+    box-shadow: var(--shadow-overlay);
+    transition: background var(--dur-fast) var(--ease);
+  }
+  .toggle:hover { background: var(--surface-raised); }
+}
+
+@media (max-width: 767px) {
+  .main { padding: var(--mobile-pad-y) var(--mobile-pad-x) calc(var(--page-gap) + 140px); gap: 18px; }
+  .toggle { bottom: 96px; right: var(--mobile-pad-x); }
+  .toggleDesk { display: none; }
+}
+
+.drawer {
+  margin: 0 0 0 auto;
+  height: 100dvh; max-height: none;
+  width: min(var(--rail-w), 100vw);
+  border: 0; border-left: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+  padding: 0;
+}
+.drawer[open] { animation: slideIn var(--dur-drawer) var(--ease); }
+.drawer::backdrop { background: var(--scrim); }
+.drawerHead {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px var(--rail-pad-x) 0;
+}
+.drawerBody { padding: 16px var(--rail-pad-x) var(--page-pad-y); display: flex; flex-direction: column; gap: var(--rail-gap); }
+.close {
+  width: var(--tap-min); height: var(--tap-min);
+  display: grid; place-items: center;
+  border: 1px solid var(--line-control); border-radius: var(--r-control);
+  background: transparent; color: var(--text);
+}
+
+@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }

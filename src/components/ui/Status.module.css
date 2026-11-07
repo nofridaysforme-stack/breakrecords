@@ -1,0 +1,47 @@
+/* Status pill (components.md), risk flag diamonds, agent chip, type glyphs */
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid currentColor; border-radius: var(--r-chip);
+  padding: 3px 8px;
+  font: 600 var(--fs-eyebrow-lg) var(--font-ui);
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.pill svg { flex: 0 0 auto; }
+.notStarted { color: var(--text-muted); }
+.prepared { color: var(--accent); }
+.needsYou { color: var(--critical); background: var(--critical-tint); }
+.submitted { color: var(--info); }
+.confirmed { color: var(--good); }
+.blocked { color: var(--critical); }
+
+.flag { display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-meta); white-space: nowrap; }
+.flagEyebrow { font: 500 var(--fs-eyebrow) var(--font-mono); text-transform: uppercase; letter-spacing: .06em; gap: 6px; }
+.flagStrong { font-weight: 600; }
+.diamond { flex: 0 0 auto; width: 7px; height: 7px; transform: rotate(45deg); background: currentColor; }
+.diamondLg { width: 8px; height: 8px; }
+.low { color: var(--good); }
+.dueSoon { color: var(--warn); }
+.needsEyes { color: var(--critical); }
+.flagBlocked { color: var(--critical); }
+.done { color: var(--good); }
+.waiting { color: var(--text-muted); }
+.inProgress { color: var(--accent); }
+
+.chip { display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-eyebrow-lg); color: var(--text-2); }
+.chipBoxed {
+  font-size: var(--fs-meta); color: var(--text);
+  border: 1px solid var(--line-chip); border-radius: var(--r-control); padding: 6px 10px;
+}
+.chipBoxed.working { border-color: var(--accent-line-sel); }
+.dot { flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); }
+.working .dot { background: var(--accent); animation: pulse 2s ease-in-out infinite; }
+.waitingOnYou .dot, .agentBlocked .dot { background: var(--critical); }
+.agentDone .dot { background: var(--good); }
+.preparing { color: var(--accent); font-size: var(--fs-meta); }
+.preparing .dot { background: var(--accent); }
+
+@keyframes pulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .working .dot { animation: none; } }
+
+.glyph { display: inline-block; vertical-align: -1px; }

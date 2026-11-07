@@ -1,0 +1,22 @@
+/* components.md > Mobile tab bar: 4 equal items, active orange 700, 22px bottom safe area. */
+.bar { display: none; }
+
+@media (max-width: 767px) {
+  .bar {
+    position: fixed; inset: auto 0 0 0; z-index: 20;
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    background: var(--bg);
+    border-top: 1px solid var(--line);
+    padding: 10px 8px calc(var(--tabbar-pad-bottom) + env(safe-area-inset-bottom));
+    font-size: var(--fs-eyebrow-lg);
+    text-align: center;
+  }
+  .tab {
+    min-height: var(--tap-min);
+    display: grid; place-items: center;
+    padding: 8px 0;
+    border-radius: var(--r-control);
+    color: var(--text-muted);
+  }
+  .tab[aria-current='page'] { color: var(--accent); font-weight: 700; }
+}

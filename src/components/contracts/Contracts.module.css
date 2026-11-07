@@ -1,0 +1,37 @@
+/* 5b and the undrawn template detail. */
+.head { flex-wrap: nowrap; }
+.table { table-layout: fixed; min-width: 860px; }
+.table td, .table tbody th { padding-top: var(--cell-pad-y); padding-bottom: var(--cell-pad-y); }
+.cName { width: 25%; } .cParties { width: 17%; } .cTerms { width: 22%; } .cDate { width: 170px; } .cSig { width: 180px; }
+.table th, .table td { padding-left: 8px; padding-right: 8px; }
+.name { font-weight: 600; text-decoration: underline; text-decoration-color: var(--line-control); text-underline-offset: 3px; }
+.name:hover { color: var(--accent-hover); }
+.nameText { font-weight: 600; }
+.tplLink { text-decoration: underline; text-decoration-color: var(--line-control); text-underline-offset: 2px; }
+.tplLink:hover { color: var(--text); }
+.templates { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.tpl { height: 100%; }
+.pick { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+
+/* template detail */
+.tplLayout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+.clauses { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); }
+.clause { padding: 16px 20px; border-top: 1px solid var(--line-soft); display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 16px; font-size: var(--fs-body); }
+.clause:first-child { border-top: 0; }
+.clauseTitle { font-weight: 600; }
+.side { display: flex; flex-direction: column; gap: 16px; }
+.playbook { display: flex; flex-direction: column; gap: 8px; font-size: var(--fs-body); line-height: 1.45; color: var(--text-2); }
+.playbook li { padding-left: 14px; position: relative; }
+.playbook li::before { content: ''; position: absolute; left: 0; top: .55em; width: 6px; height: 6px; border-radius: var(--r-dot); background: var(--accent); }
+.used { display: flex; flex-direction: column; }
+.usedRow { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line-soft); font-size: var(--fs-body); }
+
+@media (max-width: 1279px) {
+  .head { flex-wrap: wrap; }
+  .templates { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tplLayout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 767px) {
+  .templates { grid-template-columns: minmax(0, 1fr); }
+  .clause { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+}

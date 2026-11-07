@@ -1,0 +1,165 @@
+/* Break Records design tokens. Dark is the default theme. White-label tenants override :root values. */
+:root, [data-theme="dark"] {
+  /* surfaces */
+  --bg: #110c0b;
+  --bg-sidebar: #0b0807;
+  --surface: #1b1312;
+  --surface-raised: #241817;   /* selected rows, hover, banners */
+  --track: #2e201e;            /* progress tracks */
+  --surface-sheet: #f2ebe4;    /* document preview */
+  --on-sheet: #1c1412;
+
+  /* text */
+  --text: #f4ece6;
+  --text-2: #cdbcb4;
+  --text-muted: #a8968e;
+  --text-faint: #7d6c65;
+
+  /* lines */
+  --line: rgba(255,235,225,.08);
+  --line-soft: rgba(255,235,225,.06);
+  --line-control: rgba(255,235,225,.18);
+  --line-chip: rgba(255,235,225,.14);
+
+  /* brand */
+  --accent: #ef6a2a;           /* primary action + Label Head */
+  --accent-hover: #ff8a4f;
+  --on-accent: #110c0b;
+  --accent-line: rgba(239,106,42,.45);
+  --brand: #5c1424;            /* burgundy blocks */
+  --on-brand: #fbe7ea;
+  --on-brand-2: #f0bcc4;
+  --on-brand-label: #f6c9d0;
+  --brand-line: rgba(251,231,234,.35);
+
+  /* status (always paired with icon + label) */
+  --good: #7fc29b;
+  --warn: #f2a65a;
+  --critical: #ff5a4e;
+  --critical-line: rgba(255,90,78,.4);
+  --critical-tint: rgba(255,90,78,.1);
+  --info: #9fb6d9;
+
+  /* split bar party colors */
+  --party-1: #5c1424;
+  --party-2: #3a2a27;
+  --party-3: #ef6a2a;
+  --party-4: #f2a65a;
+
+  /* type */
+  --font-display: 'Archivo', system-ui, sans-serif;
+  --font-ui: 'Hanken Grotesk', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* radius */
+  --r-chip: 6px;
+  --r-control: 8px;            /* buttons, inputs, nav items */
+  --r-card: 12px;
+  --r-card-mobile: 14px;
+
+  /* shadow (used only for floating overlays) */
+  --shadow-overlay: 0 10px 40px rgba(0,0,0,.4);
+
+  /* layout */
+  --sidebar-w: 240px;
+  --rail-w: 310px;
+  --page-pad-x: 40px;
+  --page-pad-y: 28px;
+  --tap-min: 44px;
+}
+
+/* Light theme: NOT designed yet. Placeholder values so components can be built theme-aware. */
+[data-theme="light"] {
+  --bg: #f7f2ee; --bg-sidebar: #efe8e3; --surface: #ffffff; --surface-raised: #f3e9e3; --track: #e6dad3;
+  --text: #1a1210; --text-2: #4a3c37; --text-muted: #6e5f59; --text-faint: #8f817b;
+  --line: rgba(40,20,15,.10); --line-soft: rgba(40,20,15,.07); --line-control: rgba(40,20,15,.22); --line-chip: rgba(40,20,15,.16);
+  --accent: #c94f14; --on-accent: #ffffff; --brand: #5c1424; --on-brand: #fbe7ea;
+  --good: #2e7d50; --warn: #a15c12; --critical: #c5271c; --info: #3c5f94;
+}
+
+/* density */
+[data-density="compact"] { --page-pad-x: 28px; --page-pad-y: 20px; }
+
+/* ------------------------------------------------------------------
+   App extensions. Values measured from design/design_files where
+   tokens.css had no entry. Keep every size and color here, never in
+   components.
+   ------------------------------------------------------------------ */
+:root, [data-theme="dark"] {
+  /* fonts: next/font injects --font-archivo, --font-hanken, --font-plex-mono on <html> */
+  --font-display: var(--font-archivo), 'Archivo', system-ui, sans-serif;
+  --font-ui: var(--font-hanken), 'Hanken Grotesk', system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, monospace;
+
+  --line-box: rgba(255,235,225,.10);   /* label switcher border (BR Sidebar) */
+  --r-tag: 5px;                        /* Phase 2 tag, kbd hint */
+  --r-mark: 7px;                       /* logo mark */
+  --r-dot: 2px;                        /* active nav square */
+
+  /* layout (2c: main padding 28px 36px, rail padding 28px 22px) */
+  --page-pad-x: 36px;
+  --page-gap: 28px;
+  --rail-pad-x: 22px;
+  --rail-gap: 16px;
+  --sidebar-rail-w: 64px;              /* 1024 icon rail (flows.md) */
+  --mobile-pad-x: 22px;
+  --mobile-pad-y: 14px;
+  --scrim: rgba(0,0,0,.5);            /* behind drawers */
+  --tabbar-pad-bottom: 22px;
+
+  /* type ramp */
+  --fs-eyebrow: 11px;
+  --fs-eyebrow-lg: 12px;
+  --fs-meta: 13px;
+  --fs-body: 14px;
+  --fs-body-lg: 15px;
+  --fs-card-title: 16px;
+  --fs-brief: 17px;
+  --fs-section: 20px;
+  --fs-number: 24px;
+  --fs-page-title: 36px;
+  --fs-hero: 40px;
+  --fs-hero-xl: 52px;
+  --tracking-eyebrow: .08em;
+  --tracking-display: -.02em;
+  --stretch-display: 112%;
+  --stretch-section: 110%;
+
+  /* component values measured from design_files (Phase B) */
+  --surface-gate: #190f0e;             /* runbook gate rows (2g) */
+  --line-dashed: rgba(255,235,225,.16);/* empty states, goal chips (3a, 3b, 2d) */
+  --accent-line-soft: rgba(239,106,42,.35); /* bulk bar (2d) */
+  --accent-line-sel: rgba(239,106,42,.4);   /* selected row, working chip (2d, 3c) */
+  --accent-line-tag: rgba(239,106,42,.5);   /* Override tag (4a) */
+  --critical-line-soft: rgba(255,90,78,.35);/* locked gate (2g) */
+  --brand-skeleton: rgba(251,231,234,.14);  /* skeleton bars inside brand blocks (3c) */
+  --stripe-asset: #2a1c1a;             /* placeholder art stripes with --surface-raised */
+  --on-sheet-muted: #6b5d57;           /* document preview meta (2f) */
+  --sheet-flag: rgba(214,49,43,.12);   /* flagged clause fill (2f) */
+  --sheet-flag-line: rgba(214,49,43,.35);
+  --brand-inset: rgba(0,0,0,.22);      /* summary box inside brand panels (2b) */
+  --r-panel: 10px;                     /* dial container, bulk bar, task rows */
+  --r-check: 5px;                      /* checkbox */
+
+  /* Batch 3 (Phase E) */
+  --surface-critical: #2a1214;         /* permanent sale column (5e) */
+  --critical-text: #ff8178;            /* red text on that column, 5.6:1 there (5e, 5j) */
+  --stripe-drop: #170f0e;              /* logo drop zone stripes (5i) */
+  --on-accent-2: #3a1a0a;              /* secondary text on the selected dial stop (5f) */
+  --r-swatch: 7px;                     /* color swatches (5i) */
+  --cell-pad-y: 14px;                  /* table rows; compact density tightens it */
+
+  /* motion (flows.md) */
+  --ease: cubic-bezier(.2,.7,.3,1);
+  --dur-fast: 150ms;
+  --dur-drawer: 200ms;
+}
+
+/* Compact density (flows.md, Settings > Profile). Declared after the defaults so it wins. */
+[data-density="compact"] {
+  --page-pad-x: 28px;
+  --page-pad-y: 20px;
+  --page-gap: 18px;
+  --rail-gap: 12px;
+  --cell-pad-y: 8px;
+}
