@@ -1,0 +1,10 @@
+{
+  "name": "@breakrecords/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Money math shared by the web app and, later, the server: cents, percentages, splits, waterfall, deal terms, dates, offers.",
+  "exports": { "./*": "./src/*.ts" },
+  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
+  "devDependencies": { "typescript": "5.8.3", "vitest": "4.1.12" }
+}
