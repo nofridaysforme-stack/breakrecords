@@ -28,6 +28,14 @@ const CONTEXT: Record<string, { context: string; riskLabel?: string }> = {
   apr_grant: { context: 'Project grant, non-repayable', riskLabel: 'Due in 9 days' },
 };
 
+/** Who and what each approval touches, for the inbox filters (2d). */
+export const approvalTags: Record<string, { artists: string[]; releases: string[]; dept: string; short?: string }> = {
+  apr_payout_oct: { artists: ['Kesi Vale', 'The Low Hours'], releases: ['Glasshouse', 'Night Bus EP'], dept: 'Royalties' },
+  apr_producer: { artists: ['Kesi Vale'], releases: ['Glasshouse'], dept: 'Legal' },
+  apr_mlc: { artists: ['Kesi Vale'], releases: ['Glasshouse'], dept: 'Publishing' },
+  apr_grant: { artists: ['Kesi Vale'], releases: ['Glasshouse'], dept: 'Funding', short: 'Grant draft' },
+};
+
 export const approvals: ApprovalSummary[] = sample.approvals.map((a) => ({
   id: a.id,
   type: a.type as ApprovalSummary['type'],

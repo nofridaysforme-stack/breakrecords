@@ -5,11 +5,11 @@ import { PanelRight, X } from 'lucide-react';
 import s from './Page.module.css';
 
 /** Below 1360px the right rail moves into a drawer opened by this button. */
-export function RailToggle({ label, children }: { label: string; children: ReactNode }) {
+export function RailToggle({ label, children, hideOnPhone }: { label: string; children: ReactNode; hideOnPhone?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   return (
     <>
-      <button type="button" className={s.toggle} aria-haspopup="dialog" onClick={() => ref.current?.showModal()}>
+      <button type="button" className={`${s.toggle} ${hideOnPhone ? s.toggleDesk : ''}`} aria-haspopup="dialog" onClick={() => ref.current?.showModal()}>
         <PanelRight size={16} aria-hidden="true" />
         {label}
       </button>

@@ -33,26 +33,33 @@ type CardProps = {
   approval: ApprovalSummary;
   reviewHref: string;
   onApprove?: (id: string) => void;
+  /** Phone layout: "home" puts the due date in the eyebrow (2h), "inbox" after the impact (2i). */
+  phone?: 'home' | 'inbox';
 };
 
 /** Default card (2c). Signature cards send you to the agreement instead of approving in place. */
-export function ApprovalCard({ approval: a, reviewHref, onApprove }: CardProps) {
+export function ApprovalCard({ approval: a, reviewHref, onApprove, phone = 'home' }: CardProps) {
   const titleId = `apr-${a.id}-title`;
+  const sig = a.type === 'signature';
   return (
-    <article className={s.card} aria-labelledby={titleId}>
+    <article className={cx(s.card, phone === 'inbox' ? s.phoneInbox : s.phoneHome)} aria-labelledby={titleId}>
       <div className={s.eyebrowRow}>
-        <span className={s.typeLabel}><TypeGlyph type={a.type} />{approvalTypeLabel(a.type)}</span>
+        <span className={s.typeLabel}><TypeGlyph type={a.type} />{approvalTypeLabel(a.type)}<span className={s.eyebrowDue}> · {a.due}</span></span>
         <RiskFlag risk={a.risk} label={a.riskLabel} eyebrow />
       </div>
       <h3 id={titleId} className={s.title}>{a.title}</h3>
       <p className={s.meta}>{a.agent} · due {a.due}</p>
-      <p className={s.impact}>{a.impact}</p>
+      <p className={s.impact}>{a.impact}<span className={s.impactDue}> · due {a.due}</span></p>
       <div className={s.actions}>
-        {a.type === 'signature' ? (
-          <ButtonLink href={reviewHref} variant="primary">{primaryLabel(a)}</ButtonLink>
+        {sig ? (
+          <>
+            {/* Signatures are never approved from a card: review the agreement first. */}
+            <ButtonLink href={reviewHref} variant="primary">Review</ButtonLink>
+            <ButtonLink href={`${reviewHref}?ask=1`} variant="secondary">Ask agent</ButtonLink>
+          </>
         ) : (
           <>
-            <Button variant="primary" onClick={() => onApprove?.(a.id)}>Approve</Button>
+            <Button variant="primary" onClick={() => onApprove?.(a.id)}>{primaryLabel(a)}</Button>
             <ButtonLink href={reviewHref} variant="secondary">Review</ButtonLink>
           </>
         )}

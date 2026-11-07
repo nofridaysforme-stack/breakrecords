@@ -4,7 +4,6 @@ const PORT = Number(process.env.PORT ?? 3100);
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: ['e2e/**/*.spec.ts', 'visual/**/*.spec.ts'],
   outputDir: 'test-results',
   fullyParallel: true,
   reporter: [['list']],
@@ -16,7 +15,10 @@ export default defineConfig({
     timeout: 60_000,
   },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 1000 } } },
-    { name: 'mobile', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } } },
+    // Flows, accessibility and layout at desktop and phone width.
+    { name: 'desktop', testMatch: 'e2e/**/*.spec.ts', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 1000 } } },
+    { name: 'mobile', testMatch: 'e2e/**/*.spec.ts', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } } },
+    // One screenshot per design frame, each at its frame's own size (tests/visual/{id}.spec.ts).
+    { name: 'visual', testMatch: 'visual/**/*.spec.ts', use: { ...devices['Desktop Chrome'] } },
   ],
 });

@@ -1,9 +1,10 @@
 import { AppShell } from '@/components/shell/AppShell';
-import { label, pendingApprovalCount } from '@/data/sample';
+import { label } from '@/data/sample';
+import { approvalIds } from '@/data/api';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AppShell labelName={label.name} approvalsCount={pendingApprovalCount}>
+    <AppShell labelName={label.name} approvalIds={approvalIds()}>
       {children}
     </AppShell>
   );

@@ -14,6 +14,8 @@
 .impact { font: 600 var(--fs-body-lg) var(--font-mono); font-variant-numeric: tabular-nums; }
 .actions { display: flex; gap: 8px; margin-top: 4px; }
 .actions > * { flex: 1 1 0; padding-inline: 0; }
+.eyebrowDue, .impactDue { display: none; }
+.impactDue { font-family: var(--font-ui); font-weight: 400; font-size: var(--fs-body); color: var(--text-muted); }
 .reason { font-size: var(--fs-body); line-height: 1.5; }
 .reason strong, .failText strong { font-weight: 700; }
 .fixActions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -57,7 +59,6 @@
 
 /* The three facts are grid cells on desktop and one wrapped line below the title when narrow. */
 .rowFacts { display: contents; }
-.rowActions { grid-area: actions; }
 
 @media (max-width: 1279px) {
   .row {
@@ -67,6 +68,7 @@
   }
   .row > :nth-child(1) { grid-area: check; }
   .row > :nth-child(2) { grid-area: main; }
+  .rowActions { grid-area: actions; }
   .rowFacts { grid-area: facts; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; }
 }
 @media (max-width: 767px) {
@@ -101,5 +103,11 @@
 
 @media (max-width: 767px) {
   .card { border-radius: var(--r-card-mobile); }
-  .actions > * { min-height: 48px; }
+  .actions { gap: 10px; margin-top: 2px; }
+  .actions > * { min-height: 48px; font-size: var(--fs-body-lg); }
+  .meta { display: none; }
+  .phoneHome .eyebrowDue { display: inline; }
+  .phoneInbox .impactDue { display: inline; }
+  .phoneInbox { gap: 10px; }
+  .phoneInbox .title { font-size: var(--fs-body-lg); }
 }

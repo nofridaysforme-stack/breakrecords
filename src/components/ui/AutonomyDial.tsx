@@ -1,7 +1,6 @@
 'use client';
 
 import { useId } from 'react';
-import { cx } from './cx';
 import s from './AutonomyDial.module.css';
 
 export type Autonomy = 'observe' | 'suggest' | 'draft_and_wait' | 'act_within_limits';
@@ -50,7 +49,7 @@ export function AutonomyDial({ value, onChange, layout = 'segmented', legend = '
             <label key={stop.id} className={s.option}>
               {input}
               <span className={s.optNum} aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-              <span><span className={s.optName}>{stop.name}</span><span className={cx(s.optDesc)} style={{ display: 'block' }}>{stop.long}</span></span>
+              <span><span className={s.optName}>{stop.name}</span><span className={s.optDesc}>{stop.long}</span></span>
               {recommended === stop.id && <span className={s.optTag}>Recommended</span>}
             </label>
           ) : (

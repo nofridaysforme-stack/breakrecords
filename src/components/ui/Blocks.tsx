@@ -198,24 +198,29 @@ type LHProps = {
   action?: ReactNode;
   /** Writing state (3c): skeleton bars instead of copy. */
   writing?: boolean;
+  /** Shorter copy on phones (2h). */
+  short?: ReactNode;
+  /** Eyebrow on phones: "this week". */
+  shortEyebrow?: string;
 };
 
 /** Burgundy block. The Label Head speaks in first person. */
-export function LabelHeadBlock({ eyebrow, heading, children, action, writing }: LHProps) {
+export function LabelHeadBlock({ eyebrow, heading, children, action, writing, short, shortEyebrow }: LHProps) {
   return (
     <section className={s.lh} aria-label={`Label Head, ${eyebrow}`} aria-busy={writing || undefined}>
       <div className={s.lhBody}>
-        <p className={s.lhEyebrow}><span className={s.square} aria-hidden="true" />Label Head · {eyebrow}</p>
+        <p className={s.lhEyebrow}><span className={s.square} aria-hidden="true" />Label Head · {shortEyebrow ? <><span className={s.deskOnly}>{eyebrow}</span><span className={s.phoneOnly}>{shortEyebrow}</span></> : eyebrow}</p>
         {writing ? (
           <div className={s.lhSkeleton} aria-hidden="true"><div className={cx(s.lhBar, s.shimmer)} style={{ width: '78%' }} /><div className={cx(s.lhBar, s.shimmer)} style={{ width: '62%' }} /></div>
         ) : (
           <>
             {heading}
-            {children && <div className={s.lhText}>{children}</div>}
+            {children && <div className={cx(s.lhText, short !== undefined && s.deskOnly)}>{children}</div>}
+            {short !== undefined && <div className={cx(s.lhText, s.phoneOnly)}>{short}</div>}
           </>
         )}
       </div>
-      {action}
+      {action && <div className={s.lhAction}>{action}</div>}
     </section>
   );
 }
@@ -279,11 +284,13 @@ type GoalCardProps = {
   title: string;
   pct: number;
   meta?: string;
+  /** Shorter meta on phones (2h). */
+  metaShort?: string;
   /** Blocked (3e): the reason names what is missing and who owns it. */
   blocked?: { reason: ReactNode; actions: ReactNode };
 };
 
-export function GoalCard({ title, pct, meta, blocked }: GoalCardProps) {
+export function GoalCard({ title, pct, meta, metaShort, blocked }: GoalCardProps) {
   return (
     <article className={cx(s.goalCard, blocked && s.goalBlocked)} aria-label={`${title}, ${pct}% of tasks done${blocked ? ', blocked' : ''}`}>
       <div className={s.goalTop}>
@@ -296,7 +303,7 @@ export function GoalCard({ title, pct, meta, blocked }: GoalCardProps) {
           <p className={s.goalReason}>{blocked.reason}</p>
           <div className={s.noticeActions}>{blocked.actions}</div>
         </>
-      ) : meta && <p className={s.goalMeta}>{meta}</p>}
+      ) : meta && <p className={s.goalMeta}>{metaShort ? <><span className={s.deskOnly}>{meta}</span><span className={s.phoneOnly}>{metaShort}</span></> : meta}</p>}
     </article>
   );
 }
@@ -312,14 +319,16 @@ export type NumberTile = {
   stale?: boolean;
   /** Partial data (3i): no figure, a sentence about the gap instead. */
   gap?: string;
+  /** Shorter label on phones: "Income, Oct". */
+  mobileLabel?: string;
 };
 
-export function NumbersStrip({ tiles, label = 'Key numbers' }: { tiles: NumberTile[]; label?: string }) {
+export function NumbersStrip({ tiles, label = 'Key numbers', mobileCount }: { tiles: NumberTile[]; label?: string; mobileCount?: number }) {
   return (
     <section className={s.numbers} style={{ ['--cols' as string]: tiles.length }} aria-label={label}>
-      {tiles.map((t) => (
-        <div key={t.label} className={s.num}>
-          <h3 className={s.numLabel}>{t.label}</h3>
+      {tiles.map((t, i) => (
+        <div key={t.label} className={cx(s.num, t.gap && s.numGapTile, mobileCount !== undefined && i >= mobileCount && s.numExtra)}>
+          <h3 className={s.numLabel}>{t.mobileLabel ? <><span className={s.deskOnly}>{t.label}</span><span className={s.phoneOnly}>{t.mobileLabel}</span></> : t.label}</h3>
           {t.gap ? <p className={s.numGap}>{t.gap}</p> : <p className={cx(s.numValue, t.stale && s.numStale)}>{t.value}</p>}
           {t.note && <p className={s.numNote}>{t.note}</p>}
         </div>

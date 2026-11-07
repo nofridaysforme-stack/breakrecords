@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react';
 import { cx } from './cx';
 import s from './Button.module.css';
 
@@ -23,7 +23,7 @@ const classes = ({ variant = 'secondary', size = 'md', block, mobileFull, classN
  */
 export function Button({
   variant, size, block, mobileFull, className, children, disabledReason, ...rest
-}: Common & ButtonHTMLAttributes<HTMLButtonElement> & { disabledReason?: string }) {
+}: Common & ButtonHTMLAttributes<HTMLButtonElement> & { disabledReason?: string; ref?: Ref<HTMLButtonElement> }) {
   const reasonId = rest.disabled && disabledReason ? `${rest.id ?? 'btn'}-why` : undefined;
   return (
     <>

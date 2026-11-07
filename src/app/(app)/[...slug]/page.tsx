@@ -5,8 +5,6 @@ import { Placeholder } from '@/components/placeholder/Placeholder';
 
 // Every route in CLAUDE_CODE_INSTRUCTIONS.md section 2 that a later phase builds.
 const routes: Record<string, { title: string; phase: string; frames: string }> = {
-  approvals: { title: 'Approvals', phase: 'Phase C · Batch 1', frames: '2d, 2e, 2f, 2i' },
-  releases: { title: 'Releases', phase: 'Phase C · Batch 1', frames: '2g; the list is undrawn' },
   catalog: { title: 'Catalog', phase: 'Phase E · Batch 3', frames: '5a' },
   money: { title: 'Money', phase: 'Phase D · Batch 2', frames: '4b, 4c, 4d, 4e' },
   splits: { title: 'Splits', phase: 'Phase D · Batch 2', frames: '4a' },

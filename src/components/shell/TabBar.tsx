@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { isActive, tabNav } from './nav';
+import { useDecisions } from '@/data/decisions';
 import s from './TabBar.module.css';
 
-export function TabBar({ approvalsCount }: { approvalsCount: number }) {
+export function TabBar({ approvalIds }: { approvalIds: string[] }) {
   const pathname = usePathname() ?? '/';
+  const approvalsCount = useDecisions().openCount(approvalIds);
   return (
     <nav aria-label="Primary" className={s.bar}>
       {tabNav.map((item) => {

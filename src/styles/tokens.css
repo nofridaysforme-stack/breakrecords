@@ -134,6 +134,10 @@
   --critical-line-soft: rgba(255,90,78,.35);/* locked gate (2g) */
   --brand-skeleton: rgba(251,231,234,.14);  /* skeleton bars inside brand blocks (3c) */
   --stripe-asset: #2a1c1a;             /* placeholder art stripes with --surface-raised */
+  --on-sheet-muted: #6b5d57;           /* document preview meta (2f) */
+  --sheet-flag: rgba(214,49,43,.12);   /* flagged clause fill (2f) */
+  --sheet-flag-line: rgba(214,49,43,.35);
+  --brand-inset: rgba(0,0,0,.22);      /* summary box inside brand panels (2b) */
   --r-panel: 10px;                     /* dial container, bulk bar, task rows */
   --r-check: 5px;                      /* checkbox */
 

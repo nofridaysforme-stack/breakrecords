@@ -8,16 +8,21 @@ type Props = {
   rail?: ReactNode;
   /** Names the rail for its toggle and drawer, for example "Agent activity". */
   railLabel?: string;
+  /** Show the rail's drawer button on phones. 2h has none, so Home turns it off. */
+  railOnPhone?: boolean;
+  /** The screen lays out its own columns and padding (approval detail). */
+  bare?: boolean;
 };
 
-export function Page({ children, rail, railLabel = 'Details' }: Props) {
+export function Page({ children, rail, railLabel = 'Details', railOnPhone = true, bare }: Props) {
+  if (bare) return <main id="main" className={s.bare}>{children}</main>;
   return (
     <div className={`${s.page} ${rail ? s.withRail : ''}`}>
       <main id="main" className={s.main}>{children}</main>
       {rail && (
         <>
           <aside className={s.rail} aria-label={railLabel}>{rail}</aside>
-          <RailToggle label={railLabel}>{rail}</RailToggle>
+          <RailToggle label={railLabel} hideOnPhone={!railOnPhone}>{rail}</RailToggle>
         </>
       )}
     </div>

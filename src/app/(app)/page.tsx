@@ -1,19 +1,22 @@
+import type { Metadata } from 'next';
 import { Page } from '@/components/shell/Page';
-import { Placeholder } from '@/components/placeholder/Placeholder';
-import { Eyebrow, Meta } from '@/components/type/Type';
+import { AgentRail, HomeView } from '@/components/home/HomeView';
+import { getHome } from '@/data/api';
+import { toScenario } from '@/data/types';
 
-export default function HomePage() {
+export const metadata: Metadata = { title: 'Home' };
+
+type Props = { searchParams: Promise<{ state?: string }> };
+
+export default async function HomePage({ searchParams }: Props) {
+  const scenario = toScenario((await searchParams).state);
+  const data = getHome(scenario);
+  const rail = scenario === 'empty'
+    ? null
+    : <AgentRail feed={data.home.feed} />;
   return (
-    <Page
-      railLabel="Agent activity"
-      rail={
-        <>
-          <Eyebrow large>Agent activity</Eyebrow>
-          <Meta>The agent feed arrives with Home in Phase C.</Meta>
-        </>
-      }
-    >
-      <Placeholder title="Home" phase="Phase C · Batch 1" frames="2c, 2h, states 3a to 3j" />
+    <Page rail={rail} railLabel="Agent activity" railOnPhone={false}>
+      <HomeView scenario={scenario} home={data.home} numbers={data.numbers} approvals={data.approvals} labelShort="Northline" />
     </Page>
   );
 }

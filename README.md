@@ -27,4 +27,19 @@ npm run build && npm run test:e2e   # Playwright: accessibility (axe), keyboard,
 
 Reference pages: `/dev/type` (type ramp and color tokens) and `/dev/components` (every component in every state, labeled with its design frame).
 
+### Batch 1 screens
+
+| Frame | Route |
+| --- | --- |
+| 2a, 2b (and undrawn steps) | `/onboarding/welcome` to `/onboarding/finish` |
+| 2c, 2h | `/` |
+| 2d, 2i | `/approvals` |
+| 2e, 2f (plus undrawn filing and grant bodies) | `/approvals/apr_payout_oct`, `/approvals/apr_producer`, `/approvals/apr_mlc`, `/approvals/apr_grant` |
+| 2g (plus the undrawn releases list) | `/releases/rel_glasshouse`, `/releases` |
+| 3a to 3j | add `?state=empty`, `working`, `blocked`, `error` or `partial` to `/` or `/approvals` |
+
+The mock API lives in `src/data/api.ts` and is served under `/api/*`. Approvals you make are kept for the browser session only; nothing is sent, paid, signed or filed.
+
+`npx playwright test --project=visual` saves one screenshot per frame to `artifacts/screens/{id}.png` for side-by-side review with `design/screenshots/`.
+
 `.npmrc` sets `legacy-peer-deps=true`: without it npm crashes resolving Vitest 4's optional peer dependencies.

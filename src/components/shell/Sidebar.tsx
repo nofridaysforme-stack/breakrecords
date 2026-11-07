@@ -4,12 +4,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronDown } from 'lucide-react';
 import { footerNav, isActive, primaryNav } from './nav';
+import { useDecisions } from '@/data/decisions';
 import s from './Sidebar.module.css';
 
-type Props = { labelName: string; approvalsCount: number };
+type Props = { labelName: string; approvalIds: string[] };
 
-export function Sidebar({ labelName, approvalsCount }: Props) {
+export function Sidebar({ labelName, approvalIds }: Props) {
   const pathname = usePathname() ?? '/';
+  const approvalsCount = useDecisions().openCount(approvalIds);
 
   return (
     <aside className={s.sidebar} aria-label="Sidebar">

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { archivo, hanken, plexMono } from './fonts';
 import { TooltipProvider } from '@/components/ui/Controls';
+import { DecisionsProvider } from '@/data/decisions';
 import '@/styles/globals.css';
 
 export const metadata: Metadata = {
@@ -19,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       data-theme="dark"
       className={`${archivo.variable} ${hanken.variable} ${plexMono.variable}`}
     >
-      <body><TooltipProvider>{children}</TooltipProvider></body>
+      <body><DecisionsProvider><TooltipProvider>{children}</TooltipProvider></DecisionsProvider></body>
     </html>
   );
 }

@@ -3,16 +3,16 @@ import { Sidebar } from './Sidebar';
 import { TabBar } from './TabBar';
 import s from './AppShell.module.css';
 
-type Props = { children: ReactNode; labelName: string; approvalsCount: number };
+type Props = { children: ReactNode; labelName: string; approvalIds: string[] };
 
 /** Sidebar (240px, 64px rail under 1280, hidden under 768) + content + mobile tab bar. */
-export function AppShell({ children, labelName, approvalsCount }: Props) {
+export function AppShell({ children, labelName, approvalIds }: Props) {
   return (
     <div className={s.shell}>
       <a href="#main" className={s.skip}>Skip to content</a>
-      <Sidebar labelName={labelName} approvalsCount={approvalsCount} />
+      <Sidebar labelName={labelName} approvalIds={approvalIds} />
       <div className={s.content}>{children}</div>
-      <TabBar approvalsCount={approvalsCount} />
+      <TabBar approvalIds={approvalIds} />
     </div>
   );
 }

@@ -66,7 +66,7 @@ type WaterfallProps = {
 export function Waterfall({ rows, totalLabel, compact, sourceHref = (id) => `#source-${id}`, caption }: WaterfallProps) {
   const total = rows.length ? rows[rows.length - 1].balance : 0;
   return (
-    <div className={compact ? undefined : s.wrap}>
+    <div className={compact ? undefined : s.wrap} role={compact ? undefined : 'region'} aria-label={compact ? undefined : caption ?? totalLabel} tabIndex={compact ? undefined : 0}>
       <table className={cx(s.wf, compact && s.compact)}>
         {caption && <caption className="visually-hidden">{caption}</caption>}
         <thead>
