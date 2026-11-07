@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Component kit and tokens</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.vl{--bg:#F6F4F0;--surface:#FFFFFF;--surface-2:#EFEBE4;--line:#E3DED6;--line-strong:#CCC5B9;--ink:#1C1A17;--ink-2:#504A42;--ink-3:#6B655C;--accent:#2A44B0;--accent-hover:#22398F;--accent-ink:#FFFFFF;--accent-soft:#E7EBFA;--good:#1D6F41;--good-soft:#E2F1E7;--warn:#8A5300;--warn-soft:#FAEFD9;--crit:#B42318;--crit-soft:#FBE7E4;--shadow:0 1px 2px rgba(28,26,23,.06),0 2px 8px rgba(28,26,23,.04);font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+.vl[data-theme="dark"]{--bg:#141311;--surface:#1D1B18;--surface-2:#27241F;--line:#332F29;--line-strong:#4A443C;--ink:#F3EFE9;--ink-2:#CEC6BA;--ink-3:#A79F93;--accent:#94A6FF;--accent-hover:#B0BEFF;--accent-ink:#0E1636;--accent-soft:#232B52;--good:#6BD49A;--good-soft:#173425;--warn:#EDB458;--warn-soft:#3A2B12;--crit:#FF8E80;--crit-soft:#3E1D19;--shadow:none}
+.vl .num{font-variant-numeric:tabular-nums}
+.vl .disp{font-family:"Bricolage Grotesque",Inter,sans-serif;letter-spacing:-0.01em}
+.vl a{color:var(--accent)}
+.vl a:hover{color:var(--accent-hover)}
+.vl button{font:inherit;cursor:pointer}
+.vl .lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:0}
+</style>
+</helmet>
+<div class="vl" data-theme="{{theme}}" style="width: 1440px; height: 1360px; box-sizing: border-box; padding: 48px; display: flex; flex-direction: column; gap: 28px;">
+  <div style="display: flex; align-items: baseline; gap: 16px;"><h1 class="disp" style="margin: 0; font-size: 34px; font-weight: 700;">Component kit and tokens</h1><p style="margin: 0; font-size: 15px; color: var(--ink-2);">Neutral, swappable tokens. A white-label tenant changes accent, wordmark and fonts; status colors stay fixed for meaning.</p></div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;">
+    <!-- Color -->
+    <section style="display: flex; flex-direction: column; gap: 12px; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;">
+      <p class="lbl">Color tokens</p>
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;">
+        <div style="display: flex; flex-direction: column; gap: 4px;"><div style="height: 44px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line);"></div><span style="font-size: 12px;">bg</span></div>
+        <div style="display: flex; flex-direction: column; gap: 4px;"><div style="height: 44px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line);"></div><span style="font-size: 12px;">surface</span></div>
+        <div style="display: flex; flex-direction: column; gap: 4px;"><div style="height: 44px; border-radius: 8px; background: var(--surface-2);"></div><span style="font-size: 12px;">surface-2</span></div>
+        <div style="display: flex; flex-direction: column; gap: 4px;"><div style="height: 44px; border-radius: 8px; background: var(--ink);"></div><span style="font-size: 12px;">ink</span></div>
+        <div style="display: flex; flex-direction: column; gap: 4px;"><div style="height: 44px; border-radius: 8px; background: var(--accent);"></div><span style="font-size: 12px;">accent</span></div>
+        <div style="display: flex; flex-direction: column; gap: 4px;"><div style="height: 44px; border-radius: 8px; background: var(--good);"></div><span style="font-size: 12px;">good</span></div>
+        <div style="display: flex; flex-direction: column; gap: 4px;"><div style="height: 44px; border-radius: 8px; background: var(--warn);"></div><span style="font-size: 12px;">warn</span></div>
+        <div style="display: flex; flex-direction: column; gap: 4px;"><div style="height: 44px; border-radius: 8px; background: var(--crit);"></div><span style="font-size: 12px;">crit</span></div>
+      </div>
+      <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-2);">One accent for primary actions and the Label Head. Album art brings the rest of the color. All text pairs pass 4.5:1 in both themes.</p>
+    </section>
+
+    <!-- Type -->
+    <section style="display: flex; flex-direction: column; gap: 10px; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;">
+      <p class="lbl">Type</p>
+      <span class="disp" style="font-size: 40px; font-weight: 700; line-height: 1.05;">Glasshouse</span>
+      <span style="font-size: 13px; color: var(--ink-3);">Display: Bricolage Grotesque 700, headings and release titles</span>
+      <span style="font-size: 16px; line-height: 1.5;">I drafted the producer agreement; two terms need your eyes.</span>
+      <span style="font-size: 13px; color: var(--ink-3);">UI: Inter 400 to 700, 13 to 17 px</span>
+      <span class="num" style="font-size: 22px; font-weight: 600;">$2,346.75 · $260.75 · $10,000.00</span>
+      <span style="font-size: 13px; color: var(--ink-3);">Money: tabular numerals, always</span>
+    </section>
+
+    <!-- Approval card -->
+    <section style="display: flex; flex-direction: column; gap: 12px; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;">
+      <p class="lbl">Approval card</p>
+      <article style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); background: var(--bg);">
+        <div class="num" style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--ink-3);"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 3v18M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.6 4.5 3 4.5 1.3 4.5 3-2 3-4.5 3-4.5-1.3-4.5-3"/></svg>Money<span style="flex-grow: 1;"></span><span style="padding: 2px 8px; border-radius: 999px; background: var(--good-soft); color: var(--good);">✓ Low risk</span><span>Due Feb 5</span></div>
+        <h3 style="margin: 0; font-size: 16px; font-weight: 600;">January payout batch</h3>
+        <p class="num" style="margin: 0; font-size: 15px;"><strong>$1,240.18</strong> to 6 payees</p>
+        <p style="margin: 0; font-size: 13px; color: var(--ink-3);">Prepared by Royalties Agent</p>
+        <div style="display: flex; gap: 8px;"><button style="flex: 1 1 0; height: 44px; border: 0; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 14px;">Approve</button><button style="flex: 1 1 0; height: 44px; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-weight: 600; font-size: 14px;">Review</button></div>
+      </article>
+    </section>
+
+    <!-- Agent chip + status pill -->
+    <section style="display: flex; flex-direction: column; gap: 14px; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;">
+      <p class="lbl">Agent chip</p>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2);"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--ink-3); box-sizing: border-box;"></span>Metadata · idle</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent);"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: var(--accent);"></span>Release · working</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--warn-soft); color: var(--warn);"><span aria-hidden="true">!</span>Rights · waiting on you</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--crit-soft); color: var(--crit);"><span aria-hidden="true">×</span>Distribution · blocked</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--good-soft); color: var(--good);"><span aria-hidden="true">✓</span>Funding Scout · done</span>
+      </div>
+      <p class="lbl" style="margin-top: 6px;">Status pill</p>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; font-weight: 700;">
+        <span style="padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--ink-2);">○ Not started</span>
+        <span style="padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent);">◐ Prepared</span>
+        <span style="padding: 3px 9px; border-radius: 999px; background: var(--warn-soft); color: var(--warn);">! Needs you</span>
+        <span style="padding: 3px 9px; border-radius: 999px; background: var(--surface-2); color: var(--ink);">↑ Submitted</span>
+        <span style="padding: 3px 9px; border-radius: 999px; background: var(--good-soft); color: var(--good);">✓ Confirmed</span>
+        <span style="padding: 3px 9px; border-radius: 999px; background: var(--crit-soft); color: var(--crit);">× Blocked</span>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: var(--ink-3);">Never color alone: every state has a symbol and a word. No loud animation.</p>
+    </section>
+
+    <!-- Split bar -->
+    <section style="display: flex; flex-direction: column; gap: 12px; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;">
+      <p class="lbl">Split bar</p>
+      <div style="display: flex; align-items: baseline;"><span style="font-size: 14px; font-weight: 600; flex-grow: 1;">Glasshouse, net profit</span><span class="num" style="font-size: 12px; color: var(--ink-3);">v3 · effective Jan 22</span></div>
+      <div role="img" aria-label="Label 50 percent, Kesi Vale 45 percent, Imani Rowe 5 percent. Total 100 percent." style="display: flex; height: 28px; border-radius: 6px; overflow: hidden; gap: 2px;">
+        <div style="width: 50%; background: var(--ink-2);"></div><div style="width: 45%; background: var(--accent);"></div><div style="width: 5%; background: var(--warn);"></div>
+      </div>
+      <div class="num" style="display: flex; flex-direction: column; gap: 4px; font-size: 13px;">
+        <span style="display: flex;"><span style="flex-grow: 1;">Northline Records 50%</span><span style="color: var(--good);">✓ Signed</span></span>
+        <span style="display: flex;"><span style="flex-grow: 1;">Kesi Vale 45%</span><span style="color: var(--good);">✓ Signed</span></span>
+        <span style="display: flex;"><span style="flex-grow: 1;">Imani Rowe 5% (10% of artist)</span><span style="color: var(--good);">✓ Signed</span></span>
+      </div>
+      <div role="img" aria-label="Draft split totals 95 percent, 5 percent unassigned" style="display: flex; height: 20px; border-radius: 6px; overflow: hidden; gap: 2px; box-shadow: 0 0 0 2px var(--crit); margin-top: 6px;">
+        <div style="width: 60%; background: var(--ink-2);"></div><div style="width: 35%; background: var(--accent);"></div><div style="width: 5%; background: repeating-linear-gradient(45deg, var(--crit-soft) 0 4px, var(--surface) 4px 8px);"></div>
+      </div>
+      <p class="num" style="margin: 0; font-size: 13px; font-weight: 600; color: var(--crit);">! Totals 95%. Assign 5% before sending for signatures.</p>
+    </section>
+
+    <!-- Money value + waterfall -->
+    <section style="display: flex; flex-direction: column; gap: 10px; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;">
+      <p class="lbl">Money value and waterfall row</p>
+      <button aria-expanded="true" class="num" style="align-self: flex-start; display: inline-flex; align-items: baseline; gap: 8px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink);"><span class="disp" style="font-size: 24px; font-weight: 700;">$2,346.75</span><span style="font-size: 12px; color: var(--accent); font-weight: 600;">How?</span></button>
+      <div class="num" style="display: flex; flex-direction: column; font-size: 13px;">
+        <div style="display: grid; grid-template-columns: 1.4fr 1.2fr 1fr 1fr; gap: 8px; padding: 6px 0; color: var(--ink-3); font-weight: 600; border-bottom: 1px solid var(--line);"><span>Step</span><span>Rule</span><span style="text-align: right;">Amount</span><span style="text-align: right;">Balance</span></div>
+        <div style="display: grid; grid-template-columns: 1.4fr 1.2fr 1fr 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line);"><span>Net profit</span><span>after costs</span><span style="text-align: right;">$5,215.00</span><span style="text-align: right;">$5,215.00</span></div>
+        <div style="display: grid; grid-template-columns: 1.4fr 1.2fr 1fr 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line);"><span>Artist share</span><span>50%</span><span style="text-align: right;">$2,607.50</span><span style="text-align: right;">$2,607.50</span></div>
+        <div style="display: grid; grid-template-columns: 1.4fr 1.2fr 1fr 1fr; gap: 8px; padding: 6px 0;"><span>Feature</span><span>10% of artist</span><span style="text-align: right;">minus $260.75</span><span style="text-align: right; font-weight: 700;">$2,346.75</span></div>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: var(--ink-3);">Screen readers hear "two thousand three hundred forty-six dollars and seventy-five cents". Non-USD shows the code: CA$1,200.00.</p>
+    </section>
+
+    <!-- Autonomy dial -->
+    <section style="display: flex; flex-direction: column; gap: 12px; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;">
+      <p class="lbl">Autonomy dial</p>
+      <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 6px;">
+        <legend style="font-size: 14px; font-weight: 600; margin-bottom: 8px;">Royalties department</legend>
+        <label style="display: flex; gap: 10px; align-items: flex-start; padding: 10px; border-radius: 10px; border: 1px solid var(--line);"><input type="radio" name="dial" style="margin: 2px 0 0; accent-color: var(--accent);"><span style="font-size: 14px;"><strong style="font-weight: 600;">Observe</strong><span style="display: block; font-size: 13px; color: var(--ink-3);">Watches and reports. Takes no action.</span></span></label>
+        <label style="display: flex; gap: 10px; align-items: flex-start; padding: 10px; border-radius: 10px; border: 1px solid var(--line);"><input type="radio" name="dial" style="margin: 2px 0 0; accent-color: var(--accent);"><span style="font-size: 14px;"><strong style="font-weight: 600;">Suggest</strong><span style="display: block; font-size: 13px; color: var(--ink-3);">Tells you what it would do.</span></span></label>
+        <label style="display: flex; gap: 10px; align-items: flex-start; padding: 9px; border-radius: 10px; border: 2px solid var(--accent); background: var(--accent-soft);"><input type="radio" name="dial" checked style="margin: 2px 0 0; accent-color: var(--accent);"><span style="font-size: 14px;"><strong style="font-weight: 600;">Draft and wait</strong><span style="display: block; font-size: 13px; color: var(--ink-2);">Prepares everything, then asks you. Default.</span></span></label>
+        <label style="display: flex; gap: 10px; align-items: flex-start; padding: 10px; border-radius: 10px; border: 1px dashed var(--line-strong); color: var(--ink-3);"><input type="radio" name="dial" disabled style="margin: 2px 0 0;"><span style="font-size: 14px;"><strong style="font-weight: 600;">Act within limits</strong><span style="display: block; font-size: 13px;">Set a spend cap first to unlock this.</span></span></label>
+      </fieldset>
+    </section>
+
+    <!-- Gate lock, verified, market range -->
+    <section style="display: flex; flex-direction: column; gap: 14px; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;">
+      <p class="lbl">Gate lock</p>
+      <div style="display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 10px; background: var(--surface-2);">
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" style="color: var(--crit); flex: 0 0 20px;"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+        <span style="font-size: 14px; line-height: 1.45;"><strong>Locked: Metadata complete</strong><span style="display: block; font-size: 13px; color: var(--ink-2);">Unlocks when the producer agreement is signed. Owner: Metadata Agent, waiting on you.</span></span>
+      </div>
+      <p class="lbl">Verified stamp</p>
+      <span class="num" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--ink-2);"><span style="color: var(--good); font-weight: 700;">✓</span>Last verified Jan 29, 2027 · <a href="#" style="text-decoration: none;">source</a></span>
+      <p class="lbl">Market-range warning</p>
+      <div style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line-strong);">
+        <strong style="font-size: 14px;">Artist royalty is 12%</strong>
+        <span style="font-size: 13px; line-height: 1.5; color: var(--ink-2);">Most indie royalty deals land between 15% and 25%. Below that range, artists often push to renegotiate once a release does well.</span>
+      </div>
+    </section>
+
+    <!-- Evidence drawer -->
+    <section style="display: flex; flex-direction: column; gap: 12px; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;">
+      <p class="lbl">Evidence drawer</p>
+      <div style="display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 10px; border: 1px solid var(--line);">
+        <span style="font-size: 13px; font-weight: 700; color: var(--ink-3);">Why I prepared this</span>
+        <span style="font-size: 14px; line-height: 1.5; color: var(--ink-2);">Glasshouse needs an MLC registration before release so first-week streams pay out.</span>
+        <span style="font-size: 13px; font-weight: 700; color: var(--ink-3);">Inputs used</span>
+        <span style="font-size: 14px;"><a href="#" style="text-decoration: none;">Split sheet v3</a> · <a href="#" style="text-decoration: none;">Catalog</a> · <a href="#" style="text-decoration: none;">MLC search</a></span>
+        <span class="num" style="font-size: 13px; color: var(--ink-3);">4 steps · Audit ID <code style="color: var(--ink);">AUD-270130-2B8Q</code></span>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: var(--ink-3);">Goal box and plan preview: see Home states. Agents say "I think" or "likely" when unsure; never "definitely".</p>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1360}}'>
+class Component extends DCLogic {
+  renderVals() { return { theme: this.props.theme ?? 'light' }; }
+}
+</script>
+</body>
+</html>

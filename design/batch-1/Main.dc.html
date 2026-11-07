@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home: Label Head brief</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.vl{--bg:#F6F4F0;--surface:#FFFFFF;--surface-2:#EFEBE4;--line:#E3DED6;--line-strong:#CCC5B9;--ink:#1C1A17;--ink-2:#504A42;--ink-3:#6B655C;--accent:#2A44B0;--accent-hover:#22398F;--accent-ink:#FFFFFF;--accent-soft:#E7EBFA;--good:#1D6F41;--good-soft:#E2F1E7;--warn:#8A5300;--warn-soft:#FAEFD9;--crit:#B42318;--crit-soft:#FBE7E4;--shadow:0 1px 2px rgba(28,26,23,.06),0 2px 8px rgba(28,26,23,.04);font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+.vl[data-theme="dark"]{--bg:#141311;--surface:#1D1B18;--surface-2:#27241F;--line:#332F29;--line-strong:#4A443C;--ink:#F3EFE9;--ink-2:#CEC6BA;--ink-3:#A79F93;--accent:#94A6FF;--accent-hover:#B0BEFF;--accent-ink:#0E1636;--accent-soft:#232B52;--good:#6BD49A;--good-soft:#173425;--warn:#EDB458;--warn-soft:#3A2B12;--crit:#FF8E80;--crit-soft:#3E1D19;--shadow:none}
+.vl .num{font-variant-numeric:tabular-nums}
+.vl .disp{font-family:"Bricolage Grotesque",Inter,sans-serif;letter-spacing:-0.01em}
+.vl a{color:var(--accent)}
+.vl a:hover{color:var(--accent-hover)}
+.vl :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.vl button{font:inherit;cursor:pointer}
+.vl .nav:hover{background:var(--surface-2)}
+</style>
+</helmet>
+<div class="vl" data-theme="{{theme}}" style="min-height: 100vh; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+  <!-- Sidebar -->
+  <nav aria-label="Primary" style="flex: 1 1 236px; max-width: 100%; box-sizing: border-box; padding: 20px 14px; background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px;">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 4px 8px 16px;">
+      <div aria-hidden="true" style="width: 28px; height: 28px; border-radius: 7px; border: 1.5px dashed var(--line-strong);"></div>
+      <span class="disp" style="font-size: 17px; font-weight: 700; color: var(--ink-2);">Wordmark</span>
+    </div>
+    <button style="display: flex; align-items: center; gap: 10px; padding: 10px; margin-bottom: 12px; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; color: var(--ink); text-align: left;">
+      <span aria-hidden="true" style="width: 32px; height: 32px; border-radius: 8px; background: #2E4A3F; color: #F3EFE9; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;">NR</span>
+      <span style="display: flex; flex-direction: column; flex-grow: 1;"><span style="font-size: 14px; font-weight: 600;">Northline Records</span><span style="font-size: 12px; color: var(--ink-3);">Small label · 3 artists</span></span>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10l4-4 4 4M8 14l4 4 4-4"/></svg>
+    </button>
+    <a class="nav" href="Main.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; font-size: 14px; font-weight: 600; text-decoration: none; color: var(--accent); background: var(--accent-soft);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Home</a>
+    <a class="nav" href="Approvals.dc.html" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; font-size: 14px; font-weight: 500; text-decoration: none; color: var(--ink-2);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13l2-8h12l2 8v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M4 13h5l1 2h4l1-2h5"/></svg><span style="flex-grow: 1;">Approvals</span><span class="num" aria-label="4 waiting" style="min-width: 22px; padding: 1px 7px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 700; text-align: center;">4</span></a>
+    <a class="nav" href="Runbook.dc.html" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; font-size: 14px; font-weight: 500; text-decoration: none; color: var(--ink-2);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg>Releases</a>
+    <a class="nav" href="#" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; font-size: 14px; font-weight: 500; text-decoration: none; color: var(--ink-2);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Catalog</a>
+    <a class="nav" href="#" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; font-size: 14px; font-weight: 500; text-decoration: none; color: var(--ink-2);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 3v18M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.6 4.5 3 4.5 1.3 4.5 3-2 3-4.5 3-4.5-1.3-4.5-3"/></svg>Money</a>
+    <a class="nav" href="#" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; font-size: 14px; font-weight: 500; text-decoration: none; color: var(--ink-2);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></svg>Splits</a>
+    <a class="nav" href="#" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; font-size: 14px; font-weight: 500; text-decoration: none; color: var(--ink-2);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/></svg>Contracts</a>
+    <a class="nav" href="#" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; font-size: 14px; font-weight: 500; text-decoration: none; color: var(--ink-2);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/></svg>Rights</a>
+    <a class="nav" href="#" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; font-size: 14px; font-weight: 500; text-decoration: none; color: var(--ink-2);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><ellipse cx="12" cy="7" rx="7" ry="3"/><path d="M5 7v5c0 1.7 3.1 3 7 3s7-1.3 7-3V7M5 12v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5"/></svg>Funding</a>
+    <a class="nav" href="#" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; font-size: 14px; font-weight: 500; text-decoration: none; color: var(--ink-2);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c1.8.7 3 2.5 3.5 5.2"/></svg>Roster</a>
+    <a class="nav" href="#" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; font-size: 14px; font-weight: 500; text-decoration: none; color: var(--ink-2);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>Departments</a>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; font-size: 14px; color: var(--ink-3);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span style="flex-grow: 1;">Marketing</span><span style="font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line-strong);">Phase 2</span></div>
+    <div style="flex-grow: 1; min-height: 24px;"></div>
+    <div style="border-top: 1px solid var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 2px;">
+      <a class="nav" href="#" style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; text-decoration: none; color: var(--ink-2);"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Activity log</a>
+      <a class="nav" href="#" style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; text-decoration: none; color: var(--ink-2);"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Settings</a>
+      <a class="nav" href="#" style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; text-decoration: none; color: var(--ink-2);"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/></svg>Help</a>
+    </div>
+  </nav>
+
+  <!-- Main column -->
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 32px; border-bottom: 1px solid var(--line); background: var(--bg);">
+      <label style="flex: 1 1 320px; max-width: 620px; display: flex; align-items: center; gap: 10px; padding: 0 12px; height: 42px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink-3);">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Search or set a goal</span>
+        <input type="text" placeholder="Search songs, people, money, or type a goal like &quot;plan an EP for May&quot;" style="flex-grow: 1; border: 0; outline: none; background: transparent; font: inherit; font-size: 14px; color: var(--ink);">
+        <span style="font-size: 12px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 5px;">⌘K</span>
+      </label>
+      <div style="flex-grow: 1;"></div>
+      <button onClick="{{togglePanel}}" aria-expanded="{{panelOpen}}" style="display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 14px; font-weight: 500;"><span aria-hidden="true" style="width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center;">LH</span>Ask Label Head</button>
+      <span aria-label="Signed in as Ayo Bello" style="width: 36px; height: 36px; border-radius: 50%; background: var(--surface-2); color: var(--ink-2); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600;">AB</span>
+    </header>
+
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 28px; padding: 28px 32px 48px;">
+      <main style="flex: 999 1 600px; min-width: 0; display: flex; flex-direction: column; gap: 28px;">
+
+        <!-- Brief -->
+        <section aria-labelledby="brief-h" style="display: flex; flex-direction: column; gap: 14px;">
+          <p style="margin: 0; font-size: 13px; font-weight: 600; color: var(--ink-3); letter-spacing: .02em;">Monday, February 1 · Weekly brief</p>
+          <h1 id="brief-h" class="disp" style="margin: 0; font-size: 40px; line-height: 1.1; font-weight: 700;">Good morning, Ayo.</h1>
+          <div style="display: flex; gap: 14px; align-items: flex-start; max-width: 820px;">
+            <span aria-hidden="true" style="flex: 0 0 32px; height: 32px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 2px;">LH</span>
+            <p style="margin: 0; font-size: 17px; line-height: 1.6; color: var(--ink-2);"><strong style="color: var(--ink); font-weight: 600;">Glasshouse is on track for March 6 with $1,140 of budget left.</strong> I prepared this period's payouts, $1,240.18 to 6 payees, and drafted Marco Dela's producer agreement; two terms need your eyes. Funding Scout found 2 new grants, and the state arts council application is due in 9 days.</p>
+          </div>
+        </section>
+
+        <!-- Needs you -->
+        <section aria-labelledby="needs-h" style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; align-items: baseline; gap: 10px;">
+            <h2 id="needs-h" style="margin: 0; font-size: 18px; font-weight: 700;">Needs you</h2>
+            <span class="num" style="font-size: 14px; color: var(--ink-3);">4 waiting · 1 due this week</span>
+            <span style="flex-grow: 1;"></span>
+            <a href="Approvals.dc.html" style="font-size: 14px; font-weight: 600; text-decoration: none;">Open inbox (4)</a>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px;">
+            <article style="display: flex; flex-direction: column; gap: 10px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);">
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--ink-3);"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 3v18M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.6 4.5 3 4.5 1.3 4.5 3-2 3-4.5 3-4.5-1.3-4.5-3"/></svg>Money<span style="flex-grow: 1;"></span><span class="num">Due Feb 5</span></div>
+              <h3 style="margin: 0; font-size: 16px; font-weight: 600; line-height: 1.35;">January payout batch</h3>
+              <p class="num" style="margin: 0; font-size: 15px; color: var(--ink);"><strong>$1,240.18</strong> to 6 payees</p>
+              <p style="margin: 0; font-size: 13px; color: var(--ink-3);">Prepared by Royalties Agent</p>
+              <div style="display: flex; gap: 8px; margin-top: 4px;">
+                <button style="flex-grow: 1; height: 40px; border: 0; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 14px;">Approve</button>
+                <a href="ApprovalDetail.dc.html" style="flex-grow: 1; height: 40px; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--ink); font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: center; text-decoration: none;">Review</a>
+              </div>
+            </article>
+            <article style="display: flex; flex-direction: column; gap: 10px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);">
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--ink-3);"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M4 20l4-1 11-11-3-3L5 16z"/></svg>Signature<span style="flex-grow: 1;"></span><span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 999px; background: var(--warn-soft); color: var(--warn);"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M12 4l9 16H3z"/><path d="M12 10v4"/></svg>2 flagged terms</span></div>
+              <h3 style="margin: 0; font-size: 16px; font-weight: 600; line-height: 1.35;">Producer agreement for Marco Dela</h3>
+              <p class="num" style="margin: 0; font-size: 15px; color: var(--ink);">3 points on Glasshouse</p>
+              <p style="margin: 0; font-size: 13px; color: var(--ink-3);">Prepared by Legal Agent · Attorney review recommended</p>
+              <div style="display: flex; gap: 8px; margin-top: 4px;">
+                <a href="ApprovalDetail.dc.html" style="flex-grow: 1; height: 40px; border: 0; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: center; text-decoration: none;">Review and sign</a>
+              </div>
+            </article>
+            <article style="display: flex; flex-direction: column; gap: 10px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);">
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--ink-3);"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round"><path d="M6 3h9l4 4v14H6z"/><path d="M10 13l2 2 4-4"/></svg>Filing<span style="flex-grow: 1;"></span><span class="num">Due Feb 8</span></div>
+              <h3 style="margin: 0; font-size: 16px; font-weight: 600; line-height: 1.35;">MLC registration for 3 songs</h3>
+              <p style="margin: 0; font-size: 15px; color: var(--ink);">Unlocks mechanical royalties</p>
+              <p style="margin: 0; font-size: 13px; color: var(--ink-3);">Prepared by Rights Agent</p>
+              <div style="display: flex; gap: 8px; margin-top: 4px;">
+                <a href="ApprovalDetail.dc.html" style="flex-grow: 1; height: 40px; border: 0; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: center; text-decoration: none;">Confirm facts</a>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- Goals and dates -->
+        <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+          <section aria-labelledby="goals-h" style="flex: 3 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; align-items: baseline;"><h2 id="goals-h" style="margin: 0; font-size: 18px; font-weight: 700; flex-grow: 1;">Active goals</h2><button style="border: 0; background: none; color: var(--accent); font-weight: 600; font-size: 14px; padding: 4px;">New goal</button></div>
+            <a href="Runbook.dc.html" style="display: flex; gap: 14px; align-items: center; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; text-decoration: none; color: var(--ink);">
+              <div aria-hidden="true" style="flex: 0 0 64px; height: 64px; border-radius: 6px; background: #2E4A3F; position: relative; overflow: hidden;"><div style="position: absolute; left: 14px; top: 14px; width: 36px; height: 36px; border: 2px solid #C9E3D2; transform: rotate(12deg);"></div><div style="position: absolute; left: 22px; top: 22px; width: 20px; height: 20px; background: #E9B872; border-radius: 50%;"></div></div>
+              <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;"><span class="disp" style="font-size: 17px; font-weight: 700;">Glasshouse single</span><span style="font-size: 13px; color: var(--ink-3);">Kesi Vale · March 6</span><span style="flex-grow: 1;"></span><span style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--good-soft); color: var(--good);"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>On track</span></div>
+                <div role="progressbar" aria-label="Glasshouse tasks done" aria-valuenow="62" aria-valuemin="0" aria-valuemax="100" style="height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden;"><div style="width: 62%; height: 100%; background: var(--accent);"></div></div>
+                <div class="num" style="display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--ink-2);"><span>62% of tasks done</span><span>$1,860 of $3,000 spent</span><span>1 gate needs you</span></div>
+              </div>
+            </a>
+            <div style="display: flex; gap: 14px; align-items: center; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;">
+              <div aria-hidden="true" style="flex: 0 0 64px; height: 64px; border-radius: 6px; background: #1F2742; position: relative; overflow: hidden;"><div style="position: absolute; right: 10px; top: 10px; width: 18px; height: 18px; border-radius: 50%; background: #F2C94C;"></div><div style="position: absolute; left: 0; right: 0; bottom: 14px; height: 6px; background: #C55A3B;"></div></div>
+              <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;"><span class="disp" style="font-size: 17px; font-weight: 700;">Claim unpaid Night Bus income</span><span style="font-size: 13px; color: var(--ink-3);">The Low Hours</span><span style="flex-grow: 1;"></span><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2);"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent);"></span>Agents working</span></div>
+                <div role="progressbar" aria-label="Night Bus claims done" aria-valuenow="40" aria-valuemin="0" aria-valuemax="100" style="height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden;"><div style="width: 40%; height: 100%; background: var(--accent);"></div></div>
+                <div class="num" style="display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--ink-2);"><span>2 of 5 claims filed</span><span>$612.40 found so far</span></div>
+              </div>
+            </div>
+          </section>
+          <section aria-labelledby="dates-h" style="flex: 2 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+            <h2 id="dates-h" style="margin: 0; font-size: 18px; font-weight: 700;">Coming up</h2>
+            <ol style="list-style: none; margin: 0; padding: 4px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;">
+              <li style="display: flex; gap: 14px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line);"><span class="num" style="flex: 0 0 52px; font-size: 13px; font-weight: 600; color: var(--ink-2);">Feb 5</span><span style="font-size: 14px;">Payout batch sends, if approved</span></li>
+              <li style="display: flex; gap: 14px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line);"><span class="num" style="flex: 0 0 52px; font-size: 13px; font-weight: 600; color: var(--ink-2);">Feb 6</span><span style="font-size: 14px;">Submit Glasshouse pitch to Spotify</span></li>
+              <li style="display: flex; gap: 14px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line);"><span class="num" style="flex: 0 0 52px; font-size: 13px; font-weight: 600; color: var(--warn);">Feb 10</span><span style="font-size: 14px; flex-grow: 1;">State arts council grant due</span><span style="font-size: 12px; font-weight: 600; color: var(--warn);">9 days</span></li>
+              <li style="display: flex; gap: 14px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line);"><span class="num" style="flex: 0 0 52px; font-size: 13px; font-weight: 600; color: var(--ink-2);">Feb 13</span><span style="font-size: 14px;">Deliver Glasshouse to distributor</span></li>
+              <li style="display: flex; gap: 14px; align-items: center; padding: 11px 0;"><span class="num" style="flex: 0 0 52px; font-size: 13px; font-weight: 700; color: var(--accent);">Mar 6</span><span style="font-size: 14px; font-weight: 600;">Glasshouse release day</span></li>
+            </ol>
+          </section>
+        </div>
+
+        <!-- Numbers -->
+        <section aria-labelledby="nums-h" style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; align-items: baseline; gap: 10px;"><h2 id="nums-h" style="margin: 0; font-size: 18px; font-weight: 700;">The numbers</h2><span style="font-size: 13px; color: var(--ink-3);">January statement period · updated 2 hours ago</span></div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px;">
+            <button title="Show waterfall" style="text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; color: var(--ink);"><span style="font-size: 13px; color: var(--ink-3);">Income this period</span><span class="num disp" aria-label="fourteen thousand three hundred eighty-two dollars and forty cents" style="font-size: 26px; font-weight: 700;">$14,382.40</span><span class="num" style="font-size: 12px; color: var(--good);">Up 18% on December</span></button>
+            <button style="text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; color: var(--ink);"><span style="font-size: 13px; color: var(--ink-3);">Owed to payees</span><span class="num disp" aria-label="one thousand two hundred forty dollars and eighteen cents" style="font-size: 26px; font-weight: 700;">$1,240.18</span><span style="font-size: 12px; color: var(--ink-3);">Awaiting your approval</span></button>
+            <button style="text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; color: var(--ink);"><span style="font-size: 13px; color: var(--ink-3);">Recoupment</span><span class="num disp" style="font-size: 26px; font-weight: 700;">$3,590</span><span style="font-size: 12px; color: var(--ink-3);">left on The Low Hours advance</span></button>
+            <button style="text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; color: var(--ink);"><span style="font-size: 13px; color: var(--ink-3);">Cash forecast, 90 days</span><span class="num disp" style="font-size: 26px; font-weight: 700;">$21,600</span><span style="font-size: 12px; color: var(--ink-3);">Includes Glasshouse launch</span></button>
+            <button style="text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; color: var(--ink);"><span style="font-size: 13px; color: var(--ink-3);">Unclaimed money found</span><span class="num disp" style="font-size: 26px; font-weight: 700;">$612.40</span><span style="font-size: 12px; color: var(--ink-3);">From 3 sources</span></button>
+          </div>
+        </section>
+      </main>
+
+      <!-- Right rail -->
+      <aside aria-label="Agent activity" style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+        <sc-if value="{{panelOpen}}" hint-placeholder-val="{{false}}">
+          <section aria-label="Label Head panel" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; background: var(--surface); border: 1px solid var(--accent); border-radius: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px;"><span aria-hidden="true" style="width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center;">LH</span><strong style="font-size: 14px; flex-grow: 1;">Label Head</strong><button onClick="{{togglePanel}}" aria-label="Close Label Head panel" style="width: 32px; height: 32px; border: 0; background: none; color: var(--ink-3); font-size: 18px;">×</button></div>
+            <p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-2);">Ask me about anything on this screen. For example: "Why is income up 18%?"</p>
+            <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-3);">Your question<textarea rows="3" style="font: inherit; font-size: 14px; padding: 10px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--ink); resize: vertical;"></textarea></label>
+            <button style="align-self: flex-end; height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 14px;">Ask</button>
+          </section>
+        </sc-if>
+        <section style="display: flex; flex-direction: column; gap: 4px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;">
+          <div style="display: flex; align-items: center; margin-bottom: 6px;"><h2 style="margin: 0; font-size: 14px; font-weight: 700; flex-grow: 1;">What the team is doing</h2><a href="#" style="font-size: 13px; text-decoration: none;">Activity log</a></div>
+          <div style="display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line);"><span aria-hidden="true" style="flex: 0 0 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--accent);"></span><div style="display: flex; flex-direction: column; gap: 3px;"><span style="font-size: 13px; line-height: 1.45;"><strong style="font-weight: 600;">Release Agent</strong> is drafting the Spotify pitch for Glasshouse</span><span style="font-size: 12px; color: var(--ink-3);">Working · started 9:12</span></div></div>
+          <div style="display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line);"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" style="color: var(--good); flex: 0 0 12px; margin-top: 4px;"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><div style="display: flex; flex-direction: column; gap: 3px;"><span style="font-size: 13px; line-height: 1.45;"><strong style="font-weight: 600;">Metadata Agent</strong> completed credits for 4 tracks</span><span style="font-size: 12px; color: var(--ink-3);">Done · 8:40</span></div></div>
+          <div style="display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line);"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" style="color: var(--warn); flex: 0 0 12px; margin-top: 4px;"><path d="M12 4l9 16H3z"/></svg><div style="display: flex; flex-direction: column; gap: 3px;"><span style="font-size: 13px; line-height: 1.45;"><strong style="font-weight: 600;">Audit Agent</strong> flagged an unusual stream spike on "Night Bus" (The Low Hours)</span><span style="font-size: 12px; color: var(--ink-3);">Flagged · yesterday · <a href="#" style="text-decoration: none;">See why</a></span></div></div>
+          <div style="display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line);"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" style="color: var(--good); flex: 0 0 12px; margin-top: 4px;"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><div style="display: flex; flex-direction: column; gap: 3px;"><span style="font-size: 13px; line-height: 1.45;"><strong style="font-weight: 600;">Funding Scout</strong> found 2 new grants</span><span style="font-size: 12px; color: var(--ink-3);">Done · yesterday</span></div></div>
+          <div style="display: flex; gap: 10px; padding: 10px 0;"><span aria-hidden="true" style="flex: 0 0 8px; height: 8px; margin-top: 6px; border-radius: 50%; border: 1.5px solid var(--ink-3); box-sizing: border-box;"></span><div style="display: flex; flex-direction: column; gap: 3px;"><span style="font-size: 13px; line-height: 1.45;"><strong style="font-weight: 600;">Rights Agent</strong> is waiting on you for the MLC filing</span><span style="font-size: 12px; color: var(--ink-3);">Waiting on you · <a href="ApprovalDetail.dc.html" style="text-decoration: none;">Open card</a></span></div></div>
+        </section>
+        <section style="display: flex; flex-direction: column; gap: 8px; padding: 16px; background: var(--surface-2); border-radius: 12px;">
+          <h2 style="margin: 0; font-size: 14px; font-weight: 700;">A suggestion</h2>
+          <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-2);">Marco Dela writes on 2 of your songs. Want me to turn on the Publishing department so his writer share gets registered and paid?</p>
+          <div style="display: flex; gap: 8px;"><button style="height: 36px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600;">Turn on</button><button style="height: 36px; padding: 0 12px; border: 0; background: none; color: var(--ink-2); font-size: 13px;">Not now</button></div>
+        </section>
+      </aside>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1240}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { panelOpen: false }; }
+  renderVals() {
+    return {
+      theme: this.props.theme ?? 'light',
+      panelOpen: this.state.panelOpen,
+      togglePanel: () => this.setState({ panelOpen: !this.state.panelOpen })
+    };
+  }
+}
+</script>
+</body>
+</html>

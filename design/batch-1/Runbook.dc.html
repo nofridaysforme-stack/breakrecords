@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Release runbook: Glasshouse</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.vl{--bg:#F6F4F0;--surface:#FFFFFF;--surface-2:#EFEBE4;--line:#E3DED6;--line-strong:#CCC5B9;--ink:#1C1A17;--ink-2:#504A42;--ink-3:#6B655C;--accent:#2A44B0;--accent-hover:#22398F;--accent-ink:#FFFFFF;--accent-soft:#E7EBFA;--good:#1D6F41;--good-soft:#E2F1E7;--warn:#8A5300;--warn-soft:#FAEFD9;--crit:#B42318;--crit-soft:#FBE7E4;--shadow:0 1px 2px rgba(28,26,23,.06),0 2px 8px rgba(28,26,23,.04);font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+.vl[data-theme="dark"]{--bg:#141311;--surface:#1D1B18;--surface-2:#27241F;--line:#332F29;--line-strong:#4A443C;--ink:#F3EFE9;--ink-2:#CEC6BA;--ink-3:#A79F93;--accent:#94A6FF;--accent-hover:#B0BEFF;--accent-ink:#0E1636;--accent-soft:#232B52;--good:#6BD49A;--good-soft:#173425;--warn:#EDB458;--warn-soft:#3A2B12;--crit:#FF8E80;--crit-soft:#3E1D19;--shadow:none}
+.vl .num{font-variant-numeric:tabular-nums}
+.vl .disp{font-family:"Bricolage Grotesque",Inter,sans-serif;letter-spacing:-0.01em}
+.vl a{color:var(--accent)}
+.vl a:hover{color:var(--accent-hover)}
+.vl :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.vl button{font:inherit;cursor:pointer}
+.vl .rail a{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--ink-2)}
+.vl .rail a:hover{background:var(--surface-2)}
+.vl abbr{text-decoration:underline dotted;cursor:help}
+</style>
+</helmet>
+<div class="vl" data-theme="{{theme}}" style="min-height: 100vh; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+  <nav class="rail" aria-label="Primary, collapsed" style="flex: 1 1 72px; max-width: 100%; box-sizing: border-box; padding: 16px 14px; background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 6px;">
+    <span aria-hidden="true" style="width: 32px; height: 32px; margin-bottom: 14px; border-radius: 8px; background: #2E4A3F; color: #F3EFE9; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;">NR</span>
+    <a href="Main.dc.html" aria-label="Home"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg></a>
+    <a href="Approvals.dc.html" aria-label="Approvals, 4 waiting" style="position: relative;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M4 13l2-8h12l2 8v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M4 13h5l1 2h4l1-2h5"/></svg><span aria-hidden="true" class="num" style="position: absolute; top: 4px; right: 2px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center;">4</span></a>
+    <a href="Runbook.dc.html" aria-label="Releases" aria-current="page" style="background: var(--accent-soft); color: var(--accent);"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg></a>
+    <a href="#" aria-label="Catalog"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></a>
+    <a href="#" aria-label="Money"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 3v18M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.6 4.5 3 4.5 1.3 4.5 3-2 3-4.5 3-4.5-1.3-4.5-3"/></svg></a>
+    <a href="#" aria-label="Splits"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></svg></a>
+    <a href="#" aria-label="Contracts"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/></svg></a>
+    <a href="#" aria-label="Rights"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/></svg></a>
+    <a href="#" aria-label="Departments"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg></a>
+  </nav>
+
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+    <!-- Release header -->
+    <header style="display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-end; padding: 32px 32px 28px; border-bottom: 1px solid var(--line); background: var(--surface);">
+      <div role="img" aria-label="Glasshouse cover art" style="flex: 0 0 168px; height: 168px; border-radius: 8px; background: #2E4A3F; position: relative; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.18);"><div style="position: absolute; left: 34px; top: 34px; width: 100px; height: 100px; border: 3px solid #C9E3D2; transform: rotate(12deg);"></div><div style="position: absolute; left: 58px; top: 58px; width: 52px; height: 52px; background: #E9B872; border-radius: 50%;"></div><span style="position: absolute; left: 14px; bottom: 12px; font-family: 'Bricolage Grotesque', sans-serif; font-size: 14px; font-weight: 700; color: #F3EFE9; letter-spacing: .08em;">KESI VALE</span></div>
+      <div style="flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 10px;">
+        <p style="margin: 0; font-size: 13px; font-weight: 600; color: var(--ink-3);">Single · Kesi Vale · Northline Records</p>
+        <h1 class="disp" style="margin: 0; font-size: 56px; line-height: 1; font-weight: 700;">Glasshouse</h1>
+        <div class="num" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; font-size: 15px; color: var(--ink-2);">
+          <span>Release <strong style="color: var(--ink);">{{dateLabel}}</strong></span>
+          <span>5 weeks out</span>
+          <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--good-soft); color: var(--good);">✓ On track</span>
+          <span style="font-size: 13px; color: var(--ink-3);">1 gate needs you</span>
+        </div>
+      </div>
+      <div style="flex: 0 1 300px; min-width: 240px; display: flex; flex-direction: column; gap: 8px;">
+        <div class="num" style="display: flex; align-items: baseline; gap: 8px;"><span style="font-size: 13px; color: var(--ink-3); flex-grow: 1;">Budget</span><strong style="font-size: 18px;">$1,860</strong><span style="font-size: 14px; color: var(--ink-3);">of $3,000</span></div>
+        <div role="progressbar" aria-label="Budget used" aria-valuenow="62" aria-valuemin="0" aria-valuemax="100" style="height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden;"><div style="width: 62%; height: 100%; background: var(--ink-2);"></div></div>
+        <div style="display: flex; gap: 8px; margin-top: 6px;">
+          <button onClick="{{toggleDate}}" aria-expanded="{{dateOpen}}" style="flex-grow: 1; height: 42px; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-weight: 600; font-size: 14px;">Change date</button>
+          <button style="flex-grow: 1; height: 42px; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-weight: 600; font-size: 14px;">What blocks delivery?</button>
+        </div>
+      </div>
+    </header>
+
+    <sc-if value="{{dateOpen}}" hint-placeholder-val="{{false}}">
+      <section aria-label="Change release date" style="margin: 20px 32px 0; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; padding: 18px 20px; border-radius: 12px; border: 1px solid var(--accent); background: var(--surface);">
+        <span aria-hidden="true" style="flex: 0 0 32px; height: 32px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;">LH</span>
+        <div style="flex: 1 1 400px; display: flex; flex-direction: column; gap: 10px;">
+          <label style="display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600;">New release date<select onChange="{{pickDate}}" style="height: 40px; padding: 0 10px; font: inherit; font-size: 14px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--ink);"><option value="mar6">Friday, March 6</option><option value="mar20">Friday, March 20</option><option value="apr3">Friday, April 3</option></select></label>
+          <p class="num" style="margin: 0; font-size: 15px; line-height: 1.55; color: var(--ink-2);">{{dateImpact}}</p>
+          <div style="display: flex; gap: 8px;"><button disabled="{{sameDate}}" style="height: 40px; padding: 0 16px; border: 0; border-radius: 9px; font-weight: 600; font-size: 14px; {{dateBtnStyle}}">Approve new plan</button><button onClick="{{toggleDate}}" style="height: 40px; padding: 0 14px; border: 0; background: none; color: var(--ink-2); font-size: 14px;">Keep March 6</button></div>
+        </div>
+      </section>
+    </sc-if>
+
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 28px; padding: 24px 32px 48px;">
+      <!-- Timeline -->
+      <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+        <div role="note" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 14px 16px; border-radius: 12px; background: var(--warn-soft);">
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" style="color: var(--warn);"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+          <p style="margin: 0; flex: 1 1 300px; font-size: 14px; line-height: 1.5;"><strong>Delivery is blocked by 1 gate.</strong> Metadata can't be marked complete until Marco Dela's producer agreement is signed and his credit confirmed.</p>
+          <a href="ApprovalDetail.dc.html" style="height: 40px; padding: 0 14px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-size: 14px; font-weight: 600; display: flex; align-items: center; text-decoration: none;">Review agreement</a>
+        </div>
+
+        <sc-for list="{{phases}}" as="p" hint-placeholder-count="8">
+          <section aria-label="{{p.name}}" style="display: flex; gap: 20px;">
+            <div style="flex: 0 0 116px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding-top: 16px;">
+              <span style="font-size: 14px; font-weight: 700; {{p.nameStyle}}">{{p.name}}</span>
+              <span class="num" style="font-size: 13px; color: var(--ink-3);">{{p.date}}</span>
+              <span class="num" style="font-size: 12px; color: var(--ink-3);">{{p.progress}}</span>
+            </div>
+            <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; {{p.boxStyle}}">
+              <sc-for list="{{p.tasks}}" as="t" hint-placeholder-count="3">
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px 16px; border-bottom: 1px solid var(--line); {{t.rowStyle}}">
+                  <span class="num" style="flex: 0 0 112px; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;"><span style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; {{t.pillStyle}}">{{t.icon}} {{t.status}}</span></span>
+                  <span style="flex: 1 1 220px; min-width: 0; font-size: 14px; {{t.textStyle}}">{{t.name}}<span style="display: block; font-size: 12px; color: var(--ink-3); margin-top: 2px;">{{t.note}}</span></span>
+                  <span style="flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); padding: 3px 9px 3px 4px; border-radius: 999px; background: var(--surface-2);"><span aria-hidden="true" style="width: 18px; height: 18px; border-radius: 50%; background: var(--line-strong); color: var(--ink); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center;">{{t.ini}}</span>{{t.owner}}</span>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+        </sc-for>
+      </main>
+
+      <!-- Side -->
+      <aside style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+        <section aria-labelledby="as-h" style="display: flex; flex-direction: column; gap: 4px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;">
+          <div style="display: flex; align-items: baseline; margin-bottom: 6px;"><h2 id="as-h" style="margin: 0; font-size: 15px; font-weight: 700; flex-grow: 1;">Assets</h2><span class="num" style="font-size: 13px; color: var(--ink-3);">6 of 7 ready</span></div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line);"><div aria-hidden="true" style="flex: 0 0 40px; height: 40px; border-radius: 4px; background: #2E4A3F; position: relative; overflow: hidden;"><div style="position: absolute; left: 13px; top: 13px; width: 14px; height: 14px; background: #E9B872; border-radius: 50%;"></div></div><span style="flex-grow: 1; font-size: 14px;">Cover art<span class="num" style="display: block; font-size: 12px; color: var(--ink-3);">3000 × 3000 JPG</span></span><span style="font-size: 12px; font-weight: 700; color: var(--good);">✓ Ready</span></div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line);"><div aria-hidden="true" style="flex: 0 0 40px; height: 40px; border-radius: 4px; background: var(--surface-2); display: flex; align-items: center; justify-content: center; gap: 2px;"><span style="width: 3px; height: 10px; background: var(--ink-3);"></span><span style="width: 3px; height: 20px; background: var(--ink-3);"></span><span style="width: 3px; height: 14px; background: var(--ink-3);"></span><span style="width: 3px; height: 24px; background: var(--ink-3);"></span><span style="width: 3px; height: 8px; background: var(--ink-3);"></span></div><span style="flex-grow: 1; font-size: 14px;">Master (recording)<span class="num" style="display: block; font-size: 12px; color: var(--ink-3);">WAV 24-bit 48 kHz · 3:41</span></span><span style="font-size: 12px; font-weight: 700; color: var(--good);">✓ Ready</span></div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line);"><div aria-hidden="true" style="flex: 0 0 40px; height: 40px; border-radius: 4px; background: var(--surface-2);"></div><span style="flex-grow: 1; font-size: 14px;">Instrumental<span style="display: block; font-size: 12px; color: var(--ink-3);">For sync pitching</span></span><span style="font-size: 12px; font-weight: 700; color: var(--good);">✓ Ready</span></div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line);"><div aria-hidden="true" style="flex: 0 0 40px; height: 40px; border-radius: 4px; background: var(--surface-2);"></div><span style="flex-grow: 1; font-size: 14px;">Lyrics<span style="display: block; font-size: 12px; color: var(--ink-3);">Synced, 42 lines</span></span><span style="font-size: 12px; font-weight: 700; color: var(--good);">✓ Ready</span></div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line);"><div aria-hidden="true" style="flex: 0 0 40px; height: 40px; border-radius: 4px; background: #6B4E3D;"></div><span style="flex-grow: 1; font-size: 14px;">Artist photo<span style="display: block; font-size: 12px; color: var(--ink-3);">Credit: R. Osei</span></span><span style="font-size: 12px; font-weight: 700; color: var(--good);">✓ Ready</span></div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line);"><div aria-hidden="true" style="flex: 0 0 40px; height: 40px; border-radius: 4px; background: var(--surface-2);"></div><span style="flex-grow: 1; font-size: 14px;">AI disclosure<span style="display: block; font-size: 12px; color: var(--ink-3);">No AI used in writing or performance</span></span><span style="font-size: 12px; font-weight: 700; color: var(--good);">✓ Ready</span></div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0;"><div aria-hidden="true" style="flex: 0 0 40px; height: 40px; border-radius: 4px; border: 1.5px dashed var(--line-strong); box-sizing: border-box;"></div><span style="flex-grow: 1; font-size: 14px;">Credits sheet<span style="display: block; font-size: 12px; color: var(--ink-3);">Producer credit unconfirmed</span></span><span style="font-size: 12px; font-weight: 700; color: var(--warn);">! Needs you</span></div>
+        </section>
+
+        <section aria-labelledby="reg-h" style="display: flex; flex-direction: column; gap: 4px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;">
+          <h2 id="reg-h" style="margin: 0 0 6px; font-size: 15px; font-weight: 700;">Registrations</h2>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px;"><span style="flex-grow: 1;"><abbr title="Performing rights organization: collects when the song is played on radio, in venues and on streams">PRO</abbr> (BMI)</span><span style="font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--good-soft); color: var(--good);">✓ Confirmed</span></div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px;"><span style="flex-grow: 1;"><abbr title="The Mechanical Licensing Collective: pays songwriters for US streams and downloads">MLC</abbr></span><a href="ApprovalDetail.dc.html" style="font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); text-decoration: none;">! Needs you</a></div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px;"><span style="flex-grow: 1;"><abbr title="Pays the recording owner and performers for digital radio such as SiriusXM and Pandora">SoundExchange</abbr>, owner</span><span style="font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--good-soft); color: var(--good);">✓ Confirmed</span></div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px;"><span style="flex-grow: 1;">SoundExchange, artist</span><span style="font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent);">◐ Prepared</span></div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 14px;"><span style="flex-grow: 1;">Copyright Office</span><span style="font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--ink-2);">○ Not started</span></div>
+        </section>
+
+        <section aria-labelledby="pitch-h" style="display: flex; flex-direction: column; gap: 10px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;">
+          <div style="display: flex; align-items: center; gap: 8px;"><h2 id="pitch-h" style="margin: 0; font-size: 15px; font-weight: 700; flex-grow: 1;">Spotify pitch draft</h2><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3);"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent);"></span>Release Agent is polishing</span></div>
+          <p style="margin: 0; padding: 12px; border-radius: 8px; background: var(--surface-2); font-size: 14px; line-height: 1.55; color: var(--ink-2);">"Glasshouse" is Kesi Vale's most open song yet: a slow-burning R&amp;B ballad about living in public, built on warm Rhodes, brushed drums and a falsetto hook. Produced by Marco Dela in Columbus. For fans of late-night soul and quiet storm playlists.</p>
+          <div style="display: flex; gap: 8px; align-items: center;"><button onClick="{{copy}}" style="height: 40px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-weight: 600; font-size: 14px;">{{copyLabel}}</button><span class="num" style="font-size: 12px; color: var(--ink-3);">312 of 500 characters · submit by Feb 6</span></div>
+        </section>
+      </aside>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1640}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { dateOpen: false, date: 'mar6', copied: false }; }
+  renderVals() {
+    const s = this.state;
+    const st = {
+      done: ['✓', 'Done', 'background: var(--good-soft); color: var(--good);'],
+      working: ['●', 'Working', 'background: var(--accent-soft); color: var(--accent);'],
+      prepared: ['◐', 'Prepared', 'background: var(--accent-soft); color: var(--accent);'],
+      needs: ['!', 'Needs you', 'background: var(--warn-soft); color: var(--warn);'],
+      blocked: ['×', 'Blocked', 'background: var(--crit-soft); color: var(--crit);'],
+      todo: ['○', 'Not started', 'border: 1px solid var(--line-strong); color: var(--ink-2);'],
+      open: ['✓', 'Unlocked', 'background: var(--good-soft); color: var(--good);'],
+      locked: ['▣', 'Locked', 'background: var(--crit-soft); color: var(--crit);']
+    };
+    const T = (status, name, owner, note, gate) => {
+      const d = st[status];
+      return { icon: d[0], status: d[1], pillStyle: d[2], name: gate ? 'Gate: ' + name : name, owner: owner, note: note || '',
+        ini: owner.split(' ').map((w) => w[0]).join('').slice(0, 2),
+        rowStyle: gate ? 'background: var(--surface-2);' : '',
+        textStyle: gate ? 'font-weight: 700;' : (status === 'done' ? 'color: var(--ink-2);' : 'font-weight: 500;') };
+    };
+    const phases = [
+      { name: '8 weeks out', date: 'Jan 9', tasks: [T('done', 'Confirm date and budget', 'Label Head'), T('done', 'Draft split sheet', 'Legal Agent'), T('done', 'Book mastering', 'Release Agent', '$450.00, recoupable')] },
+      { name: '6 weeks out', date: 'Jan 23', tasks: [T('done', 'Masters received', 'Release Agent'), T('done', 'Final cover art', 'Release Agent'), T('done', 'Credits for 4 tracks', 'Metadata Agent'), T('open', 'Split sheets signed', 'Legal Agent', '4 of 4 signed Jan 22, version 3', true)] },
+      { name: '5 weeks out', date: 'Jan 30 · now', current: true, tasks: [T('done', 'Register song with PRO', 'Rights Agent'), T('needs', 'MLC registration, 3 songs', 'Rights Agent', 'Waiting on you to confirm facts'), T('prepared', 'SoundExchange artist registration', 'Rights Agent', 'Ready to submit with the next batch'), T('needs', 'Producer agreement signed', 'Legal Agent', '2 flagged terms'), T('working', 'Spotify pitch draft', 'Release Agent'), T('open', 'Masters accepted', 'Distribution Agent', 'Passed distributor QC Jan 31', true)] },
+      { name: '4 weeks out', date: 'Feb 6', tasks: [T('todo', 'Submit Spotify pitch', 'Release Agent'), T('todo', 'Copyright registration', 'Rights Agent', 'Song and recording, one filing'), T('locked', 'Metadata complete', 'Metadata Agent', 'Unlocks when the producer agreement is signed. Waiting on you.', true)] },
+      { name: '3 weeks out', date: 'Feb 13', tasks: [T('blocked', 'Deliver to distributor', 'Distribution Agent', 'Blocked by: Metadata complete'), T('todo', 'Lyrics to lyric services', 'Metadata Agent')] },
+      { name: '2 weeks out', date: 'Feb 20', tasks: [T('todo', 'Check store pages and links', 'Distribution Agent'), T('todo', 'Confirm launch spend', 'Label Head', '$1,140 left in budget')] },
+      { name: 'Release week', date: 'Mar 2 to 6', tasks: [T('todo', 'Confirm live on all stores', 'Distribution Agent'), T('todo', 'Release day summary to you', 'Label Head')] },
+      { name: 'After release', date: 'To June 4', tasks: [T('todo', 'Import first statement', 'Royalties Agent', 'Expected mid April'), T('todo', 'Stream quality audit', 'Audit Agent'), T('todo', 'Neighboring rights registration', 'Rights Agent')] }
+    ].map((p) => {
+      const done = p.tasks.filter((t) => t.status === 'Done' || t.status === 'Unlocked').length;
+      return Object.assign({}, p, {
+        progress: done + ' of ' + p.tasks.length + ' done',
+        nameStyle: p.current ? 'color: var(--accent);' : '',
+        boxStyle: p.current ? 'border: 2px solid var(--accent); background: var(--surface);' : 'border: 1px solid var(--line); background: var(--surface);'
+      });
+    });
+    const dates = { mar6: 'Friday, March 6, 2027', mar20: 'Friday, March 20, 2027', apr3: 'Friday, April 3, 2027' };
+    const impact = {
+      mar6: 'This is the current date. Pick another to see what changes.',
+      mar20: 'If you move to March 20, I shift 9 open tasks by 2 weeks. The Spotify pitch deadline moves to Feb 20, which gives the producer agreement more room. Budget stays at $3,000. The grant application still names March 6, so I would update it before sending.',
+      apr3: 'If you move to April 3, I shift 9 open tasks by 4 weeks and the release lands in Q2 statements instead of Q1. Budget stays at $3,000. The grant application needs a new date, and the arts council allows that.'
+    };
+    return {
+      theme: this.props.theme ?? 'light',
+      phases: phases,
+      dateOpen: s.dateOpen, toggleDate: () => this.setState({ dateOpen: !s.dateOpen }),
+      pickDate: (e) => this.setState({ date: e.target.value }),
+      dateLabel: 'Friday, March 6, 2027',
+      dateImpact: impact[s.date],
+      sameDate: s.date === 'mar6',
+      dateBtnStyle: s.date === 'mar6' ? 'background: var(--line); color: var(--ink-3); cursor: not-allowed;' : 'background: var(--accent); color: var(--accent-ink);',
+      copy: () => this.setState({ copied: true }),
+      copyLabel: s.copied ? 'Copied' : 'Copy for Spotify for Artists'
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Approval detail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.vl{--bg:#F6F4F0;--surface:#FFFFFF;--surface-2:#EFEBE4;--line:#E3DED6;--line-strong:#CCC5B9;--ink:#1C1A17;--ink-2:#504A42;--ink-3:#6B655C;--accent:#2A44B0;--accent-hover:#22398F;--accent-ink:#FFFFFF;--accent-soft:#E7EBFA;--good:#1D6F41;--good-soft:#E2F1E7;--warn:#8A5300;--warn-soft:#FAEFD9;--crit:#B42318;--crit-soft:#FBE7E4;--shadow:0 1px 2px rgba(28,26,23,.06),0 2px 8px rgba(28,26,23,.04);font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+.vl[data-theme="dark"]{--bg:#141311;--surface:#1D1B18;--surface-2:#27241F;--line:#332F29;--line-strong:#4A443C;--ink:#F3EFE9;--ink-2:#CEC6BA;--ink-3:#A79F93;--accent:#94A6FF;--accent-hover:#B0BEFF;--accent-ink:#0E1636;--accent-soft:#232B52;--good:#6BD49A;--good-soft:#173425;--warn:#EDB458;--warn-soft:#3A2B12;--crit:#FF8E80;--crit-soft:#3E1D19;--shadow:none}
+.vl .num{font-variant-numeric:tabular-nums}
+.vl .disp{font-family:"Bricolage Grotesque",Inter,sans-serif;letter-spacing:-0.01em}
+.vl a{color:var(--accent)}
+.vl a:hover{color:var(--accent-hover)}
+.vl :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.vl button{font:inherit;cursor:pointer}
+.vl input[type="checkbox"]{width:20px;height:20px;accent-color:var(--accent);margin:0;flex:0 0 20px}
+.vl table{border-collapse:collapse;width:100%}
+.vl th{font-size:12px;font-weight:600;color:var(--ink-3);text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+.vl td{font-size:14px;padding:12px;border-bottom:1px solid var(--line);vertical-align:top}
+</style>
+</helmet>
+<div class="vl" data-theme="{{theme}}" style="min-height: 100vh; display: flex; flex-direction: column;">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 32px; border-bottom: 1px solid var(--line); background: var(--surface);">
+    <a href="Approvals.dc.html" style="display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 10px 0 4px; font-size: 14px; font-weight: 600; text-decoration: none; color: var(--ink);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>Approvals</a>
+    <span class="num" style="font-size: 14px; color: var(--ink-3);">{{pos}} of 4</span>
+    <span style="flex-grow: 1;"></span>
+    <div role="tablist" aria-label="Approval type examples" style="display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 10px; background: var(--surface-2);">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+        <button role="tab" aria-selected="{{t.sel}}" onClick="{{t.pick}}" style="height: 36px; padding: 0 14px; border: 0; border-radius: 7px; font-size: 14px; font-weight: 600; {{t.style}}">{{t.label}}</button>
+      </sc-for>
+    </div>
+  </header>
+
+  <div style="flex-grow: 1; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 28px; padding: 32px 32px 140px; max-width: 1440px; width: 100%; box-sizing: border-box; margin: 0 auto;">
+    <main style="flex: 999 1 620px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-3);">
+          <span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--ink-2);">{{cur.kind}}</span>
+          <span aria-hidden="true">·</span><span>Prepared by {{cur.agent}}</span>
+          <span aria-hidden="true">·</span><span class="num">Due {{cur.due}}</span>
+          <span style="display: inline-flex; align-items: center; gap: 4px; font-weight: 600; padding: 2px 8px; border-radius: 999px; {{cur.riskStyle}}">{{cur.risk}}</span>
+        </div>
+        <h1 class="disp" style="margin: 0; font-size: 34px; line-height: 1.15; font-weight: 700;">{{cur.title}}</h1>
+        <p class="num" style="margin: 0; padding: 14px 16px; border-radius: 12px; background: var(--accent-soft); color: var(--ink); font-size: 17px; line-height: 1.5;"><strong style="font-weight: 600;">If you approve:</strong> {{cur.outcome}}</p>
+      </div>
+
+      <!-- PAYOUT -->
+      <sc-if value="{{isPayout}}" hint-placeholder-val="{{true}}">
+        <section aria-label="Payees" style="background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow-x: auto;">
+          <table class="num">
+            <thead><tr><th>Payee</th><th>Why they are paid</th><th style="text-align: right;">Amount</th><th style="text-align: right;">Withholding</th><th>Tax form</th><th>Source</th></tr></thead>
+            <tbody>
+              <tr><td><strong style="font-weight: 600;">Marco Dela</strong><br><span style="font-size: 13px; color: var(--ink-3);">Producer</span></td><td>3 points on Glasshouse</td><td style="text-align: right; font-weight: 600;">$285.00</td><td style="text-align: right;">$0.00</td><td><span style="color: var(--good);">✓</span> W-9 on file</td><td><a href="#">Stmt 0127, row 4</a></td></tr>
+              <tr style="background: var(--surface-2);"><td><strong style="font-weight: 600;">Imani Rowe</strong><br><span style="font-size: 13px; color: var(--ink-3);">Featured artist</span></td><td>10% of artist share, Glasshouse</td><td style="text-align: right; font-weight: 600;">$260.75</td><td style="text-align: right;">$0.00</td><td><span style="color: var(--good);">✓</span> W-9 on file</td><td><a href="#">Stmt 0127, row 9</a></td></tr>
+              <tr><td><strong style="font-weight: 600;">Ren Okafor</strong><br><span style="font-size: 13px; color: var(--ink-3);">The Low Hours</span></td><td>Band share, Night Bus</td><td style="text-align: right; font-weight: 600;">$198.14</td><td style="text-align: right;">$0.00</td><td><span style="color: var(--good);">✓</span> W-9 on file</td><td><a href="#">Stmt 0128, row 2</a></td></tr>
+              <tr><td><strong style="font-weight: 600;">Jules Marr</strong><br><span style="font-size: 13px; color: var(--ink-3);">The Low Hours</span></td><td>Band share, Night Bus</td><td style="text-align: right; font-weight: 600;">$198.14</td><td style="text-align: right;">$0.00</td><td><span style="color: var(--good);">✓</span> W-9 on file</td><td><a href="#">Stmt 0128, row 2</a></td></tr>
+              <tr><td><strong style="font-weight: 600;">Tess Albright</strong><br><span style="font-size: 13px; color: var(--ink-3);">The Low Hours</span></td><td>Band share, Night Bus</td><td style="text-align: right; font-weight: 600;">$198.15</td><td style="text-align: right;">$0.00</td><td><span style="color: var(--good);">✓</span> W-9 on file</td><td><a href="#">Stmt 0128, row 2</a></td></tr>
+              <tr><td><strong style="font-weight: 600;">Ana Ruiz</strong><br><span style="font-size: 13px; color: var(--ink-3);">Co-writer</span></td><td>Writer share, Night Bus (sync fee)</td><td style="text-align: right; font-weight: 600;">$100.00</td><td style="text-align: right;">$0.00</td><td><span style="color: var(--good);">✓</span> W-9 on file</td><td><a href="#">Stmt 0129, row 1</a></td></tr>
+              <tr><td colspan="2" style="font-weight: 700; border-bottom: 0;">6 payees</td><td style="text-align: right; font-weight: 700; font-size: 16px; border-bottom: 0;" aria-label="one thousand two hundred forty dollars and eighteen cents">$1,240.18</td><td style="text-align: right; border-bottom: 0;">$0.00</td><td colspan="2" style="color: var(--ink-3); font-size: 13px; border-bottom: 0;">2 payees under the $25 minimum carry forward $14.20 to next period.</td></tr>
+            </tbody>
+          </table>
+        </section>
+        <section aria-labelledby="wf-h" style="display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;">
+          <div style="display: flex; align-items: baseline; gap: 10px;"><h2 id="wf-h" style="margin: 0; font-size: 16px; font-weight: 700; flex-grow: 1;">How Imani Rowe's $260.75 was calculated</h2><span style="font-size: 13px; color: var(--ink-3);">Glasshouse · January · deal: 50/50 net profit</span></div>
+          <table class="num">
+            <thead><tr><th>Step</th><th>Rule</th><th style="text-align: right;">Amount</th><th style="text-align: right;">Running balance</th><th>Source</th></tr></thead>
+            <tbody>
+              <tr><td>Gross income</td><td>4 income sources</td><td style="text-align: right;">$10,000.00</td><td style="text-align: right;">$10,000.00</td><td><a href="#">Stmt 0127</a></td></tr>
+              <tr><td>Distributor fee</td><td>0% on your plan</td><td style="text-align: right;">$0.00</td><td style="text-align: right;">$10,000.00</td><td><a href="#">Distributor terms</a></td></tr>
+              <tr><td>Platform fee</td><td>5% of gross</td><td style="text-align: right; color: var(--ink-2);">minus $500.00</td><td style="text-align: right;">$9,500.00</td><td><a href="#">Plan</a></td></tr>
+              <tr><td>Producer royalty</td><td>3 points, Marco Dela</td><td style="text-align: right; color: var(--ink-2);">minus $285.00</td><td style="text-align: right;">$9,215.00</td><td><a href="#">Split v3</a></td></tr>
+              <tr><td>Recoupable costs</td><td>Glasshouse costs to date</td><td style="text-align: right; color: var(--ink-2);">minus $4,000.00</td><td style="text-align: right;">$5,215.00</td><td><a href="#">Recoupment</a></td></tr>
+              <tr><td><strong style="font-weight: 600;">Net profit</strong></td><td>Label 50%, artist 50%</td><td style="text-align: right;">$2,607.50 each</td><td style="text-align: right;">$2,607.50</td><td><a href="#">Deal terms</a></td></tr>
+              <tr><td><strong style="font-weight: 600;">Feature share</strong></td><td>10% of artist share</td><td style="text-align: right; font-weight: 700;">$260.75</td><td style="text-align: right;">Kesi nets $2,346.75</td><td><a href="#">Split v3</a></td></tr>
+            </tbody>
+          </table>
+        </section>
+      </sc-if>
+
+      <!-- CONTRACT -->
+      <sc-if value="{{isContract}}" hint-placeholder-val="{{false}}">
+        <div role="note" style="display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 12px; background: var(--warn-soft); color: var(--ink);">
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="color: var(--warn); flex: 0 0 20px; margin-top: 1px;"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg>
+          <div style="display: flex; flex-direction: column; gap: 4px;"><strong style="font-size: 15px;">Attorney review recommended</strong><span style="font-size: 14px; line-height: 1.5; color: var(--ink-2);">Marco's manager returned this with edits, so it is no longer on your template. I can share it with your attorney with one click.</span></div>
+        </div>
+        <section style="display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;">
+          <h2 style="margin: 0; font-size: 16px; font-weight: 700;">In plain words</h2>
+          <ul style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 1.5; color: var(--ink-2);">
+            <li>Marco produced Glasshouse and gets 3 points (3% of income after the platform fee), paid from the first stream.</li>
+            <li>He is credited as "Produced by Marco Dela" everywhere credits appear.</li>
+            <li>Northline owns the recording. Marco keeps his songwriter share, set by the split sheet.</li>
+            <li>Either side can audit the other once a year, with 30 days notice.</li>
+          </ul>
+        </section>
+        <section style="display: flex; flex-direction: column; gap: 12px;">
+          <h2 style="margin: 0; font-size: 16px; font-weight: 700;">2 terms differ from your playbook</h2>
+          <article style="display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px;"><span style="font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--crit-soft); color: var(--crit);">! Conflicts with a signed document</span><span style="font-size: 13px; color: var(--ink-3);">Clause 6.2</span></div>
+            <h3 style="margin: 0; font-size: 15px; font-weight: 600;">Songwriter share on Glasshouse</h3>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; font-size: 14px; line-height: 1.5;">
+              <div style="padding: 12px; border-radius: 8px; background: var(--surface-2);"><span style="display: block; font-size: 12px; font-weight: 600; color: var(--ink-3); margin-bottom: 4px;">This draft says</span>Marco owns 50% of the song.</div>
+              <div style="padding: 12px; border-radius: 8px; background: var(--surface-2);"><span style="display: block; font-size: 12px; font-weight: 600; color: var(--ink-3); margin-bottom: 4px;">Signed split sheet v3 says</span>Marco owns 30%, Kesi Vale 70%.</div>
+            </div>
+            <p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-2);">If both stand, Kesi's publishing income would be underpaid. I suggest pointing this clause to the split sheet instead of a number.</p>
+          </article>
+          <article style="display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px;"><span style="font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--warn-soft); color: var(--warn);">Outside the common range</span><span style="font-size: 13px; color: var(--ink-3);">Clause 9.1</span></div>
+            <h3 style="margin: 0; font-size: 15px; font-weight: 600;">Producer approval on remixes</h3>
+            <p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-2);">The draft needs Marco's written OK for any remix. Most producer deals give consultation, not approval. Approval could delay a remix release by weeks. Common range: consult within 5 business days.</p>
+          </article>
+        </section>
+        <a href="#" style="align-self: flex-start; font-size: 14px; font-weight: 600; text-decoration: none;">Open the full agreement (12 pages, tracked changes)</a>
+      </sc-if>
+
+      <!-- FILING -->
+      <sc-if value="{{isFiling}}" hint-placeholder-val="{{false}}">
+        <section aria-label="Form preview" style="background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow-x: auto;">
+          <div style="padding: 14px 16px 4px; display: flex; align-items: baseline; gap: 10px;"><h2 style="margin: 0; font-size: 16px; font-weight: 700; flex-grow: 1;">MLC work registration preview</h2><span style="font-size: 13px; color: var(--ink-3);">Bulk upload, 3 works</span></div>
+          <table class="num">
+            <thead><tr><th>Song (composition)</th><th>Writers and shares</th><th>Linked recording</th><th>ISWC</th></tr></thead>
+            <tbody>
+              <tr><td><strong style="font-weight: 600;">Glasshouse</strong></td><td>Kesi Vale 70%, Marco Dela 30%</td><td>ISRC US-NL1-27-00012</td><td style="color: var(--ink-3);">Assigned after filing</td></tr>
+              <tr><td><strong style="font-weight: 600;">Slow Bloom</strong></td><td>Kesi Vale 100%</td><td>ISRC US-NL1-26-00031</td><td style="color: var(--ink-3);">Assigned after filing</td></tr>
+              <tr><td style="border-bottom: 0;"><strong style="font-weight: 600;">Night Bus</strong></td><td style="border-bottom: 0;">Ren Okafor 40%, Jules Marr 30%, Ana Ruiz 20%, Tess Albright 10%</td><td style="border-bottom: 0;">ISRC US-NL1-25-00008</td><td style="border-bottom: 0;">T-345.246.800-1</td></tr>
+            </tbody>
+          </table>
+        </section>
+        <fieldset style="margin: 0; display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;">
+          <legend style="padding: 0 6px; font-size: 16px; font-weight: 700;">Confirm these facts</legend>
+          <p style="margin: 0; font-size: 14px; color: var(--ink-2);">The MLC relies on what you state here. I can't check these for you.</p>
+          <label style="display: flex; gap: 12px; align-items: flex-start; font-size: 15px; line-height: 1.45;"><input type="checkbox" checked="{{f1}}" onChange="{{tf1}}">The lyrics and melodies of all 3 songs were written by the people listed.</label>
+          <label style="display: flex; gap: 12px; align-items: flex-start; font-size: 15px; line-height: 1.45;"><input type="checkbox" checked="{{f2}}" onChange="{{tf2}}">The shares above match the signed split sheets.</label>
+          <label style="display: flex; gap: 12px; align-items: flex-start; font-size: 15px; line-height: 1.45;"><input type="checkbox" checked="{{f3}}" onChange="{{tf3}}">Northline Publishing has the right to register these songs for the writers listed.</label>
+        </fieldset>
+      </sc-if>
+
+      <!-- PUBLIC -->
+      <sc-if value="{{isPublic}}" hint-placeholder-val="{{false}}">
+        <section style="display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;">
+          <div class="num" style="display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 14px; color: var(--ink-2);"><span>To: <strong style="color: var(--ink);">State Arts Council, Project Grants</strong></span><span>Ask: <strong style="color: var(--ink);">$5,000</strong>, non-repayable</span><span style="display: inline-flex; align-items: center; gap: 6px;"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="color: var(--good);"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Deadline Feb 10, last verified Jan 29 · <a href="#">source</a></span></div>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600;">Project summary (you can edit this before approving)
+            <textarea rows="7" style="font: inherit; font-size: 15px; font-weight: 400; line-height: 1.6; padding: 14px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--ink); resize: vertical;">Northline Records is an independent label in Columbus releasing music by local artists. We are asking for $5,000 to support the release of "Glasshouse," a new single by R&amp;B artist Kesi Vale, on March 6, 2027. The grant would pay for mastering, a live session video recorded with local crew, and two free all-ages release shows. Kesi will keep 50% of net profit and full credit on every release.</textarea>
+          </label>
+          <p class="num" style="margin: 0; font-size: 13px; color: var(--ink-3);">412 of 1,500 characters · Budget sheet and 2 work samples attached</p>
+        </section>
+      </sc-if>
+    </main>
+
+    <!-- Evidence -->
+    <aside aria-label="Evidence" style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+      <button aria-expanded="{{evOpen}}" onClick="{{toggleEv}}" style="display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 15px; font-weight: 700; text-align: left;">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span style="flex-grow: 1;">Evidence</span><span style="font-size: 13px; font-weight: 600; color: var(--accent);">{{evLabel}}</span>
+      </button>
+      <sc-if value="{{evOpen}}" hint-placeholder-val="{{true}}">
+        <section style="display: flex; flex-direction: column; gap: 16px; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;">
+          <div style="display: flex; flex-direction: column; gap: 6px;"><h3 style="margin: 0; font-size: 13px; font-weight: 700; color: var(--ink-3);">Why I prepared this</h3><p style="margin: 0; font-size: 14px; line-height: 1.55; color: var(--ink-2);">{{cur.why}}</p></div>
+          <div style="display: flex; flex-direction: column; gap: 6px;"><h3 style="margin: 0; font-size: 13px; font-weight: 700; color: var(--ink-3);">Inputs used</h3>
+            <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px;">
+              <sc-for list="{{cur.inputs}}" as="x" hint-placeholder-count="3"><li style="font-size: 14px;"><a href="#" style="text-decoration: none;">{{x}}</a></li></sc-for>
+            </ul>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;"><h3 style="margin: 0; font-size: 13px; font-weight: 700; color: var(--ink-3);">Steps the agent ran</h3>
+            <ol class="num" style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink-2);">
+              <sc-for list="{{cur.steps}}" as="x" hint-placeholder-count="3"><li>{{x}}</li></sc-for>
+            </ol>
+          </div>
+          <div class="num" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-3);"><span>Audit ID</span><code style="font-size: 13px; color: var(--ink);">{{cur.audit}}</code><span style="flex-grow: 1;"></span><a href="#" style="text-decoration: none;">Open in activity log</a></div>
+        </section>
+      </sc-if>
+    </aside>
+  </div>
+
+  <!-- Action bar -->
+  <div role="region" aria-label="Decision" style="position: sticky; bottom: 0; border-top: 1px solid var(--line); background: var(--surface); padding: 14px 32px;">
+    <sc-if value="{{rejecting}}" hint-placeholder-val="{{false}}">
+      <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; max-width: 1376px; margin: 0 auto 12px;">
+        <label style="flex: 1 1 400px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600;">Why are you rejecting this? The agent learns from your reason.<input type="text" placeholder="For example: wait until the split sheet is fixed" style="height: 44px; padding: 0 12px; font: inherit; font-size: 15px; font-weight: 400; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--ink);"></label>
+        <button style="height: 44px; padding: 0 18px; border-radius: 9px; border: 0; background: var(--crit); color: #FFFFFF; font-weight: 600; font-size: 14px;">Reject</button>
+        <button onClick="{{toggleReject}}" style="height: 44px; padding: 0 14px; border: 0; background: none; color: var(--ink-2); font-size: 14px;">Cancel</button>
+      </div>
+    </sc-if>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; max-width: 1376px; margin: 0 auto;">
+      <button disabled="{{approveDisabled}}" style="height: 48px; padding: 0 24px; border: 0; border-radius: 10px; font-weight: 700; font-size: 15px; {{approveStyle}}">{{cur.approve}}</button>
+      <button style="height: 48px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-weight: 600; font-size: 15px;">Edit, then approve</button>
+      <button onClick="{{openPanel}}" style="height: 48px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-weight: 600; font-size: 15px;">Ask {{cur.agent}}</button>
+      <span class="num" style="flex: 1 1 200px; font-size: 13px; color: var(--ink-3);">{{hint}}</span>
+      <button onClick="{{toggleReject}}" style="height: 48px; padding: 0 18px; border-radius: 10px; border: 0; background: none; color: var(--crit); font-weight: 600; font-size: 15px;">Reject with reason</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"start":{"editor":"enum","options":["payout","contract","filing","public"],"default":"payout"},"$preview":{"width":1440,"height":1300}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: null, evOpen: true, rejecting: false, f1: false, f2: true, f3: true }; }
+  renderVals() {
+    const s = this.state;
+    const tab = s.tab || this.props.start || 'payout';
+    const defs = {
+      payout: { pos: 1, label: 'Payout batch', kind: 'Money', agent: 'Royalties Agent', due: 'Feb 5', risk: '✓ Low risk', level: 'low', title: 'January payout batch', outcome: '$1,240.18 goes to 6 payees on Feb 5 from the Northline operating account. Each gets a statement showing how their amount was worked out.', approve: 'Approve payout', why: 'January statements from your distributor, SoundExchange and one sync fee arrived and matched 100% of lines. I applied each payee’s current signed split and checked tax forms. Nothing is withheld.', inputs: ['Distributor statement 0127 (Jan)', 'SoundExchange statement 0128', 'Sync invoice 0129, Night Bus', 'Glasshouse split v3 (signed Jan 22)', 'Night Bus split v2'], steps: ['Imported 3 statements, 1,184 lines', 'Matched lines to 6 recordings', 'Ran waterfall per release', 'Checked tax forms and minimums', 'Drafted batch and statements'], audit: 'AUD-270201-4F7K' },
+      contract: { pos: 2, label: 'Contract', kind: 'Signature', agent: 'Legal Agent', due: 'Feb 8', risk: '! Needs care', level: 'high', title: 'Producer agreement for Marco Dela', outcome: 'Northline signs the producer agreement for Glasshouse, and I send it to Marco for his signature. Payouts to Marco stay on hold until both sign.', approve: 'Approve and sign', why: 'Your Glasshouse plan needs a signed producer agreement before delivery. I drafted it from your producer template. Marco’s manager sent back 4 edits; I accepted 2 that match your playbook and flagged 2.', inputs: ['Producer template v4', 'Your deal playbook', 'Redline from Marco’s manager (Jan 29)', 'Glasshouse split sheet v3'], steps: ['Drafted from template', 'Compared redline to playbook', 'Checked against signed split sheet', 'Wrote plain-language summary'], audit: 'AUD-270129-9C2M' },
+      filing: { pos: 3, label: 'Filing', kind: 'Filing', agent: 'Rights Agent', due: 'Feb 8', risk: '✓ Low risk', level: 'low', title: 'MLC registration for 3 songs', outcome: 'I submit these 3 songs to The MLC so mechanical royalties from US streams can be paid to the writers. I add the reference number to the Registrations tracker.', approve: 'Approve filing', why: 'Glasshouse needs an MLC registration before release so first-week streams pay out. Slow Bloom and Night Bus were never registered, which is likely why their mechanicals are missing.', inputs: ['Glasshouse split sheet v3', 'Night Bus split sheet v2', 'Catalog: 3 songs, 3 recordings', 'MLC portal: no existing matches'], steps: ['Searched MLC for existing works', 'Built bulk upload file', 'Linked recordings by ISRC', 'Listed facts only you can confirm'], audit: 'AUD-270130-2B8Q' },
+      public: { pos: 4, label: 'Public message', kind: 'Public', agent: 'Funding Scout', due: 'Feb 10', risk: '◷ Due in 9 days', level: 'warn', title: 'State arts council grant application', outcome: 'I submit this application to the State Arts Council under Northline’s name, asking for $5,000. You will get their confirmation email.', approve: 'Approve and send', why: 'Glasshouse fits the project grant: a local artist, a dated release and a public event. Fit score 82 of 100. It costs nothing to apply and the money does not need repaying.', inputs: ['State Arts Council program page (verified Jan 29)', 'Glasshouse budget', 'Kesi Vale bio', '2 work samples'], steps: ['Checked eligibility rules', 'Drafted answers from your catalog', 'Built budget sheet', 'Checked character limits'], audit: 'AUD-270131-7H1D' }
+    };
+    const cur = Object.assign({}, defs[tab]);
+    cur.riskStyle = { low: 'background: var(--good-soft); color: var(--good);', high: 'background: var(--crit-soft); color: var(--crit);', warn: 'background: var(--warn-soft); color: var(--warn);' }[cur.level];
+    const factsOk = s.f1 && s.f2 && s.f3;
+    const disabled = tab === 'filing' && !factsOk;
+    const tabs = ['payout', 'contract', 'filing', 'public'].map((k) => ({
+      label: defs[k].label, sel: k === tab ? 'true' : 'false',
+      pick: () => this.setState({ tab: k }),
+      style: k === tab ? 'background: var(--surface); color: var(--ink); box-shadow: var(--shadow);' : 'background: transparent; color: var(--ink-2);'
+    }));
+    return {
+      theme: this.props.theme ?? 'light',
+      tabs: tabs, cur: cur, pos: String(cur.pos),
+      isPayout: tab === 'payout', isContract: tab === 'contract', isFiling: tab === 'filing', isPublic: tab === 'public',
+      evOpen: s.evOpen, evLabel: s.evOpen ? 'Hide' : 'Show',
+      toggleEv: () => this.setState({ evOpen: !s.evOpen }),
+      rejecting: s.rejecting, toggleReject: () => this.setState({ rejecting: !s.rejecting }),
+      openPanel: () => {},
+      f1: s.f1, f2: s.f2, f3: s.f3,
+      tf1: () => this.setState({ f1: !s.f1 }), tf2: () => this.setState({ f2: !s.f2 }), tf3: () => this.setState({ f3: !s.f3 }),
+      approveDisabled: disabled,
+      approveStyle: disabled ? 'background: var(--line); color: var(--ink-3); cursor: not-allowed;' : 'background: var(--accent); color: var(--accent-ink);',
+      hint: disabled ? 'Confirm all 3 facts to approve.' : (tab === 'contract' ? 'Signatures are never bulk-approved.' : 'Your decision is logged with audit ID ' + cur.audit + '.')
+    };
+  }
+}
+</script>
+</body>
+</html>

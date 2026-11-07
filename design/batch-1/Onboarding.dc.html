@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Onboarding: choose your profile</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.vl{--bg:#F6F4F0;--surface:#FFFFFF;--surface-2:#EFEBE4;--line:#E3DED6;--line-strong:#CCC5B9;--ink:#1C1A17;--ink-2:#504A42;--ink-3:#6B655C;--accent:#2A44B0;--accent-hover:#22398F;--accent-ink:#FFFFFF;--accent-soft:#E7EBFA;--good:#1D6F41;--good-soft:#E2F1E7;--warn:#8A5300;--warn-soft:#FAEFD9;--crit:#B42318;--crit-soft:#FBE7E4;--shadow:0 1px 2px rgba(28,26,23,.06),0 2px 8px rgba(28,26,23,.04);font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+.vl[data-theme="dark"]{--bg:#141311;--surface:#1D1B18;--surface-2:#27241F;--line:#332F29;--line-strong:#4A443C;--ink:#F3EFE9;--ink-2:#CEC6BA;--ink-3:#A79F93;--accent:#94A6FF;--accent-hover:#B0BEFF;--accent-ink:#0E1636;--accent-soft:#232B52;--good:#6BD49A;--good-soft:#173425;--warn:#EDB458;--warn-soft:#3A2B12;--crit:#FF8E80;--crit-soft:#3E1D19;--shadow:none}
+.vl .num{font-variant-numeric:tabular-nums}
+.vl .disp{font-family:"Bricolage Grotesque",Inter,sans-serif;letter-spacing:-0.01em}
+.vl a{color:var(--accent)}
+.vl a:hover{color:var(--accent-hover)}
+.vl :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.vl button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div class="vl" data-theme="{{theme}}" style="min-height: 100vh; display: flex; flex-direction: column;">
+  <header style="display: flex; align-items: center; gap: 16px; padding: 18px 32px; border-bottom: 1px solid var(--line);">
+    <div aria-hidden="true" style="width: 28px; height: 28px; border-radius: 7px; border: 1.5px dashed var(--line-strong);"></div>
+    <span class="disp" style="font-size: 17px; font-weight: 700; color: var(--ink-2);">Wordmark</span>
+    <span style="flex-grow: 1;"></span>
+    <span class="num" style="font-size: 14px; color: var(--ink-3);">About 8 minutes left</span>
+    <a href="#" style="font-size: 14px; font-weight: 600; text-decoration: none;">Save and finish later</a>
+  </header>
+
+  <div style="flex-grow: 1; display: flex; flex-wrap: wrap; gap: 40px; padding: 40px 32px 32px; max-width: 1360px; width: 100%; box-sizing: border-box; margin: 0 auto;">
+    <!-- Steps -->
+    <nav aria-label="Setup steps" style="flex: 1 1 200px; max-width: 100%;">
+      <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px;">
+        <sc-for list="{{steps}}" as="s" hint-placeholder-count="9">
+          <li aria-current="{{s.current}}" style="display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 8px; font-size: 14px; {{s.rowStyle}}">
+            <span aria-hidden="true" class="num" style="width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; {{s.dotStyle}}">{{s.mark}}</span>
+            <span>{{s.label}}</span>
+            <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">{{s.sr}}</span>
+          </li>
+        </sc-for>
+      </ol>
+    </nav>
+
+    <!-- Profile pick -->
+    <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <p class="num" style="margin: 0; font-size: 13px; font-weight: 600; color: var(--ink-3);">Step 2 of 9</p>
+        <h1 class="disp" style="margin: 0; font-size: 36px; line-height: 1.15; font-weight: 700;">Which sounds most like you?</h1>
+        <p style="margin: 0; font-size: 16px; line-height: 1.55; color: var(--ink-2); max-width: 640px;">This decides which departments your team starts with. I keep the rest out of your way and suggest them when they become useful. You can change this any time in Settings.</p>
+      </div>
+      <div role="radiogroup" aria-label="Profile" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px;">
+        <sc-for list="{{profiles}}" as="p" hint-placeholder-count="5">
+          <button role="radio" aria-checked="{{p.selected}}" onClick="{{p.pick}}" style="text-align: left; display: flex; flex-direction: column; gap: 10px; padding: 18px; border-radius: 14px; background: var(--surface); color: var(--ink); {{p.cardStyle}}">
+            <span style="display: flex; align-items: center; gap: 10px; width: 100%;">
+              <span class="disp" style="font-size: 19px; font-weight: 700; flex-grow: 1;">{{p.name}}</span>
+              <span aria-hidden="true" style="width: 20px; height: 20px; border-radius: 50%; box-sizing: border-box; display: flex; align-items: center; justify-content: center; {{p.radioStyle}}"><span style="width: 8px; height: 8px; border-radius: 50%; {{p.radioDot}}"></span></span>
+            </span>
+            <span style="font-size: 14px; line-height: 1.5; color: var(--ink-2);">{{p.who}}</span>
+            <span style="font-size: 13px; line-height: 1.5; color: var(--ink-3);">{{p.adds}}</span>
+          </button>
+        </sc-for>
+      </div>
+      <p style="margin: 0; display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-2);"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="color: var(--good);"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Everything here is editable later. Nothing is filed, signed or paid during setup.</p>
+      <div style="display: flex; gap: 12px; align-items: center; padding-top: 12px; border-top: 1px solid var(--line);">
+        <button style="height: 48px; padding: 0 20px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-weight: 600; font-size: 15px;">Back</button>
+        <span style="flex-grow: 1;"></span>
+        <span style="font-size: 14px; color: var(--ink-3);">Next: your label or artist name</span>
+        <button style="height: 48px; padding: 0 24px; border-radius: 10px; border: 0; background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 15px;">Continue as {{current.name}}</button>
+      </div>
+    </main>
+
+    <!-- What turns on -->
+    <aside aria-live="polite" aria-label="What turns on" style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 20px; align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-radius: 14px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span aria-hidden="true" style="width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;">LH</span>
+        <h2 style="margin: 0; font-size: 15px; font-weight: 700;">Your team as {{current.name}}</h2>
+      </div>
+      <p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-2);">{{current.lh}}</p>
+      <p class="num" style="margin: 0; font-size: 13px; font-weight: 600; color: var(--ink-3);">{{current.count}} departments on</p>
+      <ul style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px;">
+        <sc-for list="{{current.on}}" as="d" hint-placeholder-count="8">
+          <li style="display: flex; align-items: center; gap: 10px; font-size: 14px;"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" style="color: var(--good); flex: 0 0 14px;"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>{{d}}</li>
+        </sc-for>
+      </ul>
+      <div style="border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 6px;">
+        <p style="margin: 0; font-size: 13px; font-weight: 600; color: var(--ink-3);">Hidden until you need them</p>
+        <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-2);">{{current.off}}</p>
+        <p style="margin: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-3);"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Marketing arrives in Phase 2</p>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { picked: 'label' }; }
+  renderVals() {
+    const base = ['Label Head', 'Releases', 'Distribution', 'Metadata', 'Royalties', 'Payouts', 'Rights and registrations', 'Funding', 'Legal'];
+    const all = ['Label Head', 'Releases', 'Distribution', 'Metadata', 'Royalties', 'Payouts', 'Rights and registrations', 'Publishing', 'Legal', 'Funding', 'Finance', 'Audit', 'Roster and A&R'];
+    const defs = [
+      { id: 'solo', name: 'Solo artist', who: 'You release your own music and want the business handled in plain words.', adds: 'Turns on releases, royalties, registrations, funding and simple contracts.', on: base, lh: 'I will keep things simple: your next three actions, and making sure every stream pays you.' },
+      { id: 'band', name: 'Band or collective', who: 'A few of you own the music together.', adds: 'Adds shared splits everyone can see and sign, plus a band agreement.', on: base.concat(['Publishing']), lh: 'I will make splits visible to every member and hold payouts until everyone has signed.' },
+      { id: 'label', name: 'Small label', who: 'You run 2 to 10 artists and want statements they trust.', adds: 'Adds roster, deal templates, recoupment and artist statements.', on: base.concat(['Publishing', 'Finance', 'Audit', 'Roster and A&R']), lh: 'I will run each artist on their own deal, track recoupment and send statements that show every step.' },
+      { id: 'growing', name: 'Growing label', who: 'You have some human staff alongside the agents.', adds: 'Adds roles, approval chains and handing a department to a person.', on: all, lh: 'I will route approvals to the right people and let you hand any department to a staff member.' },
+      { id: 'services', name: 'Label services', who: 'You run releases for artists you do not own.', adds: 'Adds client separation, service fees and client reporting.', on: base.concat(['Finance', 'Audit']), lh: 'I will keep each client in its own space and take your service fee before their split.' }
+    ];
+    const picked = this.state.picked;
+    const profiles = defs.map((d) => {
+      const sel = d.id === picked;
+      return Object.assign({}, d, {
+        selected: sel ? 'true' : 'false',
+        pick: () => this.setState({ picked: d.id }),
+        cardStyle: sel ? 'border: 2px solid var(--accent); padding: 17px; box-shadow: 0 0 0 4px var(--accent-soft);' : 'border: 1px solid var(--line);',
+        radioStyle: sel ? 'border: 2px solid var(--accent);' : 'border: 2px solid var(--line-strong);',
+        radioDot: sel ? 'background: var(--accent);' : 'background: transparent;'
+      });
+    });
+    const cur = defs.find((d) => d.id === picked);
+    const off = all.filter((x) => cur.on.indexOf(x) === -1);
+    const labels = ['Welcome', 'Profile', 'Name', 'Home country', 'Distributor', 'First catalog', 'PRO status', 'Autonomy', 'Finish'];
+    const steps = labels.map((l, i) => {
+      const done = i < 1, now = i === 1;
+      return {
+        label: l, current: now ? 'step' : 'false',
+        mark: done ? '✓' : String(i + 1),
+        sr: done ? 'done' : (now ? 'current step' : ''),
+        rowStyle: now ? 'background: var(--surface); color: var(--ink); font-weight: 600;' : (done ? 'color: var(--ink-2);' : 'color: var(--ink-3);'),
+        dotStyle: now ? 'background: var(--accent); color: var(--accent-ink);' : (done ? 'background: var(--good-soft); color: var(--good);' : 'border: 1.5px solid var(--line-strong); color: var(--ink-3); box-sizing: border-box;')
+      };
+    });
+    return {
+      theme: this.props.theme ?? 'light',
+      profiles: profiles,
+      steps: steps,
+      current: { name: cur.name, lh: cur.lh, on: cur.on, count: cur.on.length, off: off.length ? off.join(', ') + '.' : 'Nothing. Every Phase 1 department is on.' }
+    };
+  }
+}
+</script>
+</body>
+</html>

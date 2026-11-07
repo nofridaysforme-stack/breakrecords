@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Approval inbox states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.vl{--bg:#F6F4F0;--surface:#FFFFFF;--surface-2:#EFEBE4;--line:#E3DED6;--line-strong:#CCC5B9;--ink:#1C1A17;--ink-2:#504A42;--ink-3:#6B655C;--accent:#2A44B0;--accent-hover:#22398F;--accent-ink:#FFFFFF;--accent-soft:#E7EBFA;--good:#1D6F41;--good-soft:#E2F1E7;--warn:#8A5300;--warn-soft:#FAEFD9;--crit:#B42318;--crit-soft:#FBE7E4;--shadow:0 1px 2px rgba(28,26,23,.06),0 2px 8px rgba(28,26,23,.04);font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+.vl[data-theme="dark"]{--bg:#141311;--surface:#1D1B18;--surface-2:#27241F;--line:#332F29;--line-strong:#4A443C;--ink:#F3EFE9;--ink-2:#CEC6BA;--ink-3:#A79F93;--accent:#94A6FF;--accent-hover:#B0BEFF;--accent-ink:#0E1636;--accent-soft:#232B52;--good:#6BD49A;--good-soft:#173425;--warn:#EDB458;--warn-soft:#3A2B12;--crit:#FF8E80;--crit-soft:#3E1D19;--shadow:none}
+.vl .num{font-variant-numeric:tabular-nums}
+.vl .disp{font-family:"Bricolage Grotesque",Inter,sans-serif;letter-spacing:-0.01em}
+.vl a{color:var(--accent)}
+.vl a:hover{color:var(--accent-hover)}
+.vl button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div class="vl" data-theme="{{theme}}" style="width: 1440px; height: 1000px; box-sizing: border-box; padding: 48px; display: flex; flex-direction: column; gap: 24px;">
+  <div style="display: flex; align-items: baseline; gap: 16px;"><h1 class="disp" style="margin: 0; font-size: 34px; font-weight: 700;">Approval inbox: states</h1><p style="margin: 0; font-size: 15px; color: var(--ink-2);">The default inbox (waiting on you) is board 3. These cover the rest.</p></div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px;">
+    <!-- Empty -->
+    <section aria-label="Empty state" style="display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 28px; height: 380px; box-sizing: border-box; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);">Empty</span>
+      <div aria-hidden="true" style="width: 56px; height: 56px; border-radius: 50%; background: var(--good-soft); color: var(--good); display: flex; align-items: center; justify-content: center; margin-top: 12px;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+      <h2 class="disp" style="margin: 0; font-size: 26px; font-weight: 700;">Nothing needs you right now.</h2>
+      <p class="num" style="margin: 0; font-size: 15px; line-height: 1.55; color: var(--ink-2); max-width: 480px;">You cleared 4 approvals this week. The next one I expect is the Spotify pitch on Feb 5. I'll let you know.</p>
+      <a href="Main.dc.html" style="margin-top: auto; font-size: 14px; font-weight: 600; text-decoration: none;">Back to Home</a>
+    </section>
+
+    <!-- Working -->
+    <section aria-label="Agent working state" style="display: flex; flex-direction: column; gap: 12px; padding: 28px; height: 380px; box-sizing: border-box; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;">
+      <div style="display: flex; align-items: center;"><span style="flex-grow: 1; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);">Agent working</span></div>
+      <div style="display: flex; flex-direction: column; gap: 8px; padding: 18px; border-radius: 12px; border: 1px solid var(--line);">
+        <div style="display: flex; align-items: center; gap: 8px;"><span role="status" style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent);"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent);"></span>Royalties Agent is preparing</span><span class="num" style="font-size: 12px; color: var(--ink-3);">about 4 minutes</span></div>
+        <div aria-hidden="true" style="width: 55%; height: 16px; border-radius: 6px; background: var(--surface-2);"></div>
+        <div aria-hidden="true" style="width: 35%; height: 12px; border-radius: 6px; background: var(--surface-2);"></div>
+        <p class="num" style="margin: 4px 0 0; font-size: 14px; color: var(--ink-2);">February payout batch · matching 1,203 statement lines</p>
+      </div>
+      <div aria-hidden="true" style="display: flex; flex-direction: column; gap: 8px; padding: 18px; border-radius: 12px; border: 1px solid var(--line);">
+        <div style="width: 45%; height: 16px; border-radius: 6px; background: var(--surface-2);"></div>
+        <div style="width: 70%; height: 12px; border-radius: 6px; background: var(--surface-2);"></div>
+      </div>
+      <p style="margin: auto 0 0; font-size: 13px; color: var(--ink-3);">Cards appear only when ready to decide. Draft cards never have an Approve button.</p>
+    </section>
+
+    <!-- Blocked -->
+    <section aria-label="Blocked state" style="display: flex; flex-direction: column; gap: 12px; padding: 28px; height: 380px; box-sizing: border-box; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);">Blocked card</span>
+      <article style="display: flex; flex-direction: column; gap: 10px; padding: 18px; border-radius: 12px; border: 1px solid var(--line); box-shadow: var(--shadow);">
+        <div style="display: flex; align-items: center; gap: 8px;"><h3 style="margin: 0; font-size: 16px; font-weight: 600; flex-grow: 1;">February payout batch</h3><span style="font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--crit-soft); color: var(--crit);">× Blocked</span></div>
+        <p class="num" style="margin: 0; font-size: 15px;">$1,488.02 to 7 payees</p>
+        <div style="padding: 12px; border-radius: 8px; background: var(--surface-2); font-size: 14px; line-height: 1.5;"><strong>Missing:</strong> a W-9 from Dre Hollis (new feature on Slow Bloom). <strong>Owner:</strong> Dre. I emailed a secure form on Feb 2.</div>
+        <div style="display: flex; gap: 8px;"><button style="height: 44px; padding: 0 16px; border: 0; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 14px;">Pay the other 6 now</button><button style="height: 44px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-weight: 600; font-size: 14px;">Resend form</button></div>
+      </article>
+      <p style="margin: auto 0 0; font-size: 13px; color: var(--ink-3);">Approve is replaced by the action that unblocks it.</p>
+    </section>
+
+    <!-- Error -->
+    <section aria-label="Error state" style="display: flex; flex-direction: column; gap: 12px; padding: 28px; height: 380px; box-sizing: border-box; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);">Error after approval</span>
+      <article role="alert" style="display: flex; flex-direction: column; gap: 10px; padding: 18px; border-radius: 12px; border: 1px solid var(--crit); box-shadow: var(--shadow);">
+        <div style="display: flex; align-items: center; gap: 8px;"><h3 style="margin: 0; font-size: 16px; font-weight: 600; flex-grow: 1;">1 payment in the January batch failed</h3><span style="font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--crit-soft); color: var(--crit);">! Failed</span></div>
+        <p class="num" style="margin: 0; font-size: 15px; line-height: 1.5;">Jules Marr's bank rejected <strong>$198.14</strong>: account closed. The other 5 payments, <strong>$1,042.04</strong>, were sent. Jules's money is safe in your payee balance.</p>
+        <div style="display: flex; gap: 8px;"><button style="height: 44px; padding: 0 16px; border: 0; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 14px;">Ask Jules for new details</button><button style="height: 44px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-weight: 600; font-size: 14px;">Retry</button></div>
+      </article>
+      <p class="num" style="margin: auto 0 0; font-size: 13px; color: var(--ink-3);">Errors say what moved, what didn't, and where the money is. Audit ID AUD-270205-1J3P.</p>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return { theme: this.props.theme ?? 'light' }; }
+}
+</script>
+</body>
+</html>
