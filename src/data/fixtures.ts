@@ -76,8 +76,8 @@ export const approvalDetails: Record<string, ApprovalDetail> = {
       whyLabel: 'Why this batch',
       why: 'I applied the signed split versions to October income, carried forward anyone under the $25 minimum and checked every payee has a valid tax form. Two payees were carried forward and are not in this batch.',
       inputs: [
-        { label: 'Distributor statement, Oct', ref: 'DS-1026', href: '/money/statements/DS-1026' },
-        { label: 'SoundExchange, Q3', ref: 'SX-Q3-26', href: '/money/statements/SX-Q3-26' },
+        { label: 'Distributor statement, Oct', ref: 'DS-1026', href: '/money/royalties' },
+        { label: 'SoundExchange, Q3', ref: 'SX-Q3-26', href: '/money/royalties' },
         { label: 'Glasshouse splits', ref: 'v4 signed', href: '/splits/gh-rec' },
         { label: 'Night Bus splits', ref: 'v2 signed', href: '/splits/nb-rec' },
       ],
@@ -171,7 +171,7 @@ export const approvalDetails: Record<string, ApprovalDetail> = {
       org: 'MLC',
       // ASSUMED: the two catalog songs and writer shares are not in the sample data.
       works: [
-        { title: 'Glasshouse', writers: 'Kesi Vale 70%, Marco Dela 30%', isrc: 'USNL12600014', iswc: 'Assigned after filing' },
+        { title: 'Glasshouse', writers: 'Kesi Vale 75%, Marco Dela 25%', isrc: 'USNL12600014', iswc: 'Assigned after filing' }, // 25% per frame 4f
         { title: 'Slow Bloom', writers: 'Kesi Vale 100%', isrc: 'USNL12500031', iswc: 'Assigned after filing' },
         { title: 'Paper Moon', writers: 'Kesi Vale 50%, Marco Dela 50%', isrc: 'USNL12500032', iswc: 'Assigned after filing' },
       ],

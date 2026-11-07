@@ -75,3 +75,19 @@ describe('payout batch', () => {
     expect(sum).toBe(toCents(sample.payoutBatchOct.total));
   });
 });
+
+import { deriveShares } from '@/lib/dealSplit';
+
+describe('deal terms to shares (4a)', () => {
+  it('v4: 3 points, 50/50, feature 10% gives the signed shares', () => {
+    const d = deriveShares({ producerBp: 300, labelOfNetBp: 5000, artistOfNetBp: 5000, featureOfArtistBp: 1000 });
+    expect([d.producer, d.label, d.artist, d.feature]).toEqual([300, 4850, 4365, 485]);
+    expect(d.gapOfNetBp).toBe(0);
+  });
+  it('draft v5: label 40%, artist 55% leaves 5% of net profit, which is 4.85% of the total', () => {
+    const d = deriveShares({ producerBp: 300, labelOfNetBp: 4000, artistOfNetBp: 5500, featureOfArtistBp: 1000 });
+    expect([d.producer, d.label, d.artist, d.feature]).toEqual([300, 3880, 4802, 533]);
+    expect(d.gapOfNetBp).toBe(500);
+    expect(d.gapOfTotalBp).toBe(485);
+  });
+});

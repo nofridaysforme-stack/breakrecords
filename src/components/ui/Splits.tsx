@@ -29,12 +29,16 @@ type Props = {
   table?: boolean;
   /** What the shares are of, for the message: "net profit". */
   of?: string;
+  /** Header message when the split doesn't total 100%, if it is measured differently from the bar (4a: share of net profit). */
+  gapMessage?: string;
+  /** Status shown when the split is valid, instead of the signature summary. */
+  okMessage?: string;
 };
 
 const MIN_LABEL_BP = 1000; // labels sit inside a segment only when it is at least 10% wide
 
 /** Must visibly total 100%. Segments are focusable; arrow keys move between them. */
-export function SplitBar({ title, parties, note, table = true, of = 'net profit' }: Props) {
+export function SplitBar({ title, parties, note, table = true, of = 'net profit', gapMessage, okMessage }: Props) {
   const check = checkSplit(parties.map((p) => ({ party: p.party, bp: p.bp })));
   const allSigned = parties.every((p) => p.signed);
   const gapBp = !check.ok && check.reason === 'under' ? check.gapBp : 0;
@@ -56,16 +60,16 @@ export function SplitBar({ title, parties, note, table = true, of = 'net profit'
 
   const message = check.ok
     ? null
-    : check.reason === 'under'
+    : gapMessage ?? (check.reason === 'under'
       ? `${formatPercent(check.gapBp)} of ${of} is unassigned`
-      : `Shares add up to ${formatPercent(check.totalBp)}, ${formatPercent(check.gapBp)} too much`;
+      : `Shares add up to ${formatPercent(check.totalBp)}, ${formatPercent(check.gapBp)} too much`);
 
   return (
     <section className={cx(s.card, !check.ok && s.invalid)} aria-label={title}>
       <div className={s.head}>
         <h3 className={s.title}>{title}</h3>
         {check.ok ? (
-          <span className={s.okMsg}><Check size={14} strokeWidth={3} aria-hidden="true" />{allSigned ? `Signed by all ${parties.length} · totals 100%` : 'Totals 100% · waiting on signatures'}</span>
+          <span className={s.okMsg}><Check size={14} strokeWidth={3} aria-hidden="true" />{okMessage ?? (allSigned ? `Signed by all ${parties.length} · totals 100%` : 'Totals 100% · waiting on signatures')}</span>
         ) : (
           <span className={s.badMsg} role="status"><span className={s.badIcon} aria-hidden="true">!</span>{message}</span>
         )}
@@ -163,11 +167,8 @@ export function SplitTree({ nodes, selectedId, onSelect, collapseBelow = 2 }: Tr
   };
   const [open, setOpen] = useState(() => {
     const ids = new Set<string>(pathTo(nodes, selectedId) ?? []);
-    const walk = (list: SplitNode[], depth: number) => list.forEach((n) => {
-      if (depth < collapseBelow && n.children?.length) ids.add(n.id);
-      if (n.children) walk(n.children, depth + 1);
-    });
-    walk(nodes, 0);
+    // 4a: the top level and the path to the selected node start open; everything else is collapsed.
+    nodes.forEach((n) => { if (n.children?.length) ids.add(n.id); });
     return ids;
   });
   const toggle = (id: string) => setOpen((o) => { const n = new Set(o); if (n.has(id)) n.delete(id); else n.add(id); return n; });

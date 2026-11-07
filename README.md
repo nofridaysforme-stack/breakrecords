@@ -38,6 +38,20 @@ Reference pages: `/dev/type` (type ramp and color tokens) and `/dev/components` 
 | 2g (plus the undrawn releases list) | `/releases/rel_glasshouse`, `/releases` |
 | 3a to 3j | add `?state=empty`, `working`, `blocked`, `error` or `partial` to `/` or `/approvals` |
 
+### Batch 2 screens
+
+| Frame | Route |
+| --- | --- |
+| 4a | `/splits/gh-rec` (other tree nodes show what they inherit) |
+| 4b | `/money/royalties` |
+| 4c | `/money/statements/ST-2026-10-KV` (list at `/money/statements`) |
+| 4d | `/money/payouts` |
+| 4e | `/money/recoupment` (undrawn Budgets at `/money/budgets`) |
+| 4f, 4g | `/portal` (the payee portal; `?as=kesi` switches payee, Marco Dela by default) |
+| 4h | `/portal/statements/ST-2026-10-KV?as=kesi` |
+
+Every Batch 2 screen also takes `?state=` for the five data states. The portal shows v5's signature request only after v5 is fixed to 100% and sent from the splits editor.
+
 The mock API lives in `src/data/api.ts` and is served under `/api/*`. Approvals you make are kept for the browser session only; nothing is sent, paid, signed or filed.
 
 `npx playwright test --project=visual` saves one screenshot per frame to `artifacts/screens/{id}.png` for side-by-side review with `design/screenshots/`.
