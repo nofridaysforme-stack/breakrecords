@@ -3,7 +3,9 @@ import { NextResponse } from 'next/server';
 import type { ApprovalError, ApprovalState, Proposal } from '@breakrecords/contract';
 import { bulkApprove, decide, propose, undo, type Outcome } from '@breakrecords/core/approvals';
 import { approvals as serverItems } from '@/data/sample';
-import { isLive, ModuleNotLive } from './modules';
+import { isLive } from './modules';
+import { authRequired, getContext } from './context';
+import { liveApprovals } from './live/approvals';
 import { mockSession } from './session';
 
 /** What any approvals backend must do. The mock below and the live one (Stage 1) share it. */
@@ -41,13 +43,22 @@ function mock(sessionId: string): ApprovalsBackend {
   };
 }
 
+export class Unauthorized extends Error {}
+export class Forbidden extends Error {}
+
+/** Live when the module is flipped (and the request is signed in); otherwise the mock. */
 export async function approvalsBackend(): Promise<ApprovalsBackend> {
-  if (isLive('approvals')) throw new ModuleNotLive('approvals');
+  if (authRequired()) {
+    const ctx = await getContext();
+    if (!ctx) throw new Unauthorized();
+    if (ctx.role === 'payee') throw new Forbidden();
+    if (isLive('approvals')) return liveApprovals(ctx);
+  }
   return mock(await mockSession());
 }
 
 const STATUS: Record<ApprovalError['error'], number> = {
-  invalid: 400, reason_required: 400, not_found: 404, not_bulk_approvable: 409, blocked: 409, already_executed: 409, module_not_live: 503,
+  invalid: 400, reason_required: 400, unauthorized: 401, forbidden: 403, not_found: 404, not_bulk_approvable: 409, blocked: 409, already_executed: 409, module_not_live: 503,
 };
 
 export function errorResponse(error: ApprovalError['error'], message: string, ids?: string[]) {
@@ -61,7 +72,8 @@ export async function handle(run: (b: ApprovalsBackend) => Promise<Outcome<Propo
     if ('ok' in out) return out.ok ? NextResponse.json(out.state satisfies ApprovalState) : errorResponse(out.error, out.message, out.ids);
     return NextResponse.json(out);
   } catch (e) {
-    if (e instanceof ModuleNotLive) return errorResponse('module_not_live', e.message);
+    if (e instanceof Unauthorized) return errorResponse('unauthorized', 'Sign in to continue.');
+    if (e instanceof Forbidden) return errorResponse('forbidden', 'Only the label’s owner and team can see or decide approvals.');
     throw e;
   }
 }

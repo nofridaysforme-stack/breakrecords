@@ -4,8 +4,8 @@ import { getApprovals } from '@/data/api';
 import { toScenario } from '@/data/types';
 import { errorResponse, handle } from '@/server/approvals';
 
-export function GET(req: NextRequest) {
-  return NextResponse.json(getApprovals(toScenario(req.nextUrl.searchParams.get('state'))));
+export async function GET(req: NextRequest) {
+  return NextResponse.json(await getApprovals(toScenario(req.nextUrl.searchParams.get('state'))));
 }
 
 /** Create or replace an in-app approval (a plan, offer acceptance, drafted contract or claim). */

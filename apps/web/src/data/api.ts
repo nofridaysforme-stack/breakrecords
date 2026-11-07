@@ -1,3 +1,5 @@
+import 'server-only';
+
 // Mock API: the single source the route handlers (/api/*) and server components
 // read from. Replace these functions with real calls; the shapes stay the same.
 import { budgets, glasshouseDeal, payees, payouts, recoupment, royalties, splitTree, statements } from './money';
@@ -10,25 +12,43 @@ import { advance, baselineIncome, sale, type OfferAssumptions } from '@breakreco
 
 export { TODAY };
 
-export function getHome(scenario: Scenario = 'default') {
+// Approvals are the first module with a live backend (Stage 0). When BR_LIVE_MODULES
+// includes "approvals", these read the signed-in tenant's rows from Postgres.
+async function liveCtx() {
+  const { authRequired, requireContext } = await import('@/server/context');
+  const { isLive } = await import('@/server/modules');
+  return authRequired() && isLive('approvals') ? requireContext() : null;
+}
+
+async function approvalItems(): Promise<ApprovalSummary[]> {
+  const ctx = await liveCtx();
+  if (!ctx) return allApprovals;
+  const { liveApprovalItems } = await import('@/server/live/approvals');
+  return liveApprovalItems(ctx);
+}
+
+export async function getHome(scenario: Scenario = 'default') {
   return {
     scenario,
     home,
     numbers: homeNumbers,
-    approvals: scenario === 'empty' ? [] : allApprovals,
+    approvals: scenario === 'empty' ? [] : await approvalItems(),
   };
 }
 
-export function getApprovals(scenario: Scenario = 'default'): { scenario: Scenario; items: ApprovalSummary[] } {
-  return { scenario, items: scenario === 'empty' ? [] : allApprovals };
+export async function getApprovals(scenario: Scenario = 'default'): Promise<{ scenario: Scenario; items: ApprovalSummary[] }> {
+  return { scenario, items: scenario === 'empty' ? [] : await approvalItems() };
 }
 
-export function getApproval(id: string): ApprovalDetail | null {
-  return approvalDetails[id] ?? null;
+export async function getApproval(id: string): Promise<ApprovalDetail | null> {
+  const ctx = await liveCtx();
+  if (!ctx) return approvalDetails[id] ?? null;
+  const { liveApprovalDetail } = await import('@/server/live/approvals');
+  return liveApprovalDetail(ctx, id);
 }
 
-export function approvalIds(): string[] {
-  return allApprovals.map((a) => a.id);
+export async function approvalIds(): Promise<string[]> {
+  return (await approvalItems()).map((a) => a.id);
 }
 
 export function getRelease(id: string): Release | null {

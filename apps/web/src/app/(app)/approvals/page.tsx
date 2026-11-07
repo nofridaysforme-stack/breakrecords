@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: 'Approvals' };
 type Props = { searchParams: Promise<{ state?: string }> };
 
 export default async function ApprovalsPage({ searchParams }: Props) {
-  const { scenario, items } = getApprovals(toScenario((await searchParams).state));
+  const { scenario, items } = await getApprovals(toScenario((await searchParams).state));
   return (
     <Page>
       <InboxView scenario={scenario} items={items.map((a) => ({ ...a, ...approvalTags[a.id] }))} payoutTotal={payoutBatch.total} />

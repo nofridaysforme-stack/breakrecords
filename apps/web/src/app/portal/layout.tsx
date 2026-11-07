@@ -1,9 +1,11 @@
 import { Suspense, type ReactNode } from 'react';
 import { PortalNav } from '@/components/portal/PortalNav';
 import s from '@/components/portal/Portal.module.css';
+import { authRequired, requireContext } from '@/server/context';
 
 // The payee portal: people who get paid but don't run the label see only this (4f to 4h).
-export default function PortalLayout({ children }: { children: ReactNode }) {
+export default async function PortalLayout({ children }: { children: ReactNode }) {
+  if (authRequired()) await requireContext();
   return (
     <div className={s.shell}>
       <header className={s.header}>

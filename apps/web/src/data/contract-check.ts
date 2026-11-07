@@ -10,9 +10,9 @@ type DeepReadonly<T> = T extends (infer U)[] ? readonly DeepReadonly<U>[] : T ex
 type Is<Schema extends z.ZodType, T extends DeepReadonly<z.input<Schema>>> = T;
 
 export type Checks = [
-  Is<typeof C.HomeResponse, ReturnType<typeof api.getHome>>,
-  Is<typeof C.ApprovalsResponse, ReturnType<typeof api.getApprovals>>,
-  Is<typeof C.ApprovalDetailResponse, NonNullable<ReturnType<typeof api.getApproval>>>,
+  Is<typeof C.HomeResponse, Awaited<ReturnType<typeof api.getHome>>>,
+  Is<typeof C.ApprovalsResponse, Awaited<ReturnType<typeof api.getApprovals>>>,
+  Is<typeof C.ApprovalDetailResponse, NonNullable<Awaited<ReturnType<typeof api.getApproval>>>>,
   Is<typeof C.Release, NonNullable<ReturnType<typeof api.getRelease>>>,
   Is<typeof C.RoyaltiesResponse, ReturnType<typeof api.getRoyalties>>,
   Is<typeof C.StatementResponse, NonNullable<ReturnType<typeof api.getStatement>>>,

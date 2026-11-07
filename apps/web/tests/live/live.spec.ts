@@ -1,0 +1,98 @@
+import { test, expect } from '@playwright/test';
+import { ApprovalError, ApprovalState, ENDPOINTS } from '@breakrecords/contract';
+import { signIn, USERS } from './helpers';
+
+// Live mode (Postgres + sign-in + approvals module live). Stage 0 gate: screens run on the
+// live API, and cross-tenant reads fail.
+
+test('signed out: pages go to sign-in and the API refuses', async ({ page, request }) => {
+  await page.goto('/approvals');
+  await expect(page).toHaveURL(/\/sign-in$/);
+  const res = await request.get('/api/approvals/state');
+  expect(res.status()).toBe(401);
+});
+
+test('an email that was not invited cannot get a link', async ({ page }) => {
+  await page.goto('/sign-in');
+  await page.getByLabel('Email').fill('stranger@example.com');
+  await page.getByRole('button', { name: 'Email me a sign-in link' }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'isn’t invited' })).toBeVisible();
+});
+
+test('Northline sees its own approvals and none of Harbor Sound’s', async ({ page }) => {
+  await signIn(page, USERS.owner);
+  await page.goto('/approvals');
+  await expect(page.getByRole('article', { name: 'Producer agreement, Marco Dela' }).first()).toBeVisible();
+  await expect(page.getByText('$842.10 to 4 payees')).toHaveCount(0);
+  const ids = (await (await page.request.get('/api/approvals')).json()).items.map((a: { id: string }) => a.id);
+  expect(ids.sort()).toEqual(['apr_grant', 'apr_mlc', 'apr_payout_oct', 'apr_producer']);
+});
+
+test('a decision is saved for the label: a teammate sees it, and it survives sign-out', async ({ page, browser }) => {
+  await signIn(page, USERS.owner);
+  await page.goto('/approvals/apr_mlc');
+  // A filing can't be approved until each fact is confirmed.
+  for (const box of await page.getByRole('main').getByRole('checkbox').all()) await box.check();
+  await page.getByRole('button', { name: 'Approve and file' }).click();
+  await expect.poll(async () => ApprovalState.parse(await (await page.request.get('/api/approvals/state')).json()).decisions.apr_mlc?.status).toBe('approved');
+
+  const other = await browser.newContext();
+  const jana = await other.newPage();
+  await signIn(jana, USERS.jana);
+  const state = ApprovalState.parse(await (await jana.request.get('/api/approvals/state')).json());
+  expect(state.decisions.apr_mlc).toMatchObject({ status: 'approved' });
+  expect(state.decisions.apr_mlc.auditId).toMatch(/^AUD-[0-9A-F]{4}-\d{4}$/);
+  // Undo from the teammate's session clears it for everyone.
+  expect((await jana.request.delete('/api/approvals/apr_mlc/decision')).status()).toBe(200);
+  await other.close();
+  expect(ApprovalState.parse(await (await page.request.get('/api/approvals/state')).json()).decisions.apr_mlc).toBeUndefined();
+});
+
+test('cross-tenant: Harbor Sound can’t read or decide Northline’s approvals', async ({ page }) => {
+  await signIn(page, USERS.harbor);
+  const list = (await (await page.request.get('/api/approvals')).json()).items.map((a: { id: string }) => a.id);
+  expect(list).toEqual(['apr_harbor_payout']);
+  expect((await page.request.get('/api/approvals/apr_payout_oct')).status()).toBe(404);
+  const res = await page.request.post('/api/approvals/apr_payout_oct/decision', { data: { action: 'approve' } });
+  expect(res.status()).toBe(404);
+  expect(ApprovalError.parse(await res.json()).error).toBe('not_found');
+  await page.goto('/approvals/apr_payout_oct');
+  await expect(page.getByRole('heading', { level: 1 })).not.toContainText('Payout batch for October');
+});
+
+test('the server enforces the approval rules', async ({ page }) => {
+  await signIn(page, USERS.owner);
+  const reject = await page.request.post('/api/approvals/apr_producer/decision', { data: { action: 'reject', reason: '' } });
+  expect(ApprovalError.parse(await reject.json()).error).toBe('reason_required');
+  const bulk = await page.request.post('/api/approvals/decisions', { data: { action: 'approve', ids: ['apr_payout_oct', 'apr_producer'] } });
+  expect(bulk.status()).toBe(409);
+  expect(ApprovalState.parse(await (await page.request.get('/api/approvals/state')).json()).decisions.apr_payout_oct).toBeUndefined();
+});
+
+test('a proposal made in the app is stored and approvable', async ({ page }) => {
+  await signIn(page, USERS.owner);
+  await page.goto('/funding/offers/compare');
+  await page.getByRole('button', { name: 'Accept advance (goes to approval)' }).click();
+  await expect(page.getByText(/waiting in/i).filter({ visible: true })).toBeVisible();
+  await expect.poll(async () => ApprovalState.parse(await (await page.request.get('/api/approvals/state')).json()).proposals.map((p) => p.id)).toContain('offer_advance_accept');
+  await page.goto('/approvals');
+  await expect(page.getByText('Accept $8,000 royalty advance').first()).toBeVisible();
+});
+
+test('payees only see the portal and cannot decide', async ({ page }) => {
+  await signIn(page, USERS.payee);
+  await page.goto('/approvals');
+  await expect(page).toHaveURL(/\/portal/);
+  const res = await page.request.post('/api/approvals/apr_mlc/decision', { data: { action: 'approve' } });
+  expect(res.status()).toBe(403);
+});
+
+test('signed in, every endpoint still matches the contract', async ({ page }) => {
+  await signIn(page, USERS.owner);
+  for (const e of ENDPOINTS) {
+    const res = await page.request.get(e.path);
+    expect(res.status(), e.path).toBe(200);
+    const parsed = e.schema.safeParse(await res.json());
+    expect(parsed.success ? 'ok' : `${e.path}: ${JSON.stringify(parsed.error.issues.slice(0, 2))}`).toBe('ok');
+  }
+});

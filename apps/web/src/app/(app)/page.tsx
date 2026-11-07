@@ -10,7 +10,7 @@ type Props = { searchParams: Promise<{ state?: string }> };
 
 export default async function HomePage({ searchParams }: Props) {
   const scenario = toScenario((await searchParams).state);
-  const data = getHome(scenario);
+  const data = await getHome(scenario);
   const rail = scenario === 'empty'
     ? null
     : <AgentRail feed={data.home.feed} />;

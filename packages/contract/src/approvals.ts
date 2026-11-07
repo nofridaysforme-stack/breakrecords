@@ -69,7 +69,7 @@ export const ProposeCommand = z.object({ proposal: Proposal });
 
 /** Every refusal names the rule it hit, so the UI can say why in plain words. */
 export const ApprovalError = z.object({
-  error: z.enum(['invalid', 'not_found', 'reason_required', 'not_bulk_approvable', 'blocked', 'already_executed', 'module_not_live']),
+  error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'reason_required', 'not_bulk_approvable', 'blocked', 'already_executed', 'module_not_live']),
   message: z.string(),
   ids: z.array(Id).optional(),
 });

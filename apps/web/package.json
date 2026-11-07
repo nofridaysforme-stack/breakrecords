@@ -10,7 +10,8 @@
     "lint": "pnpm typecheck && pnpm lint:copy",
     "lint:copy": "node scripts/lint-copy.mjs",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
     "lucide-react": "0.511.0",
@@ -21,7 +22,13 @@
     "@breakrecords/core": "workspace:*",
     "@breakrecords/contract": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "@breakrecords/db": "workspace:*",
+    "postgres": "3.4.9",
+    "next-auth": "5.0.0-beta.32",
+    "@auth/drizzle-adapter": "1.11.3",
+    "drizzle-orm": "0.45.3",
+    "resend": "6.32.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
@@ -30,6 +37,7 @@
     "@types/react": "19.1.6",
     "@types/react-dom": "19.1.5",
     "typescript": "5.8.3",
-    "vitest": "4.1.12"
+    "vitest": "4.1.12",
+    "tsx": "4.23.15"
   }
 }
