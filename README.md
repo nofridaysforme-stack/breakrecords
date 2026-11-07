@@ -16,13 +16,15 @@ Open a Claude Code session on `main` and say:
 
 ## Development
 
+A pnpm workspace: the Next.js app is `apps/web`, and the money math (cents, percentages, splits, waterfall, deal terms, dates, offers) is `packages/core`, shared with the server-side work that comes next.
+
 ```bash
-npm install
-npm run dev        # http://localhost:3000
-npm run build
-npm run lint       # typecheck plus lint:copy (no em dashes, no hard-coded hex outside src/styles/tokens.css)
-npm test           # Vitest: money, words, splits math, waterfall
-npm run build && npm run test:e2e   # Playwright: accessibility (axe), keyboard, layout; screenshots go to artifacts/screens/
+pnpm install
+pnpm dev           # http://localhost:3000
+pnpm build
+pnpm lint          # typecheck every package, plus lint:copy (no em dashes, no hex outside tokens.css)
+pnpm test          # Vitest in every package
+pnpm build && pnpm test:e2e   # Playwright: flows, axe, layout; screenshots go to apps/web/artifacts/screens/
 ```
 
 Reference pages: `/dev/type` (type ramp and color tokens) and `/dev/components` (every component in every state, labeled with its design frame).
@@ -76,8 +78,7 @@ Every Batch 3 screen takes `?state=` for the five data states. Accepting an offe
 - **Density:** Settings > Profile > Display density sets `data-density="compact"` on `<html>` (saved on this device), which tightens page padding and table rows through tokens.
 - **Reduced motion:** with `prefers-reduced-motion`, drawers appear without sliding and the working pulse and skeleton shimmer stop.
 
-The mock API lives in `src/data/api.ts` and is served under `/api/*`. Approvals you make are kept for the browser session only; nothing is sent, paid, signed or filed.
+The mock API lives in `apps/web/src/data/api.ts` and is served under `/api/*`; its contract is `packages/contract`. Approvals you make go to the mock server and are kept for your browser session until the server restarts; nothing is sent, paid, signed or filed. See `docs/STRATEGY.md` for the path to a live backend.
 
-`npx playwright test --project=visual` saves one screenshot per frame to `artifacts/screens/{id}.png` for side-by-side review with `design/screenshots/`.
+`pnpm --filter @breakrecords/web exec playwright test --project=visual` saves one screenshot per frame to `apps/web/artifacts/screens/{id}.png` for side-by-side review with `design/screenshots/`.
 
-`.npmrc` sets `legacy-peer-deps=true`: without it npm crashes resolving Vitest 4's optional peer dependencies.

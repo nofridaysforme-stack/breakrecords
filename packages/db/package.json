@@ -1,0 +1,16 @@
+{
+  "name": "@breakrecords/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Postgres schema (SQL migrations run by dbmate), the tenant-scoped client and row-level security tests.",
+  "exports": { "./*": "./src/*.ts" },
+  "scripts": {
+    "migrate": "dbmate --env MIGRATION_DATABASE_URL --migrations-dir ./migrations --schema-file ./schema.sql --no-dump-schema up",
+    "rollback": "dbmate --env MIGRATION_DATABASE_URL --migrations-dir ./migrations --no-dump-schema rollback",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": { "postgres": "3.4.9" },
+  "devDependencies": { "dbmate": "2.37.0", "@types/node": "22.15.29", "typescript": "5.8.3", "vitest": "4.1.12" }
+}
