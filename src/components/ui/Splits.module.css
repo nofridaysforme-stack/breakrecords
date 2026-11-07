@@ -1,0 +1,58 @@
+/* components.md > Split bar and Split tree (4a) */
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card);
+  padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; min-width: 0;
+}
+.invalid { border-color: var(--critical); box-shadow: inset 4px 0 0 var(--critical); }
+.head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.title { font-size: var(--fs-body-lg); font-weight: 700; }
+.okMsg { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-meta); font-weight: 600; color: var(--good); }
+.badMsg { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-meta); font-weight: 700; color: var(--critical); }
+.badIcon { width: 16px; height: 16px; border-radius: 4px; background: var(--critical); color: var(--on-accent); display: grid; place-items: center; font-size: var(--fs-eyebrow); }
+
+.bar { display: flex; height: 40px; border-radius: var(--r-control); overflow: hidden; gap: 2px; }
+.seg {
+  min-width: 4px; border: 0; padding: 0 10px;
+  display: flex; align-items: center;
+  font: 600 var(--fs-eyebrow-lg) var(--font-mono); white-space: nowrap; overflow: hidden;
+  cursor: default;
+}
+.seg:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+.p1 { background: var(--party-1); color: var(--on-brand); }
+.p2 { background: var(--party-2); color: var(--text); }
+.p3 { background: var(--party-3); color: var(--on-accent); }
+.p4 { background: var(--party-4); color: var(--on-accent); }
+.gap { background: repeating-linear-gradient(135deg, var(--critical) 0 6px, var(--bg) 6px 12px); color: var(--text); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: var(--fs-meta); }
+.legendItem { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); }
+.legendGap { color: var(--critical); font-weight: 600; }
+.swatch { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 10px; }
+
+.parties { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.4fr) 90px 150px; gap: 8px 16px; font-size: var(--fs-body); }
+.colHead { font: 500 var(--fs-eyebrow) var(--font-mono); color: var(--text-muted); text-transform: uppercase; }
+.party { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.rule { color: var(--text-2); }
+.share { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.signed { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-meta); color: var(--good); }
+.unsigned { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-meta); color: var(--warn); }
+.note { font-size: var(--fs-body); color: var(--text-2); line-height: 1.5; }
+.tipName { font-weight: 700; }
+
+@media (max-width: 767px) { .parties { grid-template-columns: minmax(0, 1fr) 70px; } .rule, .colRule, .sigCol { display: none; } }
+
+/* ---------- Split tree ---------- */
+.tree { display: flex; flex-direction: column; gap: 4px; }
+.treeHead { font: 500 var(--fs-eyebrow) var(--font-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); padding: 0 8px 10px; }
+.node {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 8px; border: 0; border-radius: var(--r-control); background: transparent;
+  font-size: var(--fs-body); color: var(--text); text-align: left; min-height: 36px;
+}
+.node:hover { background: var(--surface-raised); }
+.node[aria-current='true'] { background: var(--surface-raised); font-weight: 700; }
+.caret { width: 10px; flex: 0 0 10px; color: var(--text-faint); }
+.nodeLabel { flex: 1; }
+.override { font: 600 10px var(--font-mono); color: var(--accent); border: 1px solid var(--accent-line-tag); border-radius: var(--r-tag); padding: 1px 5px; }
+.inherits { font: 500 10px var(--font-mono); color: var(--text-muted); }
+.treeNote { margin-top: 14px; padding: 12px; border-radius: var(--r-control); background: var(--surface); font-size: var(--fs-eyebrow-lg); line-height: 1.5; color: var(--text-2); }

@@ -13,15 +13,17 @@ export function Sidebar({ labelName, approvalsCount }: Props) {
 
   return (
     <aside className={s.sidebar} aria-label="Sidebar">
-      <Link href="/" className={s.brand} aria-label="Break Records, home">
+      <Link href="/" className={s.brand}>
         <span className={s.mark} aria-hidden="true">B</span>
         <span className={s.wordmark}>Break Records.</span>
+        <span className="visually-hidden">, home</span>
       </Link>
 
-      <button type="button" className={s.switcher} aria-haspopup="menu" aria-label={`Label: ${labelName}. Switch label`}>
+      <button type="button" className={s.switcher} aria-haspopup="menu">
         <span>
           <span className={s.switcherKicker}>Label</span>
           <span className={s.switcherName}>{labelName}</span>
+          <span className="visually-hidden">, switch label</span>
           <span className={s.switcherInitial} aria-hidden="true">{labelName.charAt(0)}</span>
         </span>
         <ChevronDown className={s.switcherChevron} size={14} aria-hidden="true" />

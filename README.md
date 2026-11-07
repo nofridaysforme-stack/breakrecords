@@ -21,6 +21,10 @@ npm install
 npm run dev        # http://localhost:3000
 npm run build
 npm run lint       # typecheck plus lint:copy (no em dashes, no hard-coded hex outside src/styles/tokens.css)
+npm test           # Vitest: money, words, splits math, waterfall
+npm run build && npm run test:e2e   # Playwright: accessibility (axe), keyboard, layout; screenshots go to artifacts/screens/
 ```
 
-Reference pages: `/dev/type` shows the type ramp and color tokens.
+Reference pages: `/dev/type` (type ramp and color tokens) and `/dev/components` (every component in every state, labeled with its design frame).
+
+`.npmrc` sets `legacy-peer-deps=true`: without it npm crashes resolving Vitest 4's optional peer dependencies.

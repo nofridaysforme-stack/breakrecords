@@ -125,6 +125,18 @@
   --stretch-display: 112%;
   --stretch-section: 110%;
 
+  /* component values measured from design_files (Phase B) */
+  --surface-gate: #190f0e;             /* runbook gate rows (2g) */
+  --line-dashed: rgba(255,235,225,.16);/* empty states, goal chips (3a, 3b, 2d) */
+  --accent-line-soft: rgba(239,106,42,.35); /* bulk bar (2d) */
+  --accent-line-sel: rgba(239,106,42,.4);   /* selected row, working chip (2d, 3c) */
+  --accent-line-tag: rgba(239,106,42,.5);   /* Override tag (4a) */
+  --critical-line-soft: rgba(255,90,78,.35);/* locked gate (2g) */
+  --brand-skeleton: rgba(251,231,234,.14);  /* skeleton bars inside brand blocks (3c) */
+  --stripe-asset: #2a1c1a;             /* placeholder art stripes with --surface-raised */
+  --r-panel: 10px;                     /* dial container, bulk bar, task rows */
+  --r-check: 5px;                      /* checkbox */
+
   /* motion (flows.md) */
   --ease: cubic-bezier(.2,.7,.3,1);
   --dur-fast: 150ms;

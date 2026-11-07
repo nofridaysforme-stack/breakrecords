@@ -1,0 +1,105 @@
+/* components.md > Approval card; frames 2c (card), 2d (row + bulk bar), 3d/3f/3h (states) */
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card);
+  padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0;
+}
+.cardBlocked, .cardFailed { border-color: var(--critical-line); padding: 18px 20px; }
+.eyebrowRow {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  font: 500 var(--fs-eyebrow) var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted);
+}
+.typeLabel { display: inline-flex; align-items: center; gap: 6px; }
+.title { font-size: var(--fs-card-title); font-weight: 600; line-height: 1.3; }
+.meta { font-size: var(--fs-meta); color: var(--text-muted); }
+.impact { font: 600 var(--fs-body-lg) var(--font-mono); font-variant-numeric: tabular-nums; }
+.actions { display: flex; gap: 8px; margin-top: 4px; }
+.actions > * { flex: 1 1 0; padding-inline: 0; }
+.reason { font-size: var(--fs-body); line-height: 1.5; }
+.reason strong, .failText strong { font-weight: 700; }
+.fixActions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.failHead { display: flex; align-items: center; gap: 8px; font-size: var(--fs-body); font-weight: 700; color: var(--critical); }
+.failIcon {
+  width: 18px; height: 18px; border-radius: var(--r-check);
+  background: var(--critical); color: var(--on-accent);
+  display: grid; place-items: center;
+}
+.failText { font-size: var(--fs-body-lg); line-height: 1.5; }
+
+.preparing {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 16px 18px;
+}
+.preparingMeta { font-size: var(--fs-meta); color: var(--text-muted); margin-top: 3px; }
+
+.confirm {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  border: 1px solid var(--line); border-radius: var(--r-card); padding: 14px 18px;
+  font-size: var(--fs-body); color: var(--text-2);
+}
+.confirm svg { color: var(--good); }
+.undo { margin-left: auto; }
+
+/* ---------- Inbox row (2d) ---------- */
+.row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 230px 90px 160px 190px;
+  gap: 18px; align-items: center;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card);
+  padding: 16px 18px;
+}
+.rowSelected { border-color: var(--accent-line-sel); }
+.rowTitle { font-size: var(--fs-card-title); font-weight: 600; }
+.rowMeta { font-size: var(--fs-meta); color: var(--text-muted); margin-top: 3px; line-height: 1.35; }
+.rowImpact { font: 600 var(--fs-body) var(--font-mono); font-variant-numeric: tabular-nums; }
+.rowDue { font: 500 var(--fs-meta) var(--font-mono); color: var(--text-2); }
+.rowActions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* The three facts are grid cells on desktop and one wrapped line below the title when narrow. */
+.rowFacts { display: contents; }
+.rowActions { grid-area: actions; }
+
+@media (max-width: 1279px) {
+  .row {
+    grid-template-columns: 22px minmax(0, 1fr) auto;
+    grid-template-areas: 'check main actions' '. facts facts';
+    row-gap: 10px;
+  }
+  .row > :nth-child(1) { grid-area: check; }
+  .row > :nth-child(2) { grid-area: main; }
+  .rowFacts { grid-area: facts; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; }
+}
+@media (max-width: 767px) {
+  .row { grid-template-columns: 22px minmax(0, 1fr); grid-template-areas: 'check main' '. facts' '. actions'; }
+  .rowActions { justify-content: flex-start; }
+  .rowActions > * { flex: 1 1 0; }
+}
+
+/* ---------- Group header and empty group (2d) ---------- */
+.group { display: flex; flex-direction: column; gap: 8px; }
+.groupHead {
+  display: flex; align-items: center; gap: 8px;
+  font: 600 var(--fs-eyebrow-lg) var(--font-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted);
+}
+.groupHead svg { color: var(--text); }
+.groupEmpty { border: 1px dashed var(--line-chip); border-radius: var(--r-card); padding: 14px 18px; font-size: var(--fs-body); color: var(--text-muted); }
+
+/* ---------- Bulk bar (2d) ---------- */
+.bulk {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  background: var(--surface-raised); border: 1px solid var(--accent-line-soft); border-radius: var(--r-panel);
+  padding: 12px 16px;
+}
+.bulkBox {
+  width: 18px; height: 18px; border-radius: var(--r-check);
+  background: var(--accent); color: var(--on-accent); display: grid; place-items: center;
+}
+.bulkText { font-size: var(--fs-body); }
+.bulkText span { color: var(--text-muted); }
+.bulkNote { font-size: var(--fs-meta); color: var(--text-muted); }
+.bulkClear { margin-left: auto; }
+
+@media (max-width: 767px) {
+  .card { border-radius: var(--r-card-mobile); }
+  .actions > * { min-height: 48px; }
+}

@@ -1,0 +1,45 @@
+/* Checkbox (2d), progress bar (2c goals), term tooltip, underline tabs (2d) */
+.check { position: relative; display: inline-grid; place-items: center; width: 18px; height: 18px; flex: 0 0 18px; }
+/* The real input is the 44px target, invisible over the 18px drawn box. */
+.check input {
+  position: absolute; inset: -13px; width: auto; height: auto; margin: 0;
+  opacity: 0; cursor: pointer; z-index: 1;
+}
+.check input:disabled { cursor: not-allowed; }
+.box {
+  width: 18px; height: 18px; border-radius: var(--r-check);
+  border: 1.5px solid var(--line-control); background: transparent;
+  display: grid; place-items: center; color: var(--on-accent);
+}
+.check:has(input:checked) .box { background: var(--accent); border-color: var(--accent); }
+.check:has(input:disabled) .box { opacity: .3; }
+.check:has(input:focus-visible) .box { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.progress { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
+.progressFill { height: 100%; border-radius: 3px; background: var(--accent); }
+
+.term {
+  text-decoration: underline dotted var(--text-faint);
+  text-underline-offset: 3px;
+  cursor: help;
+  background: none; border: 0; padding: 0; font: inherit; color: inherit;
+}
+.tip {
+  max-width: 280px;
+  background: var(--surface-raised); color: var(--text);
+  border: 1px solid var(--line-control); border-radius: var(--r-control);
+  padding: 8px 10px; font-size: var(--fs-meta); line-height: 1.45;
+  box-shadow: var(--shadow-overlay);
+  z-index: 50;
+}
+
+.tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tab {
+  padding: 10px 14px; margin-bottom: -1px;
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  font-size: var(--fs-body); color: var(--text-2); white-space: nowrap;
+  min-height: var(--tap-min);
+}
+.tab[data-state='active'], .tab[aria-selected='true'] { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); }
+.tab:hover { color: var(--text); }
+.tabCount { font: 500 var(--fs-eyebrow-lg) var(--font-mono); color: var(--text-muted); margin-left: 4px; }

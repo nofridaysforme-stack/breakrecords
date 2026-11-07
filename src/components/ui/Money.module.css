@@ -1,0 +1,45 @@
+/* Money value (components.md) and waterfall table (4c) */
+.money { position: relative; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.trigger {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  border-bottom: 1px dotted var(--text-faint); cursor: pointer;
+}
+.trigger:hover { border-bottom-color: var(--accent); }
+.popover {
+  width: min(560px, 92vw); max-height: 70vh; overflow: auto;
+  background: var(--surface); border: 1px solid var(--line-control); border-radius: var(--r-card);
+  box-shadow: var(--shadow-overlay); z-index: 50;
+}
+.popHead { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; font-size: var(--fs-meta); color: var(--text-muted); border-bottom: 1px solid var(--line); }
+
+.wf { width: 100%; border-collapse: collapse; font-size: var(--fs-body); }
+.wf th {
+  padding: 12px 22px; text-align: left;
+  font: 500 var(--fs-eyebrow) var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted);
+  border-bottom: 1px solid var(--line);
+}
+.wf tbody th, .wf tfoot th {
+  text-align: left; font: inherit; text-transform: none; letter-spacing: 0; color: inherit;
+  padding: 13px 22px; border-bottom: 1px solid var(--line-soft);
+}
+.wf td { padding: 13px 22px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+.wf .r { text-align: right; }
+.wf .step { font-weight: 500; }
+.wf .totalLabel { font-weight: 700; }
+.rule { color: var(--text-2); }
+.amt { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.neg { color: var(--text-2); }
+.bal { font: 600 var(--fs-body) var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.src { font: 500 var(--fs-eyebrow-lg) var(--font-mono); text-align: right; }
+.src a { color: var(--accent); }
+.src a:hover { color: var(--accent-hover); }
+.sub td, .sub th { background: var(--surface-raised); }
+.wf .sub .step, .wf .start .step { font-weight: 700; }
+.total td, .total th { background: var(--brand); color: var(--on-brand); border-bottom: 0; padding-block: 16px; }
+.totalLabel { font-size: var(--fs-card-title); font-weight: 700; }
+.totalAmt { font: 600 22px var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.compact th, .compact td, .compact tbody th { padding-inline: 14px; }
+.compact td, .compact tbody th { padding-block: 9px; }
+.compact .totalAmt { font-size: var(--fs-section); }
+.wrap { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); overflow-x: auto; }
