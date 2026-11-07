@@ -120,14 +120,14 @@ test.describe('desktop only', () => {
 
   test('changing the release date becomes a Plan approval that moves the runbook once approved', async ({ page }) => {
     await page.goto('/releases/rel_glasshouse');
-    await expect(page.getByText('Sat, Mar 6, 2027')).toBeVisible();
+    await expect(page.getByText('Fri, Mar 5, 2027')).toBeVisible();
     await page.getByRole('button', { name: 'Change date' }).click();
     await page.getByLabel('New release date').fill('2027-03-19');
-    await expect(page.getByRole('dialog')).toContainText('shifts 10 tasks by 13 days later');
+    await expect(page.getByRole('dialog')).toContainText('shifts 10 tasks by 14 days later');
     await page.getByRole('button', { name: 'Send as a plan to approve' }).click();
     await expect.poll(() => badge(page)).toBe(5);
     await expect(page.getByText(/A plan to move this release to Mar 19 is waiting/)).toBeVisible();
-    await expect(page.getByText('Sat, Mar 6, 2027')).toBeVisible();
+    await expect(page.getByText('Fri, Mar 5, 2027')).toBeVisible();
     await page.goto('/approvals');
     await page.getByRole('article', { name: 'Move Glasshouse to Mar 19' }).getByRole('button', { name: 'Approve' }).click();
     await page.goto('/releases/rel_glasshouse');

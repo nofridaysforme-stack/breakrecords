@@ -57,7 +57,7 @@ export const songs = [
 
 // ASSUMED: Night Bus EP and Velvet Hours dates and UPCs.
 export const catalogReleases = [
-  { id: 'rel_glasshouse', title: 'Glasshouse', artist: 'Kesi Vale', kind: 'Single', date: 'Mar 6, 2027', upc: '196922410037', tracks: 1, href: '/releases/rel_glasshouse' },
+  { id: 'rel_glasshouse', title: 'Glasshouse', artist: 'Kesi Vale', kind: 'Single', date: 'Mar 5, 2027', upc: '196922410037', tracks: 1, href: '/releases/rel_glasshouse' },
   { id: 'rel_nightbus', title: 'Night Bus EP', artist: 'The Low Hours', kind: 'EP', date: 'Jun 13, 2025', upc: '196922410020', tracks: 4 },
   { id: 'rel_velvet', title: 'Velvet Hours', artist: 'Kesi Vale', kind: 'Album', date: 'Sep 20, 2024', upc: '196922410006', tracks: 10 },
 ];

@@ -7,7 +7,7 @@ const CONTEXTS: [prefix: string, ctx: ScreenContext][] = [
     { q: 'What should I do first?', a: 'Marco’s producer agreement. It’s due Nov 9 and the split sheets for Glasshouse wait on it.', basis: 'Due dates and the Glasshouse runbook.' },
     { q: 'Can I approve everything at once?', a: 'Only the low-risk ones. Signatures are never bulk-approved, so the producer agreement stays out of a bulk approve.', basis: 'Your approval routing in Settings.' },
   ] }],
-  ['/releases', { title: 'Releases', summary: 'Glasshouse is on track for March 6 and on budget: $1,860.00 of $3,000.00 spent. Three things block the next gate.', qa: [
+  ['/releases', { title: 'Releases', summary: 'Glasshouse is on track for March 5 and on budget: $1,860.00 of $3,000.00 spent. Three things block the next gate.', qa: [
     { q: 'What’s blocking Glasshouse?', a: 'Marco hasn’t signed the split sheet, the master WAV isn’t uploaded, and credits wait on the producer agreement.', basis: 'The Glasshouse runbook.' },
     { q: 'Can we move the date?', a: 'Yes. Use Change date on the runbook. I’ll recalculate every task and send you the change as a Plan approval.', basis: 'How date changes work.' },
   ] }],
@@ -52,7 +52,7 @@ const CONTEXTS: [prefix: string, ctx: ScreenContext][] = [
   ] }],
   ['/', { title: 'Home', summary: 'Glasshouse is on track and on budget. Two terms in Marco’s agreement need your eyes. A grant closes in 9 days.', qa: [
     { q: 'What needs me this week?', a: 'Marco’s producer agreement by Nov 9, the October payout by Nov 10 and the MLC filing by Nov 12.', basis: 'Open approvals and their due dates.' },
-    { q: 'How is Glasshouse doing?', a: 'On track for March 6 and on budget: $1,860.00 of $3,000.00 spent. The split sheets are the next thing to clear.', basis: 'The Glasshouse runbook and budget.' },
+    { q: 'How is Glasshouse doing?', a: 'On track for March 5 and on budget: $1,860.00 of $3,000.00 spent. The split sheets are the next thing to clear.', basis: 'The Glasshouse runbook and budget.' },
   ] }],
 ];
 

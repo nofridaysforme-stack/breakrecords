@@ -14,19 +14,20 @@ export const home: HomeData = {
   today: TODAY.label,
   user: { name: 'Jana', initial: 'J' },
   brief:
-    'Glasshouse is on track for March 6 and on budget. I drafted the producer agreement for Marco Dela; two terms need your eyes. Funding Scout found two new grants, and the state arts council application closes in 9 days.',
+    'Glasshouse is on track for March 5 and on budget. I drafted the producer agreement for Marco Dela; two terms need your eyes. Funding Scout found two new grants, and the state arts council application closes in 9 days.',
   numbers: [], // built in ./api because they hold React nodes
   goals: [
-    { id: 'goal_glasshouse', title: 'Glasshouse single', pct: 62, meta: 'Kesi Vale · Mar 6 · $1,860 of $3,000 · on budget', href: '/releases/rel_glasshouse' },
+    { id: 'goal_glasshouse', title: 'Glasshouse single', pct: 62, meta: 'Kesi Vale · Mar 5 · $1,860 of $3,000 · on budget', href: '/releases/rel_glasshouse' },
     { id: 'goal_mlc', title: 'Register catalog with MLC', pct: 58, meta: '7 of 12 songs · 3 waiting on you' }, // _assumed in sample data
     { id: 'goal_ep', title: 'The Low Hours EP plan', pct: 18, meta: 'Draft plan · May target · not yet approved' }, // _assumed
   ],
   dates: [
     { date: 'Nov 15', title: 'Arts council grant due', meta: 'Funding Scout has a draft' },
-    { date: 'Jan 9', title: 'Glasshouse masters due', meta: 'Hard gate for delivery' },
-    { date: 'Feb 6', title: 'Delivery to distributor', meta: '4 weeks before release' },
-    // The mockup says "Friday", but 2027-03-06 is a Saturday. Open question for the product owner.
-    { date: 'Mar 6', title: 'Glasshouse release', meta: 'Kesi Vale · Saturday' },
+    { date: 'Jan 8', title: 'Glasshouse masters due', meta: 'Hard gate for delivery' },
+    { date: 'Feb 5', title: 'Delivery to distributor', meta: '4 weeks before release' },
+    // The mockups say Friday, March 6, 2027, but that date is a Saturday. Releases go out on Fridays,
+    // so the release is Friday, March 5, 2027, and every date counted from it moved one day earlier.
+    { date: 'Mar 5', title: 'Glasshouse release', meta: 'Kesi Vale · Friday' },
   ],
   feed: [
     { agent: 'Release Agent', state: 'working', text: 'Building the Glasshouse pitch draft.', when: 'now' },
@@ -208,7 +209,7 @@ export const approvalDetails: Record<string, ApprovalDetail> = {
       deadline: { date: 'Nov 15', verified: 'Oct 28, 2026', href: '/funding' },
       // ASSUMED: draft copy written for the undrawn application body.
       fields: [
-        { label: 'Project summary', limit: 1500, value: 'Northline Records is an independent label releasing "Glasshouse," a new single by R&B artist Kesi Vale, on March 6, 2027. The grant would pay for mastering, a live session video made with local crew, and a free all-ages release show.' },
+        { label: 'Project summary', limit: 1500, value: 'Northline Records is an independent label releasing "Glasshouse," a new single by R&B artist Kesi Vale, on March 5, 2027. The grant would pay for mastering, a live session video made with local crew, and a free all-ages release show.' },
         { label: 'Community benefit', limit: 800, value: 'The release show is free and all-ages, and the session video hires local camera and sound crew.' },
       ],
     },
@@ -218,7 +219,7 @@ export const approvalDetails: Record<string, ApprovalDetail> = {
 // ---------- Release runbook (2g) ----------
 export const releases: Record<string, Release> = {
   rel_glasshouse: {
-    id: 'rel_glasshouse', title: 'Glasshouse', kind: 'Single', artist: 'Kesi Vale', date: '2027-03-06', status: 'onTrack',
+    id: 'rel_glasshouse', title: 'Glasshouse', kind: 'Single', artist: 'Kesi Vale', date: '2027-03-05', status: 'onTrack',
     budget: toCents(3000), spent: toCents(1860),
     phases: [
       { name: 'Now', iso: '2026-11-06', status: 'now', tasks: [
@@ -226,21 +227,21 @@ export const releases: Record<string, Release> = {
         { title: 'Budget approved, $3,000', owner: 'Label Head', state: 'done' },
         { title: 'Cover art final', owner: 'Release Agent', state: 'done' },
       ] },
-      { name: '8 weeks out', iso: '2027-01-09', status: 'future', tasks: [
+      { name: '8 weeks out', iso: '2027-01-08', status: 'future', tasks: [
         { title: 'Split sheets signed (2 of 3)', owner: 'Legal', state: 'locked', gate: { owner: 'Legal', waitingOn: 'Marco Dela' } },
         { title: 'Masters delivered', owner: 'Kesi Vale', state: 'waiting' },
       ] },
-      { name: '6 weeks out', iso: '2027-01-23', status: 'future', tasks: [
+      { name: '6 weeks out', iso: '2027-01-22', status: 'future', tasks: [
         { title: 'Masters accepted', owner: 'Distribution Agent', state: 'locked', gate: { owner: 'Distribution Agent' } },
         { title: 'ISRC and UPC assigned', owner: 'Metadata Agent', state: 'waiting' },
       ] },
-      { name: '4 weeks out', iso: '2027-02-06', status: 'future', tasks: [
+      { name: '4 weeks out', iso: '2027-02-05', status: 'future', tasks: [
         { title: 'Metadata complete', owner: 'Metadata Agent', state: 'locked', gate: { owner: 'Metadata Agent' } },
         { title: 'Deliver to distributor', owner: 'Distribution Agent', state: 'waiting' },
       ] },
-      { name: '2 weeks out', iso: '2027-02-20', status: 'future', tasks: [{ title: 'Pitch submitted to playlists', owner: 'Release Agent', state: 'waiting' }] },
-      { name: 'Release week', iso: '2027-03-06', status: 'future', tasks: [{ title: 'Release goes live', owner: 'Distribution Agent', state: 'waiting' }] },
-      { name: 'After release', iso: '2027-06-04', until: true, status: 'future', tasks: [
+      { name: '2 weeks out', iso: '2027-02-19', status: 'future', tasks: [{ title: 'Pitch submitted to playlists', owner: 'Release Agent', state: 'waiting' }] },
+      { name: 'Release week', iso: '2027-03-05', status: 'future', tasks: [{ title: 'Release goes live', owner: 'Distribution Agent', state: 'waiting' }] },
+      { name: 'After release', iso: '2027-06-03', until: true, status: 'future', tasks: [
         { title: 'First statement reconciled', owner: 'Royalties Agent', state: 'waiting' },
         { title: '90 day review', owner: 'Label Head', state: 'waiting' },
       ] },

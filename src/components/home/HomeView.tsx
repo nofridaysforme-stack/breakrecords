@@ -188,13 +188,13 @@ export function HomeView({ scenario, home, numbers, approvals, labelShort }: Pro
               />
             ) : (
               <Link href={first.href ?? '/releases'} className={s.goalLink}>
-                <GoalCard title={first.title} pct={first.pct} meta={first.meta} metaShort="Mar 6 · $1,860 of $3,000" />
+                <GoalCard title={first.title} pct={first.pct} meta={first.meta} metaShort="Mar 5 · $1,860 of $3,000" />
                 <span className="visually-hidden">Open runbook</span>
               </Link>
             )}
             {otherGoals.map((g) => <GoalCard key={g.id} title={g.title} pct={g.pct} meta={g.meta} />)}
           </div>
-          {scenario === 'blocked' && <p className={s.note}>If it isn&apos;t signed by Jan 9, I&apos;ll suggest moving the release date.</p>}
+          {scenario === 'blocked' && <p className={s.note}>If it isn&apos;t signed by Jan 8, I&apos;ll suggest moving the release date.</p>}
         </section>
         <section className={`${s.col} ${s.datesCol}`} aria-labelledby="dates">
           <SectionHead id="dates">Coming up</SectionHead>
