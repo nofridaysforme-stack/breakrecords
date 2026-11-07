@@ -41,8 +41,9 @@ function Filter({ label, value, options, onChange }: { label: string; value: str
 export function InboxView({ scenario, items: serverItems, payoutTotal }: Props) {
   const { pending, approve, undo, proposals } = useDecisions();
   const items: InboxItem[] = useMemo(() => [
+    // Approvals created in the app come first, as on Home, so the phone's first 3 include them.
+    ...(scenario === 'empty' ? [] : proposals.map((p) => ({ ...p, artists: p.artists ?? ['Kesi Vale'], releases: p.releases ?? ['Glasshouse'], dept: p.dept ?? 'Release' }))),
     ...serverItems,
-    ...(scenario === 'empty' ? [] : proposals.map((p) => ({ ...p, artists: ['Kesi Vale'], releases: ['Glasshouse'], dept: 'Release' }))),
   ], [serverItems, proposals, scenario]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<string>('all');

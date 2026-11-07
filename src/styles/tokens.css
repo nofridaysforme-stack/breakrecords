@@ -141,6 +141,13 @@
   --r-panel: 10px;                     /* dial container, bulk bar, task rows */
   --r-check: 5px;                      /* checkbox */
 
+  /* Batch 3 (Phase E) */
+  --surface-critical: #2a1214;         /* permanent sale column (5e) */
+  --critical-text: #ff8178;            /* red text on that column, 5.6:1 there (5e, 5j) */
+  --stripe-drop: #170f0e;              /* logo drop zone stripes (5i) */
+  --on-accent-2: #3a1a0a;              /* secondary text on the selected dial stop (5f) */
+  --r-swatch: 7px;                     /* color swatches (5i) */
+
   /* motion (flows.md) */
   --ease: cubic-bezier(.2,.7,.3,1);
   --dur-fast: 150ms;

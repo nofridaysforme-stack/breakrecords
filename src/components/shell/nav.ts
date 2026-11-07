@@ -32,7 +32,7 @@ export const primaryNav: NavItem[] = [
 
 export const footerNav: NavItem[] = [
   { label: 'Activity log', href: '/activity', match: '/activity', icon: Activity },
-  { label: 'Settings', href: '/settings/general', match: '/settings', icon: Settings },
+  { label: 'Settings', href: '/settings/routing', match: '/settings', icon: Settings },
   { label: 'Help', href: '/help', match: '/help', icon: CircleHelp },
 ];
 

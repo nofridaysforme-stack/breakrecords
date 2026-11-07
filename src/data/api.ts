@@ -5,6 +5,8 @@ import { approvals as allApprovals } from './sample';
 import { approvalDetails, home, homeNumbers, releases, TODAY } from './fixtures';
 import type { ApprovalDetail, Release, Scenario } from './types';
 import type { ApprovalSummary } from '@/components/ui/Approval';
+import * as ops from './ops';
+import { advance, baselineIncome, sale, type OfferAssumptions } from '@/lib/offers';
 
 export { TODAY };
 
@@ -49,3 +51,27 @@ export const getSplitTree = () => splitTree;
 /** Only Glasshouse recording income has its own split; other nodes inherit or are not set up. */
 export const getDeal = (nodeId: string) => (nodeId === 'gh-rec' ? glasshouseDeal : null);
 export const getPayee = (id: string) => payees[id as keyof typeof payees] ?? null;
+
+// ---------- Batch 3: rights and operations ----------
+
+export const getCatalog = () => ({ counts: ops.catalogCounts, recordings: ops.recordings, songs: ops.songs, releases: ops.catalogReleases, assets: ops.catalogAssets });
+export const getContracts = () => ({ summary: ops.contractsSummary, contracts: ops.contracts, templates: ops.templates });
+export const getTemplate = (id: string) => ops.templates.find((t) => t.id === id) ?? null;
+export const getRegistrations = () => ({ columns: ops.regColumns, rows: ops.registrations });
+export const getUnclaimed = () => ops.unclaimed;
+export const getProfileClaims = () => ({ services: ops.profileServices, rows: ops.profileClaims });
+export const getFunding = () => ({ counts: ops.fundingCounts, items: ops.funding, applications: ops.applications });
+/** Offer comparison. Pass other assumptions to recompute every number. */
+export function getOffers(assumptions: OfferAssumptions = ops.offerAssumptions) {
+  return {
+    assumptions,
+    baseline: baselineIncome(assumptions),
+    advance: { ...advance(assumptions, ops.advanceOffer), offer: ops.advanceOffer, terms: ops.offerTerms.advance },
+    sale: { ...sale(assumptions, ops.saleOffer), offer: ops.saleOffer, terms: ops.offerTerms.sale },
+  };
+}
+export const getDepartments = () => ({ departments: ops.departments, team: ops.team });
+export const getActivity = () => ops.activity;
+export const getSettings = () => ({ nav: ops.settingsNav, routing: ops.routing, config: ops.labelConfig, integrations: ops.integrations, team: ops.team });
+export const getTheme = () => ({ theme: ops.harborTheme, tenant: ops.tenant });
+export const getRoster = () => ops.roster;

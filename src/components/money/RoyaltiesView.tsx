@@ -92,7 +92,7 @@ export function RoyaltiesView({ data }: { data: typeof R }) {
 
       <dialog ref={dialog} className={s.drawer} aria-labelledby="resolve" onClick={(e) => { if (e.target === dialog.current) dialog.current?.close(); }}>
         <div className={s.drawerHead}><h2 id="resolve" className={s.cardTitle}>Resolve {unmatched} lines</h2><button type="button" className={s.iconBtn} aria-label="Close" onClick={() => dialog.current?.close()}><X size={16} aria-hidden="true" /></button></div>
-        <p className={s.text}><strong style={{ color: 'var(--text)' }}>24 lines</strong> carry ISRC USNL1250008, one digit short of Night Bus (USNL12500008). I think it&apos;s a typo in the distributor&apos;s metadata. I haven&apos;t confirmed it with them.</p>
+        <p className={s.text}><strong style={{ color: 'var(--text)' }}>24 lines</strong> carry ISRC USNL1250031, one digit short of Night Bus (USNL12500031). I think it&apos;s a typo in the distributor&apos;s metadata. I haven&apos;t confirmed it with them.</p>
         <p className={s.text}><strong style={{ color: 'var(--text)' }}>3 lines</strong> don&apos;t look like anything in your catalog. I&apos;ll ask the distributor.</p>
         <div className={s.formActions}>
           <Button variant="primary" onClick={() => { setMatched(data.stats.lines - 3); dialog.current?.close(); }}>Match 24 lines to Night Bus</Button>

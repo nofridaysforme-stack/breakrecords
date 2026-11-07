@@ -8,7 +8,13 @@ import type { ApprovalSummary } from '@/components/ui/Approval';
 export type Decision = { status: 'approved' | 'rejected'; at: number; reason?: string };
 
 /** An approval created in the app, such as a release date change sent as a Plan (flows.md). */
-export type Proposal = ApprovalSummary & { href: string; releaseId: string; newDate: string };
+export type Proposal = ApprovalSummary & {
+  href: string;
+  /** Release date changes (2g). */
+  releaseId?: string; newDate?: string;
+  /** Inbox filters; default to Glasshouse for release plans. */
+  artists?: string[]; releases?: string[]; dept?: string;
+};
 
 type Store = {
   decisions: Record<string, Decision>;

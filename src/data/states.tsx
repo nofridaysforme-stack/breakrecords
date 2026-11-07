@@ -4,7 +4,7 @@ import type { StateCopy } from '@/components/ui/ScreenState';
 
 export const STATES: Record<'royalties' | 'statement' | 'payouts' | 'recoupment' | 'splits' | 'portal', StateCopy> = {
   royalties: {
-    empty: { title: 'No income yet this period', text: 'Connect your distributor and I’ll import statements as they arrive. Most send them about 6 weeks after the month ends.', action: { label: 'Connect a distributor', href: '/settings/general' } },
+    empty: { title: 'No income yet this period', text: 'Connect your distributor and I’ll import statements as they arrive. Most send them about 6 weeks after the month ends.', action: { label: 'Connect a distributor', href: '/settings/integrations' } },
     working: { agent: 'Royalties Agent', task: 'importing October statements', note: 'Numbers fill in when the import finishes. Usually under a minute.' },
     blocked: { title: 'October income for Glasshouse is on hold', text: <>Split v5 isn&apos;t signed by everyone, so its income waits in suspense. <strong>Owner: Legal Agent, waiting on Marco Dela.</strong></>, action: { label: 'Open the split', href: '/splits/gh-rec' } },
     error: { title: 'The SoundExchange import failed', text: <>Their file came back empty. <strong>No money moved and nothing was filed.</strong> SoundExchange income below still shows September.</>, meta: 'Error SX-204 · Nov 6, 7:40 · Audit AUD-7F3K-2280', retry: 'Retry import' },

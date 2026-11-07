@@ -16,9 +16,16 @@ const ROUTES = [
   '/portal/tax', '/portal/profile', '/portal/sign',
   ...['/money/royalties', '/money/payouts', '/money/recoupment', '/money/statements/ST-2026-10-KV', '/splits/gh-rec', '/portal']
     .flatMap((r) => ['empty', 'working', 'blocked', 'error', 'partial'].map((st) => `${r}?state=${st}`)),
+  // Batch 3
+  '/catalog/songs', '/catalog/releases', '/catalog/assets', '/contracts/templates/producer',
+  '/funding/applications', '/funding/offers',
+  '/settings/profile', '/settings/limits', '/settings/statements', '/settings/integrations', '/settings/team', '/settings/billing',
+  ...['/catalog/recordings', '/contracts', '/contracts/templates/artist', '/rights/registrations', '/rights/unclaimed', '/rights/claims',
+    '/funding', '/funding/offers/compare', '/departments', '/activity', '/settings/routing', '/settings/white-label', '/roster']
+    .flatMap((r) => ['default', 'empty', 'working', 'blocked', 'error', 'partial'].map((st) => (st === 'default' ? r : `${r}?state=${st}`))),
 ];
 
-for (const route of ROUTES) {
+for (const route of Array.from(new Set(ROUTES))) {
   test(`${route} is accessible and fits the screen`, async ({ page }) => {
     await page.goto(route);
     await page.evaluate(() => document.fonts.ready);

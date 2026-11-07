@@ -21,7 +21,7 @@ export function RunbookView({ release: r, initialChange }: { release: Release; i
   const planId = `plan_date_${r.id}`;
   const plan = proposals.find((p) => p.id === planId);
   // An approved date-change plan moves the release; until then the runbook keeps its date.
-  const date = plan && decisions[planId]?.status === 'approved' ? plan.newDate : r.date;
+  const date = plan?.newDate && decisions[planId]?.status === 'approved' ? plan.newDate : r.date;
   const pendingPlan = plan && !decisions[planId] ? plan : null;
 
   const blockers = useRef<HTMLDialogElement>(null);
@@ -71,7 +71,7 @@ export function RunbookView({ release: r, initialChange }: { release: Release; i
         <section aria-label="Timeline">
           {pendingPlan && (
             <p className={s.note} role="status" style={{ marginBottom: 12 }}>
-              A plan to move this release to {short(pendingPlan.newDate)} is waiting in <Link href="/approvals" style={{ color: 'var(--accent)' }}>Approvals</Link>. Dates below stay as they are until you approve it.
+              A plan to move this release to {short(pendingPlan.newDate ?? r.date)} is waiting in <Link href="/approvals" style={{ color: 'var(--accent)' }}>Approvals</Link>. Dates below stay as they are until you approve it.
             </p>
           )}
           <ol className={s.timeline}>

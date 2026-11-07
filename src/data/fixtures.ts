@@ -169,11 +169,12 @@ export const approvalDetails: Record<string, ApprovalDetail> = {
     body: {
       kind: 'filing',
       org: 'MLC',
-      // ASSUMED: the two catalog songs and writer shares are not in the sample data.
+      // Frame 5c: the 3 MLC filings that need you are Glasshouse, Night Bus and Static Hymn (ISRCs from 5a).
+      // ASSUMED: The Low Hours' writer shares.
       works: [
         { title: 'Glasshouse', writers: 'Kesi Vale 75%, Marco Dela 25%', isrc: 'USNL12600014', iswc: 'Assigned after filing' }, // 25% per frame 4f
-        { title: 'Slow Bloom', writers: 'Kesi Vale 100%', isrc: 'USNL12500031', iswc: 'Assigned after filing' },
-        { title: 'Paper Moon', writers: 'Kesi Vale 50%, Marco Dela 50%', isrc: 'USNL12500032', iswc: 'Assigned after filing' },
+        { title: 'Night Bus', writers: 'Dana Okafor 34%, Theo Lind 33%, Rue Sato 33%', isrc: 'USNL12500031', iswc: 'Assigned after filing' },
+        { title: 'Static Hymn', writers: 'Dana Okafor 34%, Theo Lind 33%, Rue Sato 33%', isrc: 'USNL12500032', iswc: 'Assigned after filing' },
       ],
       facts: [
         'The lyrics and melodies of all 3 songs were written by the people listed.',

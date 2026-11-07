@@ -52,6 +52,23 @@ Reference pages: `/dev/type` (type ramp and color tokens) and `/dev/components` 
 
 Every Batch 2 screen also takes `?state=` for the five data states. The portal shows v5's signature request only after v5 is fixed to 100% and sent from the splits editor.
 
+### Batch 3 screens
+
+| Frame | Route |
+| --- | --- |
+| 5a | `/catalog/recordings` (also `/catalog/songs`, `/catalog/releases`, `/catalog/assets`; `?id=` picks a recording) |
+| 5b | `/contracts` (undrawn template detail at `/contracts/templates/{artist,producer,feature,split,sync}`) |
+| 5c | `/rights/registrations` (undrawn `/rights/unclaimed` and `/rights/claims`) |
+| 5d | `/funding` (also `/funding/applications`, `/funding/offers`) |
+| 5e, 5j | `/funding/offers/compare` (5j is the same route under 768px) |
+| 5f | `/departments` (`?dept=` opens one) |
+| 5g | `/activity` |
+| 5h | `/settings/routing` (and the other Settings sections) |
+| 5i | `/settings/white-label` |
+| undrawn | `/roster` |
+
+Every Batch 3 screen takes `?state=` for the five data states. Accepting an offer, drafting from a template and preparing a claim create approvals; nothing is accepted, signed or filed. The theme editor applies the tenant's colors as CSS variables on the preview (and on the whole app with "Try it on this app"), and refuses to publish while any text pair is under 4.5:1.
+
 The mock API lives in `src/data/api.ts` and is served under `/api/*`. Approvals you make are kept for the browser session only; nothing is sent, paid, signed or filed.
 
 `npx playwright test --project=visual` saves one screenshot per frame to `artifacts/screens/{id}.png` for side-by-side review with `design/screenshots/`.
