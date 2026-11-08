@@ -3,7 +3,7 @@ import { RequestFromPayeeCommand } from '@breakrecords/contract';
 import { getPayouts } from '@/data/api';
 import { mockRequestFromPayee } from '@/server/mockPayouts';
 import { liveRequestFromPayee } from '@/server/live/payouts';
-import { payoutErr, payoutWriter } from '@/server/payoutsRoute';
+import { payoutErr, payoutWriter } from '@/server/teamRoute';
 
 /** Ask a payee for a tax form or new bank details. Recorded and audited; the payout provider sends it (Stage 3). */
 export async function POST(req: Request) {

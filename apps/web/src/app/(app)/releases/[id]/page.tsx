@@ -7,12 +7,12 @@ import { getRelease } from '@/data/api';
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ change?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const r = getRelease((await params).id);
+  const r = await getRelease((await params).id);
   return { title: r ? `${r.title} runbook` : 'Release not found' };
 }
 
 export default async function ReleasePage({ params, searchParams }: Props) {
-  const r = getRelease((await params).id);
+  const r = await getRelease((await params).id);
   if (!r) notFound();
   const change = (await searchParams).change;
   return (

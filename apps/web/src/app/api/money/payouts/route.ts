@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
 import { getPayouts } from '@/data/api';
-import { payeeRefused } from '@/server/payoutsRoute';
+import { teamOnly } from '@/server/teamRoute';
 
-export async function GET() { return (await payeeRefused()) ?? NextResponse.json(await getPayouts()); }
+export async function GET() { return (await teamOnly('Payouts')) ?? NextResponse.json(await getPayouts()); }

@@ -341,4 +341,32 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
         .rejects.toThrow(/cross-tenant reference/);
     });
   });
+  describe('release runbooks', () => {
+    let phase = ''; let rel = '';
+    beforeAll(async () => {
+      [{ id: rel }] = await owner`SELECT id FROM releases WHERE tenant_id = ${ids.a} AND slug = 'rel_a'`;
+      [{ id: phase }] = await owner`INSERT INTO runbook_phases (tenant_id, release_id, position, name, offset_days) VALUES (${ids.a}, ${rel}, 0, '8 weeks out', -56) RETURNING id`;
+      await owner`INSERT INTO runbook_tasks (tenant_id, phase_id, position, title, owner, state, gate_owner, blocks_delivery)
+        VALUES (${ids.a}, ${phase}, 0, 'Masters accepted', 'Distribution Agent', 'locked', 'Distribution Agent', 'Masters: not delivered.')`;
+      await owner`INSERT INTO release_pitches (tenant_id, release_id, text, char_limit) VALUES (${ids.a}, ${rel}, 'A late-night single.', 500)`;
+    });
+
+    it('the label’s team runs the runbook; payees and other labels see none of it', async () => {
+      expect(await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT title FROM runbook_tasks`)).toHaveLength(1);
+      for (const who of [{ userId: ids.payee, tenantId: ids.a }, { userId: ids.ub, tenantId: ids.b }]) {
+        for (const t of ['runbook_phases', 'runbook_tasks', 'release_pitches', 'release_budget_lines']) {
+          expect(await withTenant(app, who, (tx) => tx.unsafe(`SELECT 1 FROM ${t}`))).toHaveLength(0);
+        }
+      }
+      await expect(withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) =>
+        tx`INSERT INTO runbook_tasks (tenant_id, phase_id, position, title, owner) VALUES (${ids.b}, ${phase}, 1, 'Sneak in', 'Me')`)).rejects.toThrow(/cross-tenant reference/);
+    });
+
+    it('a locked task names who holds the key; a phase has one kind of date; a pitch fits its limit', async () => {
+      const asA = <T,>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(app, { userId: ids.ua, tenantId: ids.a }, fn);
+      await expect(asA((tx) => tx`INSERT INTO runbook_tasks (tenant_id, phase_id, position, title, owner, state) VALUES (${ids.a}, ${phase}, 1, 'Gate', 'Legal', 'locked')`)).rejects.toThrow(/check constraint/);
+      await expect(asA((tx) => tx`INSERT INTO runbook_phases (tenant_id, release_id, position, name, starts_on, offset_days) VALUES (${ids.a}, ${rel}, 1, 'Both', '2027-01-01', -7)`)).rejects.toThrow(/check constraint/);
+      await expect(asA((tx) => tx`UPDATE release_pitches SET char_limit = 5 WHERE release_id = ${rel}`)).rejects.toThrow(/check constraint/);
+    });
+  });
 });

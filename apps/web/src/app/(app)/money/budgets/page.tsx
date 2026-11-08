@@ -10,12 +10,12 @@ import s from '@/components/money/Money.module.css';
 export const metadata: Metadata = { title: 'Budgets' };
 
 // Undrawn: one card per release from the 4e card pattern.
-export default function BudgetsPage() {
+export default async function BudgetsPage() {
   return (
     <Page>
       <MoneyTabs />
       <div><PageTitle>Budgets</PageTitle><p className={s.sub}>What each release planned to spend and what it has spent so far</p></div>
-      {getBudgets().map((b) => {
+      {(await getBudgets()).map((b) => {
         const spent = b.lines.reduce((a, l) => a + l.spent, 0);
         return (
           <section key={b.id} className={s.card} aria-labelledby={`bg-${b.id}`}>
