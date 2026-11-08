@@ -3,7 +3,7 @@ import { AddRecoupableCostCommand } from '@breakrecords/contract';
 import { getRecoupment } from '@/data/api';
 import { mockAddCost } from '@/server/mockPayouts';
 import { liveAddCost } from '@/server/live/payouts';
-import { payoutErr, payoutWriter } from '@/server/payoutsRoute';
+import { payoutErr, payoutWriter } from '@/server/teamRoute';
 
 /** Add a recoupable cost to a release. Audited. Returns every release's recoupment. */
 export async function POST(req: Request) {

@@ -13,7 +13,7 @@ export type Checks = [
   Is<typeof C.HomeResponse, Awaited<ReturnType<typeof api.getHome>>>,
   Is<typeof C.ApprovalsResponse, Awaited<ReturnType<typeof api.getApprovals>>>,
   Is<typeof C.ApprovalDetailResponse, NonNullable<Awaited<ReturnType<typeof api.getApproval>>>>,
-  Is<typeof C.Release, NonNullable<ReturnType<typeof api.getRelease>>>,
+  Is<typeof C.Release, NonNullable<Awaited<ReturnType<typeof api.getRelease>>>>,
   Is<typeof C.RoyaltiesResponse, Awaited<ReturnType<typeof api.getRoyalties>>>,
   Is<typeof C.StatementsResponse['shape']['items'], Awaited<ReturnType<typeof api.listStatements>>>,
   Is<typeof C.StatementResponse, NonNullable<Awaited<ReturnType<typeof api.getStatement>>>>,

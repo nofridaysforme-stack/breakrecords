@@ -17,8 +17,8 @@ export async function payoutWriter(): Promise<{ ctx: RequestContext | null } | {
   return { ctx: isLive('payouts') ? ctx : null };
 }
 
-/** Reads of 4d and 4e are the label's; a payee gets their own portal instead. */
-export async function payeeRefused(): Promise<NextResponse | null> {
-  if (authRequired() && (await getContext())?.role === 'payee') return payoutErr(403, 'forbidden', 'Payouts are for the label’s owner and team. Your payments are in the portal.');
+/** Reads only the label's owner and team may make; a payee has the portal instead. */
+export async function teamOnly(what: string): Promise<NextResponse | null> {
+  if (authRequired() && (await getContext())?.role === 'payee') return payoutErr(403, 'forbidden', `${what} are for the label’s owner and team. Yours are in the portal.`);
   return null;
 }

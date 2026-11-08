@@ -3,8 +3,9 @@
 // sample tenants. Run with the owner connection: SEED_DATABASE_URL=... pnpm db:seed
 import { connect } from '@breakrecords/db/client';
 import { approvals as items } from '../src/data/sample';
-import { approvalDetails } from '../src/data/fixtures';
-import { glasshouseDeal, statements as payeeStatements } from '../src/data/money';
+import { approvalDetails, releases as runbooks } from '../src/data/fixtures';
+import { budgets, glasshouseDeal, statements as payeeStatements } from '../src/data/money';
+import { daysBetween } from '@breakrecords/core/dates';
 import { catalogAssets, catalogReleases, profileClaims, recordings, regColumns, registrations, songs, unclaimed } from '../src/data/ops';
 import { aiUseFromLabel } from '@breakrecords/core/metadata';
 import { checkStatement } from '@breakrecords/core/statements';
@@ -70,6 +71,7 @@ async function main() {
     await seedStatements(tx, ids.northline);
     await seedHarborStatements(tx, ids['harbor-sound']);
     await seedPayouts(tx, ids.northline);
+    await seedRunbooks(tx, ids.northline);
     await seedHarborPayouts(tx, ids['harbor-sound']);
   });
   console.log(`Seeded Northline and Harbor Sound; ${PEOPLE.length} people allowlisted.`);
@@ -457,6 +459,37 @@ async function seedHarborPayouts(tx: Tx, tenant: string) {
   const [b] = await tx`INSERT INTO payout_batches (tenant_id, slug, name, cadence, period, pays_on, status) VALUES (${tenant}, 'hs-2026-10', 'October 2026', 'monthly', '2026-10-01', '2026-11-12', 'draft') RETURNING id`;
   const [st] = await tx`SELECT id FROM payee_statements WHERE tenant_id = ${tenant} AND ref = 'ST-2026-10-MQ'`;
   await tx`INSERT INTO payout_lines (tenant_id, batch_id, party_id, statement_id, role, amount_cents) VALUES (${tenant}, ${b.id}, ${p.id}, ${st.id}, 'Artist', 84210)`;
+}
+
+// ---------- Release runbooks (2g) ----------
+// The Glasshouse runbook from 2g. "Now" is a fixed date; every later phase counts from the
+// release date. Each delivery blocker in 2g is attached to the task it's about.
+const BLOCKS: Record<string, string> = {
+  'Split sheets signed (2 of 3)': 'Split sheets: Marco Dela hasn’t signed (2 of 3). Legal Agent is waiting on him.',
+  'Masters delivered': 'Masters: the master WAV and instrumental aren’t uploaded yet. Kesi Vale owns this.',
+  'Metadata complete': 'Metadata: credits can’t be finished until the producer agreement is signed.',
+};
+
+async function seedRunbooks(tx: Tx, tenant: string) {
+  for (const r of Object.values(runbooks)) {
+    const [rel] = await tx`SELECT id FROM releases WHERE tenant_id = ${tenant} AND slug = ${r.id}`;
+    for (const [i, p] of r.phases.entries()) {
+      const fixed = p.status === 'now';
+      const [ph] = await tx`INSERT INTO runbook_phases (tenant_id, release_id, position, name, starts_on, offset_days, until)
+        VALUES (${tenant}, ${rel.id}, ${i}, ${p.name}, ${fixed ? p.iso : null}, ${fixed ? null : daysBetween(r.date, p.iso)}, ${!!p.until}) RETURNING id`;
+      for (const [j, t] of p.tasks.entries()) {
+        await tx`INSERT INTO runbook_tasks (tenant_id, phase_id, position, title, owner, state, gate_owner, gate_waiting_on, blocks_delivery)
+          VALUES (${tenant}, ${ph.id}, ${j}, ${t.title}, ${t.owner}, ${t.state}, ${t.gate?.owner ?? null}, ${t.gate?.waitingOn ?? null}, ${BLOCKS[t.title] ?? null})`;
+      }
+    }
+    await tx`INSERT INTO release_pitches (tenant_id, release_id, text, char_limit) VALUES (${tenant}, ${rel.id}, ${r.pitch.text}, ${r.pitch.limit})`;
+  }
+  for (const b of budgets) {
+    const [rel] = await tx`SELECT id FROM releases WHERE tenant_id = ${tenant} AND slug = ${b.id}`;
+    for (const [i, l] of b.lines.entries()) {
+      await tx`INSERT INTO release_budget_lines (tenant_id, release_id, position, category, planned_cents, spent_cents) VALUES (${tenant}, ${rel.id}, ${i}, ${l.category}, ${l.planned}, ${l.spent})`;
+    }
+  }
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

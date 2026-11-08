@@ -12,8 +12,8 @@ import s from '@/components/runbook/Runbook.module.css';
 export const metadata: Metadata = { title: 'Releases' };
 
 // Undrawn: built from the runbook header parts (2g) at inbox density.
-export default function ReleasesPage() {
-  const releases = listReleases();
+export default async function ReleasesPage() {
+  const releases = await listReleases();
   return (
     <Page>
       <div>

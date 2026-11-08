@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ApprovalError, ApprovalState, CatalogResponse, ENDPOINTS, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, CatalogResponse, ENDPOINTS, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 
@@ -411,5 +411,58 @@ test.describe('payouts (live)', () => {
     expect((await page.request.get('/api/portal/marco-dela')).status()).toBe(404);
     expect((await page.request.post('/api/money/payouts/requests', { data: { payeeId: 'jules-arden', kind: 'tax_form' } })).status()).toBe(404);
     expect((await page.request.post('/api/money/recoupment/costs', { data: { releaseId: 'rel_nightbus', category: 'x', cost: 100, shareBp: 100 } })).status()).toBe(404);
+  });
+});
+
+test.describe('releases (live)', () => {
+  const glasshouse = async (page: import('@playwright/test').Page) => Release.parse(await (await page.request.get('/api/releases/rel_glasshouse')).json());
+
+  test('the runbook comes from the database, with status and blockers worked out', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    expect(ReleasesResponse.parse(await (await page.request.get('/api/releases')).json()).items.map((r) => r.id)).toEqual(['rel_glasshouse']);
+    const r = await glasshouse(page);
+    expect(r).toMatchObject({ title: 'Glasshouse', kind: 'Single', artist: 'Kesi Vale', date: '2027-03-05', status: 'onTrack', budget: 300000, spent: 186000 });
+    expect(r.phases.map((p) => [p.name, p.iso, p.status])).toEqual([
+      ['Now', '2026-11-06', 'now'], ['8 weeks out', '2027-01-08', 'future'], ['6 weeks out', '2027-01-22', 'future'], ['4 weeks out', '2027-02-05', 'future'],
+      ['2 weeks out', '2027-02-19', 'future'], ['Release week', '2027-03-05', 'future'], ['After release', '2027-06-03', 'future'],
+    ]);
+    expect(r.phases[1].tasks[0]).toEqual({ title: 'Split sheets signed (2 of 3)', owner: 'Legal', state: 'locked', gate: { owner: 'Legal', waitingOn: 'Marco Dela' } });
+    expect(r.assets.map((a) => [a.name, a.ready])).toEqual([['Cover art', true], ['Master WAV', false], ['Instrumental', false], ['Lyrics', true], ['Press photo', true], ['Credits', true]]);
+    expect(r.registrations.map((g) => [g.name, g.status])).toEqual([['PRO', 'confirmed'], ['MLC', 'needsYou'], ['SoundExchange owner', 'confirmed'], ['SoundExchange artist', 'prepared'], ['Copyright Office', 'notStarted']]);
+    expect(r.blockers).toHaveLength(3);
+    await page.goto('/releases/rel_glasshouse');
+    await expect(page.getByRole('heading', { name: 'Glasshouse', level: 1 })).toBeVisible();
+    await expect(page.getByText('Fri, Mar 5, 2027')).toBeVisible();
+  });
+
+  test('an approved date plan moves the release for the whole label, and undo moves it back', async ({ page, browser }) => {
+    await signIn(page, USERS.owner);
+    const proposal = { id: 'plan_date_rel_glasshouse', type: 'plan', title: 'Move Glasshouse to Mar 19', agent: 'Label Head', due: 'Jan 22', impact: '10 tasks move 14 days',
+      risk: 'dueSoon', href: '/releases/rel_glasshouse', releaseId: 'rel_glasshouse', newDate: '2027-03-19' };
+    expect((await page.request.post('/api/approvals', { data: { proposal } })).status()).toBe(200);
+    expect((await glasshouse(page)).date).toBe('2027-03-05'); // a plan changes nothing until it's approved
+    expect((await page.request.post(`/api/approvals/${proposal.id}/decision`, { data: { action: 'approve' } })).status()).toBe(200);
+    const moved = await glasshouse(page);
+    expect(moved.date).toBe('2027-03-19');
+    expect(moved.phases.map((p) => p.iso).slice(0, 3)).toEqual(['2026-11-06', '2027-01-22', '2027-02-05']); // "Now" stays put
+
+    const jana = await (await browser.newContext()).newPage();
+    await signIn(jana, USERS.jana);
+    await jana.goto('/releases/rel_glasshouse');
+    await expect(jana.getByText('Fri, Mar 19, 2027')).toBeVisible();
+    await expect(jana.getByText('Jan 22').first()).toBeVisible();
+
+    await page.request.delete(`/api/approvals/${proposal.id}/decision`);
+    expect((await glasshouse(page)).date).toBe('2027-03-05');
+  });
+
+  test('payees and other labels see no runbooks', async ({ page, browser }) => {
+    await signIn(page, USERS.payee);
+    expect((await page.request.get('/api/releases')).status()).toBe(403);
+    expect((await page.request.get('/api/releases/rel_glasshouse')).status()).toBe(403);
+    const harbor = await (await browser.newContext()).newPage();
+    await signIn(harbor, USERS.harbor);
+    expect(ReleasesResponse.parse(await (await harbor.request.get('/api/releases')).json()).items).toEqual([]);
+    expect((await harbor.request.get('/api/releases/rel_glasshouse')).status()).toBe(404);
   });
 });

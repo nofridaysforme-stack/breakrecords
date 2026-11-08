@@ -53,12 +53,18 @@ export async function approvalIds(): Promise<string[]> {
   return (await approvalItems()).map((a) => a.id);
 }
 
-export function getRelease(id: string): Release | null {
-  return releases[id] ?? null;
+/** One release's runbook (2g). Live: built from the runbook, catalog and approved date plans. */
+export async function getRelease(id: string): Promise<Release | null> {
+  const ctx = await liveCtx('releases');
+  if (!ctx) return releases[id] ?? null;
+  return (await import('@/server/live/releases')).liveRelease(ctx, id);
 }
 
-export function listReleases(): Release[] {
-  return Object.values(releases);
+/** Every release with a runbook. */
+export async function listReleases(): Promise<Release[]> {
+  const ctx = await liveCtx('releases');
+  if (!ctx) return Object.values(releases);
+  return (await import('@/server/live/releases')).liveReleases(ctx);
 }
 
 // ---------- Batch 2: money, splits, payee portal ----------
@@ -103,7 +109,12 @@ export async function getRecoupment(): Promise<typeof recoupment> {
   if (!ctx) return (await import('@/server/mockPayouts')).mockRecoupment();
   return (await import('@/server/live/payouts')).liveRecoupment(ctx);
 }
-export const getBudgets = () => budgets;
+/** Release budgets. Live: each release's budget lines. */
+export async function getBudgets(): Promise<typeof budgets> {
+  const ctx = await liveCtx('releases');
+  if (!ctx) return budgets;
+  return (await import('@/server/live/releases')).liveBudgets(ctx);
+}
 /** The split tree (4a). Live: the tenant's nodes. */
 export async function getSplitTree(): Promise<SplitTreeNode[]> {
   const ctx = await liveCtx('splits');
