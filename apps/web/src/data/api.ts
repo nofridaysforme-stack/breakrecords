@@ -186,8 +186,17 @@ export async function getCatalog(): Promise<ReturnType<typeof mockCatalog>> {
   const base = mockCatalog();
   return { ...base, recordings: base.recordings.map((r) => (edits[r.id] ? { ...r, ...edits[r.id] } : r)) };
 }
-export const getContracts = () => ({ summary: ops.contractsSummary, contracts: ops.contracts, templates: ops.templates });
-export const getTemplate = (id: string) => ops.templates.find((t) => t.id === id) ?? null;
+export type Contracts = { summary: string; contracts: ops.Contract[]; templates: ops.Template[]; reviews: { id: string; fileName: string; status: 'queued' | 'reviewed'; requested: string }[] };
+/** Contracts (5b). Live: the tenant's agreements, templates and review requests. */
+export async function getContracts(): Promise<Contracts> {
+  const ctx = await liveCtx('contracts');
+  if (ctx) return (await import('@/server/live/contracts')).liveContracts(ctx);
+  const reviews = await (await import('@/server/mockContracts')).mockReviews();
+  return { summary: ops.contractsSummary, contracts: ops.contracts, templates: ops.templates, reviews };
+}
+export async function getTemplate(id: string): Promise<ops.Template | null> {
+  return (await getContracts()).templates.find((t) => t.id === id) ?? null;
+}
 const mockRegistrations = () => ({ columns: ops.regColumns, rows: ops.registrations });
 const mockProfileClaims = () => ({ services: ops.profileServices, rows: ops.profileClaims });
 

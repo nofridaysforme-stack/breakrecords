@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ApprovalError, ApprovalState, CatalogResponse, ENDPOINTS, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, CatalogResponse, ContractsResponse, ENDPOINTS, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 
@@ -464,5 +464,63 @@ test.describe('releases (live)', () => {
     await signIn(harbor, USERS.harbor);
     expect(ReleasesResponse.parse(await (await harbor.request.get('/api/releases')).json()).items).toEqual([]);
     expect((await harbor.request.get('/api/releases/rel_glasshouse')).status()).toBe(404);
+  });
+});
+
+test.describe('contracts (live)', () => {
+  const contracts = async (page: import('@playwright/test').Page) => ContractsResponse.parse(await (await page.request.get('/api/contracts')).json());
+
+  test('agreements, signatures and key dates come from the database', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    await page.request.delete('/api/approvals/apr_producer/decision'); // start from an open approval
+    const c = await contracts(page);
+    expect(c.summary).toBe('7 active · 1 waiting on signatures · next key date Jan 9');
+    expect(c.contracts.map((x) => [x.id, x.template, x.sig, x.date])).toEqual([
+      ['ct_producer', 'Northline producer v3 · 2 edits', 'Waiting on you', 'Nov 9'], ['ct_artist_kesi', 'Northline artist v2', 'Signed', 'Mar 6, 2029'],
+      ['ct_band', 'Northline artist v2', 'Signed', 'Jan 9'], ['ct_feature', 'Northline feature v1', 'Signed', null],
+      ['ct_split_gh', 'Split sheet v1', '1 of 2 signed', null], ['ct_distribution', 'Third party · reviewed', 'Signed', 'Aug 1'], ['ct_split_nb', 'Split sheet v1', 'Signed', null],
+    ]);
+    expect(c.contracts.find((x) => x.id === 'ct_split_gh')).toMatchObject({ parties: 'Kesi, Marco', terms: '75 / 25' });
+    expect(c.contracts.find((x) => x.id === 'ct_band')?.parties).toBe('The Low Hours (3)');
+    expect(c.templates.map((t) => t.id)).toEqual(['artist', 'producer', 'feature', 'split', 'sync']);
+  });
+
+  test('approving the producer agreement signs for the label; it then waits on Marco', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    await page.request.delete('/api/approvals/apr_producer/decision');
+    expect((await page.request.post('/api/approvals/apr_producer/decision', { data: { action: 'approve' } })).status()).toBe(200);
+    const c = await contracts(page);
+    expect(c.contracts[0]).toMatchObject({ id: 'ct_producer', sig: '0 of 1 signed', sigState: 'partial', date: null });
+    expect(c.summary).toBe('7 active · 0 waiting on signatures · next key date Jan 9');
+    await page.request.delete('/api/approvals/apr_producer/decision');
+    expect((await contracts(page)).contracts[0].sig).toBe('Waiting on you');
+  });
+
+  test('a contract sent for review is saved for the label and audited', async ({ page, browser }) => {
+    await signIn(page, USERS.owner);
+    await page.goto('/contracts');
+    await page.getByRole('button', { name: 'Upload a contract for review' }).click();
+    await page.locator('input[type=file]').setInputFiles({ name: 'Sync offer.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4') });
+    await page.getByRole('button', { name: 'Send for review' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Legal Agent is reviewing Sync offer.pdf' })).toBeVisible();
+    const jana = await (await browser.newContext()).newPage();
+    await signIn(jana, USERS.jana);
+    await jana.goto('/contracts');
+    await expect(jana.getByRole('status').filter({ hasText: 'Legal Agent is reviewing Sync offer.pdf' })).toBeVisible();
+    const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+    const audit = await db`SELECT data FROM audit_events WHERE kind = 'contract_review.requested'`;
+    await db.end();
+    expect(audit).toEqual([{ data: { fileName: 'Sync offer.pdf' } }]);
+  });
+
+  test('payees and other labels see no contracts', async ({ page, browser }) => {
+    await signIn(page, USERS.payee);
+    for (const path of ['/api/contracts', '/api/contracts/templates/artist']) expect((await page.request.get(path)).status()).toBe(403);
+    expect((await page.request.post('/api/contracts/reviews', { data: { fileName: 'x.pdf' } })).status()).toBe(403);
+    const harbor = await (await browser.newContext()).newPage();
+    await signIn(harbor, USERS.harbor);
+    const c = await contracts(harbor);
+    expect([c.contracts, c.templates, c.reviews]).toEqual([[], [], []]);
+    expect((await harbor.request.get('/api/contracts/templates/artist')).status()).toBe(404);
   });
 });

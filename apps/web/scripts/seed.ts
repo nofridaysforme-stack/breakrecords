@@ -6,7 +6,7 @@ import { approvals as items } from '../src/data/sample';
 import { approvalDetails, releases as runbooks } from '../src/data/fixtures';
 import { budgets, glasshouseDeal, statements as payeeStatements } from '../src/data/money';
 import { daysBetween } from '@breakrecords/core/dates';
-import { catalogAssets, catalogReleases, profileClaims, recordings, regColumns, registrations, songs, unclaimed } from '../src/data/ops';
+import { catalogAssets, catalogReleases, contracts, profileClaims, recordings, regColumns, registrations, songs, templates, unclaimed } from '../src/data/ops';
 import { aiUseFromLabel } from '@breakrecords/core/metadata';
 import { checkStatement } from '@breakrecords/core/statements';
 import type { Tx } from '@breakrecords/db/client';
@@ -45,7 +45,7 @@ async function main() {
 
     // Payouts and statements point at parties, recordings and split versions, and batches at approvals, so they go first.
     for (const t of [ids.northline, ids['harbor-sound']]) {
-      for (const table of ['payout_batches', 'payee_requests', 'payees', 'recoupment_accounts', 'payout_policies']) {
+      for (const table of ['payout_batches', 'payee_requests', 'payees', 'recoupment_accounts', 'payout_policies', 'agreements', 'contract_templates', 'contract_reviews']) {
         await tx.unsafe(`DELETE FROM ${table} WHERE tenant_id = $1`, [t]);
       }
       await tx`DELETE FROM payee_statements WHERE tenant_id = ${t}`;
@@ -72,6 +72,7 @@ async function main() {
     await seedHarborStatements(tx, ids['harbor-sound']);
     await seedPayouts(tx, ids.northline);
     await seedRunbooks(tx, ids.northline);
+    await seedContracts(tx, ids.northline);
     await seedHarborPayouts(tx, ids['harbor-sound']);
   });
   console.log(`Seeded Northline and Harbor Sound; ${PEOPLE.length} people allowlisted.`);
@@ -91,6 +92,8 @@ const AGENT_NOTES: Record<string, string> = {
 // Which songs have lyrics on file, and whose writer shares are signed (5b: Night Bus split sheet signed; Glasshouse 1 of 2).
 const LYRICS = new Set(['glasshouse', 'night-bus', 'velvet-hours']);
 const SIGNED = new Set(['night-bus', 'velvet-hours', 'paper-moons']);
+// The Glasshouse split sheet is 1 of 2 signed (5b): Kesi has, Marco hasn't.
+const SIGNED_BY = new Map([['glasshouse', 'Kesi Vale']]);
 const ARTIST_TYPE: Record<string, 'person' | 'group'> = { 'The Low Hours': 'group' };
 const RELEASE_TRACKS: Record<string, { kind: 'single' | 'ep' | 'album'; date: string; tracks: string[] }> = {
   rel_glasshouse: { kind: 'single', date: '2027-03-05', tracks: ['glasshouse'] },
@@ -123,7 +126,8 @@ async function seedCatalog(tx: Tx, tenant: string) {
     for (const part of s.writers.split(',').map((x) => x.trim())) {
       const m = /^(.*) (\d+)%$/.exec(part);
       if (!m) continue;
-      await tx`INSERT INTO work_writers (tenant_id, work_id, party_id, share_bp, confirmed) VALUES (${tenant}, ${w.id}, ${await partyId(m[1])}, ${Number(m[2]) * 100}, ${SIGNED.has(s.id)})`;
+      const confirmed = SIGNED.has(s.id) || SIGNED_BY.get(s.id) === m[1];
+      await tx`INSERT INTO work_writers (tenant_id, work_id, party_id, share_bp, confirmed) VALUES (${tenant}, ${w.id}, ${await partyId(m[1])}, ${Number(m[2]) * 100}, ${confirmed})`;
     }
   }
 
@@ -488,6 +492,42 @@ async function seedRunbooks(tx: Tx, tenant: string) {
     const [rel] = await tx`SELECT id FROM releases WHERE tenant_id = ${tenant} AND slug = ${b.id}`;
     for (const [i, l] of b.lines.entries()) {
       await tx`INSERT INTO release_budget_lines (tenant_id, release_id, position, category, planned_cents, spent_cents) VALUES (${tenant}, ${rel.id}, ${i}, ${l.category}, ${l.planned}, ${l.spent})`;
+    }
+  }
+}
+
+// ---------- Contracts (5b) ----------
+// The 5b agreements. Split sheets point at their song: parties, shares and signatures are its
+// writers. ASSUMED: the dates the signed agreements were signed.
+const AGREEMENTS: { slug: string; template?: string; edits?: number; thirdParty?: boolean; work?: string; parties?: [slug: string, signers: number, signed: string | null][];
+  key?: [string, string]; approval?: string }[] = [
+  { slug: 'ct_producer', template: 'producer', edits: 2, parties: [['marco-dela', 1, null]], approval: 'apr_producer' },
+  { slug: 'ct_artist_kesi', template: 'artist', parties: [['kesi-vale', 1, '2026-03-06']], key: ['2029-03-06', 'Option period'] },
+  { slug: 'ct_band', template: 'artist', parties: [['the-low-hours', 3, '2025-01-09']], key: ['2027-01-09', 'Audit window closes'] },
+  { slug: 'ct_feature', template: 'feature', parties: [['ari-monroe', 1, '2026-09-30']] },
+  { slug: 'ct_split_gh', template: 'split', work: 'glasshouse' },
+  { slug: 'ct_distribution', thirdParty: true, parties: [['distributor', 1, '2026-08-01']], key: ['2027-08-01', 'Renewal'] },
+  { slug: 'ct_split_nb', template: 'split', work: 'night-bus' },
+];
+
+async function seedContracts(tx: Tx, tenant: string) {
+  const tpl: Record<string, string> = {};
+  for (const [i, t] of templates.entries()) {
+    const [row] = await tx`INSERT INTO contract_templates (tenant_id, slug, name, version, updated_on, summary, clauses, playbook, label_owned, position)
+      VALUES (${tenant}, ${t.id}, ${t.name}, ${t.version}, ${new Date(`${t.updated} UTC`).toISOString().slice(0, 10)}, ${t.summary}, ${tx.json(t.clauses as never)}, ${t.playbook},
+              ${t.id !== 'split'}, ${i}) RETURNING id`;
+    tpl[t.id] = row.id;
+  }
+  await tx`INSERT INTO parties (tenant_id, slug, name, type) VALUES (${tenant}, 'distributor', 'Distributor', 'company') ON CONFLICT (tenant_id, slug) DO NOTHING`;
+  for (const a of AGREEMENTS) {
+    const c = contracts.find((x) => x.id === a.slug)!;
+    const work = a.work ? (await tx`SELECT id FROM works WHERE tenant_id = ${tenant} AND slug = ${a.work}`)[0].id : null;
+    const [row] = await tx`INSERT INTO agreements (tenant_id, slug, name, source, template_id, edits, reviewed, work_id, terms, key_date, key_date_what, approval_id)
+      VALUES (${tenant}, ${a.slug}, ${c.name}, ${a.thirdParty ? 'third_party' : 'template'}, ${a.template ? tpl[a.template] : null}, ${a.edits ?? 0}, ${!!a.thirdParty},
+              ${work}, ${work ? null : c.terms}, ${a.key?.[0] ?? null}, ${a.key?.[1] ?? null}, ${a.approval ?? null}) RETURNING id`;
+    for (const [i, [slug, signers, signed]] of (a.parties ?? []).entries()) {
+      const [p] = await tx`SELECT id FROM parties WHERE tenant_id = ${tenant} AND slug = ${slug}`;
+      await tx`INSERT INTO agreement_parties (tenant_id, agreement_id, party_id, signers, signed_at, position) VALUES (${tenant}, ${row.id}, ${p.id}, ${signers}, ${signed}, ${i})`;
     }
   }
 }

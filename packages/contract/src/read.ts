@@ -244,7 +244,12 @@ export const ContractsResponse = z.object({
     date: Display.nullable(), dateWhat: z.string(), sig: z.string(), sigState: z.enum(['waiting', 'signed', 'partial']), href: Link.optional(),
   })),
   templates: z.array(Template),
+  /** Contracts uploaded for Legal Agent to check, newest first. */
+  reviews: z.array(z.object({ id: Id, fileName: z.string(), status: z.enum(['queued', 'reviewed']), requested: Display })),
 });
+/** POST /api/contracts/reviews: send an uploaded contract to Legal Agent. The file arrives with uploads; only its name is recorded today. */
+export const RequestContractReviewCommand = z.object({ fileName: z.string().trim().min(1).max(200).regex(/\.(pdf|docx?)$/i, 'A PDF or Word file.') }).strict();
+export const ContractError = z.object({ error: z.enum(['invalid', 'unauthorized', 'forbidden']), message: z.string() });
 
 // ---------- Rights (5c and the undrawn tabs) ----------
 const Cell = z.object({ status: RegistrationStatus, ref: z.string().optional() });

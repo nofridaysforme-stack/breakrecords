@@ -21,7 +21,7 @@ export type Checks = [
   Is<typeof C.RecoupmentResponse['shape']['items'], Awaited<ReturnType<typeof api.getRecoupment>>>,
   Is<typeof C.PayeeResponse, NonNullable<Awaited<ReturnType<typeof api.getPayee>>>>,
   Is<typeof C.CatalogResponse, Awaited<ReturnType<typeof api.getCatalog>>>,
-  Is<typeof C.ContractsResponse, ReturnType<typeof api.getContracts>>,
+  Is<typeof C.ContractsResponse, Awaited<ReturnType<typeof api.getContracts>>>,
   Is<typeof C.RegistrationsResponse, Awaited<ReturnType<typeof api.getRegistrations>>>,
   Is<typeof C.UnclaimedResponse, Awaited<ReturnType<typeof api.getUnclaimed>>>,
   Is<typeof C.ProfileClaimsResponse, Awaited<ReturnType<typeof api.getProfileClaims>>>,
