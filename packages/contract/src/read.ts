@@ -198,6 +198,8 @@ export const UnclaimedResponse = z.object({
   items: z.array(z.object({ id: Id, source: z.string(), what: z.string(), amount: Cents, why: z.string(), since: Display, claim: z.string() })),
 });
 export const ProfileClaimsResponse = z.object({ services: z.array(z.string()), rows: z.array(z.object({ artist: z.string(), cells: z.array(Cell) })) });
+/** POST /api/rights/claims/prepare: Rights Agent prepares every claim not yet started; the artist confirms by email. Returns the updated claims. */
+export const PrepareProfileClaimsCommand = z.object({}).strict();
 
 // ---------- Funding (5d, 5e) ----------
 export const FundingResponse = z.object({

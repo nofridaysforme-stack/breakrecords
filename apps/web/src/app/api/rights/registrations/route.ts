@@ -1,4 +1,4 @@
 import { NextResponse } from 'next/server';
 import { getRegistrations } from '@/data/api';
 
-export function GET() { return NextResponse.json(getRegistrations()); }
+export async function GET() { return NextResponse.json(await getRegistrations()); }

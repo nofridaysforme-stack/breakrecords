@@ -4,7 +4,7 @@
 import { connect } from '@breakrecords/db/client';
 import { approvals as items } from '../src/data/sample';
 import { approvalDetails } from '../src/data/fixtures';
-import { catalogAssets, catalogReleases, recordings, regColumns, registrations, songs } from '../src/data/ops';
+import { catalogAssets, catalogReleases, profileClaims, recordings, regColumns, registrations, songs, unclaimed } from '../src/data/ops';
 import { aiUseFromLabel } from '@breakrecords/core/metadata';
 import type { Tx } from '@breakrecords/db/client';
 
@@ -53,6 +53,7 @@ async function main() {
     await tx`INSERT INTO approvals (tenant_id, id, origin, type, title, agent, due, due_on, impact, risk, context)
       VALUES (${ids['harbor-sound']}, 'apr_harbor_payout', 'agent', 'money', 'Payout batch for October', 'Royalties Agent', 'Nov 12', '2026-11-12', '$842.10 to 4 payees', 'low', 'October statements')`;
     await seedCatalog(tx, ids.northline);
+    await seedRights(tx, ids.northline);
     await seedHarborCatalog(tx, ids['harbor-sound']);
   });
   console.log(`Seeded Northline and Harbor Sound; ${PEOPLE.length} people allowlisted.`);
@@ -149,6 +150,28 @@ async function seedCatalog(tx: Tx, tenant: string) {
       if (!workId && !recordingId) continue;
       await tx`INSERT INTO registrations (tenant_id, org, work_id, recording_id, status, ref)
         VALUES (${tenant}, ${org}, ${workId ?? null}, ${recordingId ?? null}, ${cell.status}, ${cell.ref ?? null})`;
+    }
+  }
+}
+
+/** Unclaimed royalties and profile claims from the Rights tabs' sample data. */
+async function seedRights(tx: Tx, tenant: string) {
+  await tx`DELETE FROM unclaimed_royalties WHERE tenant_id = ${tenant}`;
+  await tx`DELETE FROM profile_claims WHERE tenant_id = ${tenant}`;
+  const [song] = await tx`SELECT id FROM works WHERE tenant_id = ${tenant} AND slug = 'night-bus'`;
+  const [rec] = await tx`SELECT id FROM recordings WHERE tenant_id = ${tenant} AND slug = 'night-bus'`;
+  const HELD: Record<string, string> = { unc_sx: '2026-07-01', unc_mlc: '2026-08-01' };
+  for (const u of unclaimed.items) {
+    const source = u.source === 'MLC' ? 'mlc' : 'soundexchange';
+    await tx`INSERT INTO unclaimed_royalties (tenant_id, slug, source, work_id, recording_id, what, why, amount_cents, held_since, claim_method)
+      VALUES (${tenant}, ${u.id}, ${source}, ${source === 'mlc' ? song.id : null}, ${source === 'mlc' ? null : rec.id}, ${u.what}, ${u.why}, ${u.amount}, ${HELD[u.id]}, ${u.claim})`;
+  }
+  const SERVICE = ['spotify', 'apple_music', 'youtube', 'amazon_music'];
+  for (const row of profileClaims) {
+    const [p] = await tx`SELECT id FROM parties WHERE tenant_id = ${tenant} AND name = ${row.artist}`;
+    for (const [i, cell] of row.cells.entries()) {
+      if (cell.status === 'notStarted') continue; // no row means not started
+      await tx`INSERT INTO profile_claims (tenant_id, party_id, service, status, ref) VALUES (${tenant}, ${p.id}, ${SERVICE[i]}, ${cell.status}, ${cell.ref ?? null})`;
     }
   }
 }

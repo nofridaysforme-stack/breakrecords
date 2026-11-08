@@ -12,5 +12,5 @@ type Props = { searchParams: Promise<{ state?: string }> };
 
 export default async function RightsPage({ searchParams }: Props) {
   const scenario = toScenario((await searchParams).state);
-  return <Page><RightsTabs /><ScreenState scenario={scenario} copy={OPS_STATES.registrations} heading="Registrations"><RegistrationsView data={getRegistrations()} unclaimed={getUnclaimed().total} /></ScreenState></Page>;
+  return <Page><RightsTabs /><ScreenState scenario={scenario} copy={OPS_STATES.registrations} heading="Registrations"><RegistrationsView data={await getRegistrations()} unclaimed={(await getUnclaimed()).total} /></ScreenState></Page>;
 }

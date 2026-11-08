@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ApprovalError, ApprovalState, ENDPOINTS, Recording } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, ENDPOINTS, ProfileClaimsResponse, Recording } from '@breakrecords/contract';
 
 // The API contract over HTTP. Any server behind the UI, mock or live, must pass this file.
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
@@ -88,5 +88,22 @@ test.describe('catalog writes', () => {
     expect((await request.patch('/api/catalog/recordings/low-light', { data: {} })).status()).toBe(400);
     expect((await request.patch('/api/catalog/recordings/low-light', { data: { ai: 'Mostly' } })).status()).toBe(400);
     expect((await request.patch('/api/catalog/recordings/nope', { data: { genre: 'Pop' } })).status()).toBe(404);
+  });
+});
+
+test.describe('rights writes', () => {
+  test('preparing profile claims turns every "not started" into "prepared", for the session', async ({ request }) => {
+    const before = ProfileClaimsResponse.parse(await (await request.get('/api/rights/claims')).json());
+    expect(before.rows.flatMap((r) => r.cells).some((c) => c.status === 'notStarted')).toBe(true);
+    const res = await request.post('/api/rights/claims/prepare', { data: {} });
+    expect(res.status()).toBe(200);
+    const after = ProfileClaimsResponse.parse(await res.json());
+    expect(after.rows.flatMap((r) => r.cells).some((c) => c.status === 'notStarted')).toBe(false);
+    expect(after.rows[0].cells[0].status).toBe(before.rows[0].cells[0].status); // confirmed stays confirmed
+    const again = ProfileClaimsResponse.parse(await (await request.get('/api/rights/claims')).json());
+    expect(again).toEqual(after);
+  });
+  test('a malformed body is refused', async ({ request }) => {
+    expect((await request.post('/api/rights/claims/prepare', { data: { everything: true } })).status()).toBe(400);
   });
 });
