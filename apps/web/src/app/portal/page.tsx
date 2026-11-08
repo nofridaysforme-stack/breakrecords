@@ -1,7 +1,6 @@
+import { getPortalPayee, getStatement, listStatements } from '@/data/api';
 import type { Metadata } from 'next';
 import { EarningsView } from '@/components/portal/EarningsView';
-import { resolvePayee } from '@/components/portal/payee';
-import { getStatement, listStatements } from '@/data/api';
 import { ScreenState } from '@/components/ui/ScreenState';
 import { STATES } from '@/data/states';
 import { toScenario } from '@/data/types';
@@ -12,7 +11,7 @@ type Props = { searchParams: Promise<{ as?: string; state?: string }> };
 
 export default async function PortalHome({ searchParams }: Props) {
   const q = await searchParams;
-  const p = resolvePayee(q.as);
+  const p = await getPortalPayee(q.as);
   const scenario = toScenario(q.state);
   const [first] = await listStatements(p.name);
   const latest = first ? await getStatement(first.id) : null;

@@ -19,10 +19,22 @@ const STATUS = {
   failed: { Icon: CircleAlert, cls: s.sFailed, label: 'Failed for 1' },
 };
 
-export function PayoutsView({ data }: { data: typeof P }) {
+type Kind = 'tax_form' | 'bank_details';
+
+export function PayoutsView({ data: initial }: { data: typeof P }) {
   const { decisions } = useDecisions();
-  const [requested, setRequested] = useState<Set<string>>(new Set());
-  const request = (name: string) => setRequested((r) => new Set(r).add(name));
+  const [data, setData] = useState(initial);
+  const [error, setError] = useState<string | null>(null);
+  const asked = (payeeId: string, kind: Kind) => data.requests.some((r) => r.payeeId === payeeId && r.kind === kind);
+  // Records the request on the server; the payout provider sends it to the payee.
+  async function request(payeeId: string, kind: Kind) {
+    setError(null);
+    try {
+      const res = await fetch('/api/money/payouts/requests', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ payeeId, kind }) });
+      const body = await res.json();
+      if (res.ok) setData(body); else setError(body.message ?? 'That request wasn’t saved.');
+    } catch { setError('Couldn’t reach the server. Nothing was requested.'); }
+  }
 
   return (
     <>
@@ -35,7 +47,8 @@ export function PayoutsView({ data }: { data: typeof P }) {
             {data.batches.map((b) => {
               const decided = b.approvalId ? decisions[b.approvalId] : undefined;
               const st = decided?.status === 'approved' ? { Icon: Check, cls: s.sSent, label: 'Approved' } : decided?.status === 'rejected' ? { Icon: CircleAlert, cls: s.sFailed, label: 'Rejected' } : STATUS[b.status];
-              const note = decided?.status === 'approved' ? 'Sends Nov 10' : decided?.status === 'rejected' ? `"${decided.reason}"` : b.status === 'failed' && requested.has('Theo Lind') ? 'Asked Theo for new bank details' : b.note;
+              const fixAsked = !!b.failed && asked(b.failed.payeeId, 'bank_details');
+              const note = decided?.status === 'approved' ? 'Sends Nov 10' : decided?.status === 'rejected' ? `"${decided.reason}"` : b.failed && fixAsked ? `Asked ${b.failed.name.split(' ')[0]} for new bank details` : b.note;
               return (
                 <tr key={b.id}>
                   <th scope="row">{b.name}</th>
@@ -45,7 +58,7 @@ export function PayoutsView({ data }: { data: typeof P }) {
                   <td className={s.noteCell}>{note}</td>
                   <td className={s.r}>
                     {b.status === 'awaiting' && !decided && b.approvalId && <ButtonLink href={`/approvals/${b.approvalId}`} variant="primary" size="sm">Review</ButtonLink>}
-                    {b.status === 'failed' && !requested.has('Theo Lind') && <Button size="sm" onClick={() => request('Theo Lind')}>Fix</Button>}
+                    {b.status === 'failed' && b.failed && !fixAsked && <Button size="sm" onClick={() => request(b.failed!.payeeId, 'bank_details')}>Fix<span className="visually-hidden"> {b.failed.name}’s bank details</span></Button>}
                   </td>
                 </tr>
               );
@@ -54,6 +67,7 @@ export function PayoutsView({ data }: { data: typeof P }) {
         </table>
       </div>
 
+      {error && <p role="alert" className={s.text} style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--critical)' }}><CircleAlert size={16} aria-hidden="true" />Not sent. {error}</p>}
       <div className={s.grid2wide}>
         <section className={s.card} aria-labelledby="tax" style={{ gap: 6 }}>
           <h2 id="tax" className={s.cardTitle} style={{ marginBottom: 8 }}>Tax forms</h2>
@@ -64,9 +78,9 @@ export function PayoutsView({ data }: { data: typeof P }) {
                 <span className={s.form}>{t.form}</span>
                 <RiskFlag risk={t.status === 'ok' ? 'low' : t.status === 'expiring' ? 'dueSoon' : 'blocked'} label={t.label} />
                 <span className={s.r}>
-                  {t.fix && (requested.has(t.name)
+                  {t.fix && (asked(t.payeeId, 'tax_form')
                     ? <span className={s.small} role="status">Request sent</span>
-                    : <button type="button" className={s.linkBtn} onClick={() => request(t.name)}>{t.fix}<span className="visually-hidden"> for {t.name}</span></button>)}
+                    : <button type="button" className={s.linkBtn} onClick={() => request(t.payeeId, 'tax_form')}>{t.fix}<span className="visually-hidden"> for {t.name}</span></button>)}
                 </span>
               </li>
             ))}

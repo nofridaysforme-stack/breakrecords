@@ -4,6 +4,8 @@ import { toCents, type Cents } from '@breakrecords/core/money';
 import { runWaterfall, type WaterfallRow } from '@breakrecords/core/waterfall';
 import type { DealTerms } from '@breakrecords/core/dealSplit';
 import { glasshouseWaterfall, payoutBatch } from './sample';
+import type { z } from 'zod';
+import type { PayoutsResponse } from '@breakrecords/contract';
 
 // ---------- 4b Royalties ----------
 export const royalties = {
@@ -48,7 +50,7 @@ const marcoOct = runWaterfall([
 
 export const statements: Record<string, Statement> = {
   'ST-2026-10-KV': {
-    id: 'ST-2026-10-KV', payee: 'Kesi Vale', payeeId: 'kesi', release: 'Glasshouse', period: 'October 2026', split: 'split v4',
+    id: 'ST-2026-10-KV', payee: 'Kesi Vale', payeeId: 'kesi-vale', release: 'Glasshouse', period: 'October 2026', split: 'split v4',
     pays: 'Jan 15 on the quarterly artist run', rows: glasshouseWaterfall, net: toCents(2346.75), auditId: 'AUD-7F3K-2302',
     simple: [
       { label: 'Glasshouse income', amount: toCents(10000) }, { label: 'Fees, producer and costs', amount: toCents(-4785) },
@@ -61,7 +63,7 @@ export const statements: Record<string, Statement> = {
     ],
   },
   'ST-2026-10-MD': {
-    id: 'ST-2026-10-MD', payee: 'Marco Dela', payeeId: 'marco', release: 'Glasshouse', period: 'October 2026', split: 'split v4',
+    id: 'ST-2026-10-MD', payee: 'Marco Dela', payeeId: 'marco-dela', release: 'Glasshouse', period: 'October 2026', split: 'split v4',
     pays: 'Nov 10', rows: marcoOct, net: toCents(285), auditId: 'AUD-7F3K-2291',
     simple: [
       { label: 'Glasshouse income', amount: toCents(10000) }, { label: 'Less platform fee', amount: toCents(-500) },
@@ -70,7 +72,7 @@ export const statements: Record<string, Statement> = {
   },
   // ASSUMED: September lines; only the $312.60 total is in frame 4g.
   'ST-2026-09-MD': {
-    id: 'ST-2026-09-MD', payee: 'Marco Dela', payeeId: 'marco', release: 'Glasshouse', period: 'September 2026', split: 'split v4',
+    id: 'ST-2026-09-MD', payee: 'Marco Dela', payeeId: 'marco-dela', release: 'Glasshouse', period: 'September 2026', split: 'split v4',
     pays: 'Oct 10', net: toCents(312.6), auditId: 'AUD-7F3K-2190',
     rows: runWaterfall([
       { kind: 'start', label: 'Glasshouse income', rule: 'Distributor, all stores', amount: toCents(10968.42), source: 'DS-0926' },
@@ -87,26 +89,28 @@ export const statements: Record<string, Statement> = {
 
 // ---------- 4d Payouts ----------
 export type BatchStatus = 'awaiting' | 'draft' | 'sent' | 'failed';
-export const payouts = {
+export type Payouts = z.infer<typeof PayoutsResponse>;
+export const payouts: Payouts = {
   minimum: toCents(25),
   batches: [
     { id: 'pb-2026-10', name: 'October 2026', payees: 6, total: payoutBatch.total, status: 'awaiting' as BatchStatus, note: '2 carried forward', approvalId: 'apr_payout_oct' },
     { id: 'pb-2026-q3', name: 'Q3 artist run', payees: 2, total: toCents(6904.15), status: 'draft' as BatchStatus, note: 'Opens Jan 15' },
     { id: 'pb-2026-09', name: 'September 2026', payees: 5, total: toCents(1018.44), status: 'sent' as BatchStatus, note: 'Sent Oct 10' },
-    { id: 'pb-2026-08', name: 'August 2026', payees: 5, total: toCents(934.02), status: 'failed' as BatchStatus, note: 'Theo Lind, bank details' },
+    { id: 'pb-2026-08', name: 'August 2026', payees: 5, total: toCents(934.02), status: 'failed' as BatchStatus, note: 'Theo Lind, bank details', failed: { payeeId: 'theo-lind', name: 'Theo Lind', reason: 'bank details' } },
     { id: 'pb-2026-07', name: 'July 2026', payees: 4, total: toCents(822.7), status: 'sent' as BatchStatus, note: 'Sent Aug 10' },
   ],
   taxForms: [
-    { name: 'Marco Dela', form: 'W-9', status: 'ok' as const, label: 'On file' },
-    { name: 'Ari Monroe', form: 'W-9', status: 'ok' as const, label: 'On file' },
-    { name: 'Theo Lind', form: 'W-8BEN', status: 'ok' as const, label: 'On file' },
-    { name: 'Rue Sato', form: 'W-9', status: 'expiring' as const, label: 'Expires Dec 1', fix: 'Request new' },
-    { name: 'Jules Arden', form: 'None', status: 'missing' as const, label: 'Missing', fix: 'Request form' },
+    { payeeId: 'marco-dela', name: 'Marco Dela', form: 'W-9', status: 'ok' as const, label: 'On file' },
+    { payeeId: 'ari-monroe', name: 'Ari Monroe', form: 'W-9', status: 'ok' as const, label: 'On file' },
+    { payeeId: 'theo-lind', name: 'Theo Lind', form: 'W-8BEN', status: 'ok' as const, label: 'On file' },
+    { payeeId: 'rue-sato', name: 'Rue Sato', form: 'W-9', status: 'expiring' as const, label: 'Expires Dec 1', fix: 'Request new' },
+    { payeeId: 'jules-arden', name: 'Jules Arden', form: 'None', status: 'missing' as const, label: 'Missing', fix: 'Request form' },
   ],
   carryForward: [
     { name: 'Jules Arden', role: 'Session bass', amount: payoutBatch.carryForward[0].amount },
     { name: 'Pia Novak', role: 'Artwork, 0.5 pt', amount: payoutBatch.carryForward[1].amount },
   ],
+  requests: [] as { payeeId: string; kind: 'tax_form' | 'bank_details' }[],
 };
 
 // ---------- 4e Recoupment ----------
@@ -165,15 +169,15 @@ export type Payee = {
   id: string; first: string; name: string; label: string; labelShort: string;
   earned: Cents; paid: Cents; next: { amount: Cents; date: string; from: string };
   tax: { ok: boolean; label: string; form: string; expires?: string };
-  bank: { last4: string; name: string };
+  bank: { last4: string; name: string } | null;
   statementIds: string[];
   splits: { title: string; meta: string; terms: string; status: 'signed' | 'waiting'; note: string; v5?: boolean }[];
   signPrompt: { title: string; text: string };
 };
 
 export const payees: Record<string, Payee> = {
-  marco: {
-    id: 'marco', first: 'Marco', name: 'Marco Dela', label: 'Northline Records', labelShort: 'Northline',
+  'marco-dela': {
+    id: 'marco-dela', first: 'Marco', name: 'Marco Dela', label: 'Northline Records', labelShort: 'Northline',
     earned: toCents(1146.3), paid: toCents(861.3), next: { amount: toCents(285), date: 'Nov 10', from: 'From Glasshouse, October. 3 points.' },
     tax: { ok: true, label: 'W-9 on file', form: 'W-9', expires: 'No expiry' },
     bank: { last4: '4821', name: 'Checking' }, // ASSUMED
@@ -186,8 +190,8 @@ export const payees: Record<string, Payee> = {
     signPrompt: { title: 'Glasshouse split v5 needs your signature', text: 'Your 3 points don\u2019t change. Kesi\u2019s share does.' },
   },
   // Frame 4h shows Kesi's statement, so Kesi has a portal too. ASSUMED: earned and paid totals.
-  kesi: {
-    id: 'kesi', first: 'Kesi', name: 'Kesi Vale', label: 'Northline Records', labelShort: 'Northline',
+  'kesi-vale': {
+    id: 'kesi-vale', first: 'Kesi', name: 'Kesi Vale', label: 'Northline Records', labelShort: 'Northline',
     earned: toCents(2346.75), paid: 0, next: { amount: toCents(2346.75), date: 'Jan 15', from: 'From Glasshouse, October. 50% of net profit, less feature.' },
     tax: { ok: true, label: 'W-9 on file', form: 'W-9', expires: 'No expiry' },
     bank: { last4: '0917', name: 'Checking' },

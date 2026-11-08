@@ -42,6 +42,14 @@ async function main() {
         ON CONFLICT (email, tenant_id) DO UPDATE SET role = EXCLUDED.role, party_slug = EXCLUDED.party_slug`;
     }
 
+    // Payouts and statements point at parties, recordings and split versions, and batches at approvals, so they go first.
+    for (const t of [ids.northline, ids['harbor-sound']]) {
+      for (const table of ['payout_batches', 'payee_requests', 'payees', 'recoupment_accounts', 'payout_policies']) {
+        await tx.unsafe(`DELETE FROM ${table} WHERE tenant_id = $1`, [t]);
+      }
+      await tx`DELETE FROM payee_statements WHERE tenant_id = ${t}`;
+      await tx`DELETE FROM income_statements WHERE tenant_id = ${t}`;
+    }
     // Agent-prepared approvals with what the person is shown, frozen in `detail`.
     await tx`DELETE FROM approvals WHERE tenant_id = ${ids.northline} AND origin = 'agent'`;
     for (const a of items) {
@@ -55,17 +63,14 @@ async function main() {
     await tx`DELETE FROM approvals WHERE tenant_id = ${ids['harbor-sound']} AND origin = 'agent'`;
     await tx`INSERT INTO approvals (tenant_id, id, origin, type, title, agent, due, due_on, impact, risk, context)
       VALUES (${ids['harbor-sound']}, 'apr_harbor_payout', 'agent', 'money', 'Payout batch for October', 'Royalties Agent', 'Nov 12', '2026-11-12', '$842.10 to 4 payees', 'low', 'October statements')`;
-    // Statements point at parties, recordings and split versions, so they go first.
-    for (const t of [ids.northline, ids['harbor-sound']]) {
-      await tx`DELETE FROM payee_statements WHERE tenant_id = ${t}`;
-      await tx`DELETE FROM income_statements WHERE tenant_id = ${t}`;
-    }
     await seedCatalog(tx, ids.northline);
     await seedRights(tx, ids.northline);
     await seedSplits(tx, ids.northline);
     await seedHarborCatalog(tx, ids['harbor-sound']);
     await seedStatements(tx, ids.northline);
     await seedHarborStatements(tx, ids['harbor-sound']);
+    await seedPayouts(tx, ids.northline);
+    await seedHarborPayouts(tx, ids['harbor-sound']);
   });
   console.log(`Seeded Northline and Harbor Sound; ${PEOPLE.length} people allowlisted.`);
   await sql.end();
@@ -363,6 +368,95 @@ async function seedHarborStatements(tx: Tx, tenant: string) {
   const rows = [{ kind: 'start', label: 'Tidal Lines income', rule: 'Distributor, all stores', amount: 84210, source: 'HS-1026', balance: 84210 }];
   await tx`INSERT INTO payee_statements (tenant_id, ref, party_id, period, pays_on, rows, net_cents, simple, audit_ref)
     VALUES (${tenant}, 'ST-2026-10-MQ', ${party.id}, '2026-10-01', '2026-11-12', ${tx.json(rows as never)}, 84210, ${tx.json([] as never)}, 'AUD-HS-0001')`;
+}
+
+// ---------- Payouts and recoupment (4d, 4e, portal) ----------
+// Batches from 4d with lines that add up to each total; the October lines are the 2e approval's
+// payees. ASSUMED: how the July to September totals and the Q3 run divide between payees, bank
+// digits other than Marco's and Kesi's, and Night Bus's recoupment history.
+type Line = [party: string, role: string, dollars: number, status?: 'included' | 'carried' | 'paid' | 'failed', statement?: string];
+const BATCHES: { slug: string; name: string; cadence: 'monthly' | 'quarterly'; period: string; pays: string; status: 'draft' | 'awaiting' | 'sent' | 'failed'; approval?: string; sent?: string; lines: Line[] }[] = [
+  { slug: 'pb-2026-10', name: 'October 2026', cadence: 'monthly', period: '2026-10-01', pays: '2026-11-10', status: 'awaiting', approval: 'apr_payout_oct', lines: [
+    ['marco-dela', 'Producer, 3 points', 285, 'included', 'ST-2026-10-MD'], ['ari-monroe', 'Feature, 10% of artist share', 260.75],
+    ['dana-okafor', 'The Low Hours', 214.2], ['theo-lind', 'The Low Hours', 214.2], ['rue-sato', 'The Low Hours', 214.2], ['ines-pardo', 'Mix engineer, 1 point', 51.83],
+    ['jules-arden', 'Session bass', 18.4, 'carried'], ['pia-novak', 'Artwork, 0.5 pt', 9.12, 'carried'],
+  ] },
+  { slug: 'pb-2026-q3', name: 'Q3 artist run', cadence: 'quarterly', period: '2026-10-01', pays: '2027-01-15', status: 'draft', lines: [
+    ['kesi-vale', 'Artist, 50% of net profit', 2346.75, 'included', 'ST-2026-10-KV'], ['the-low-hours', 'Artist, 50% of net profit', 4557.4],
+  ] },
+  { slug: 'pb-2026-09', name: 'September 2026', cadence: 'monthly', period: '2026-09-01', pays: '2026-10-10', status: 'sent', sent: '2026-10-10', lines: [
+    ['marco-dela', 'Producer, 3 points', 312.6, 'paid', 'ST-2026-09-MD'], ['ari-monroe', 'Feature, 10% of artist share', 280.12, 'paid'],
+    ['dana-okafor', 'The Low Hours', 141.9, 'paid'], ['theo-lind', 'The Low Hours', 141.91, 'paid'], ['rue-sato', 'The Low Hours', 141.91, 'paid'],
+  ] },
+  { slug: 'pb-2026-08', name: 'August 2026', cadence: 'monthly', period: '2026-08-01', pays: '2026-09-10', status: 'failed', sent: '2026-09-10', lines: [
+    ['marco-dela', 'Producer, 3 points', 290, 'paid'], ['ari-monroe', 'Feature, 10% of artist share', 250, 'paid'],
+    ['dana-okafor', 'The Low Hours', 131.34, 'paid'], ['theo-lind', 'The Low Hours', 131.34, 'failed'], ['rue-sato', 'The Low Hours', 131.34, 'paid'],
+  ] },
+  { slug: 'pb-2026-07', name: 'July 2026', cadence: 'monthly', period: '2026-07-01', pays: '2026-08-10', status: 'sent', sent: '2026-08-10', lines: [
+    ['marco-dela', 'Producer, 3 points', 258.7, 'paid'], ['ari-monroe', 'Feature, 10% of artist share', 240, 'paid'],
+    ['dana-okafor', 'The Low Hours', 162, 'paid'], ['rue-sato', 'The Low Hours', 162, 'paid'],
+  ] },
+];
+// Tax forms from 4d; everyone else on file with a W-9.
+const PAYEES: { slug: string; name: string; cadence?: 'quarterly'; form: string | null; expires?: string; bank: [string, string] | null; openingEarned?: number }[] = [
+  { slug: 'marco-dela', name: 'Marco Dela', form: 'W-9', bank: ['4821', 'Checking'], openingEarned: 548.7 }, // Jul and Aug, before statements were on the platform
+  { slug: 'ari-monroe', name: 'Ari Monroe', form: 'W-9', bank: ['3310', 'Checking'] },
+  { slug: 'theo-lind', name: 'Theo Lind', form: 'W-8BEN', bank: ['7702', 'Checking'] },
+  { slug: 'rue-sato', name: 'Rue Sato', form: 'W-9', expires: '2026-12-01', bank: ['1184', 'Checking'] },
+  { slug: 'jules-arden', name: 'Jules Arden', form: null, bank: null },
+  { slug: 'kesi-vale', name: 'Kesi Vale', cadence: 'quarterly', form: 'W-9', bank: ['0917', 'Checking'] },
+  { slug: 'the-low-hours', name: 'The Low Hours', cadence: 'quarterly', form: 'W-9', bank: ['5530', 'Business checking'] },
+  { slug: 'dana-okafor', name: 'Dana Okafor', form: 'W-9', bank: ['2206', 'Checking'] },
+  { slug: 'ines-pardo', name: 'Ines Pardo', form: 'W-9', bank: ['6418', 'Savings'] },
+  { slug: 'pia-novak', name: 'Pia Novak', form: 'W-9', bank: ['9051', 'Checking'] },
+];
+
+async function seedPayouts(tx: Tx, tenant: string) {
+  await tx`INSERT INTO payout_policies (tenant_id, minimum_cents) VALUES (${tenant}, 2500)`;
+  const party: Record<string, string> = {};
+  for (const p of PAYEES) {
+    const [row] = await tx`INSERT INTO parties (tenant_id, slug, name) VALUES (${tenant}, ${p.slug}, ${p.name})
+      ON CONFLICT (tenant_id, slug) DO UPDATE SET name = EXCLUDED.name RETURNING id`;
+    party[p.slug] = row.id;
+    await tx`INSERT INTO payees (tenant_id, party_id, cadence, tax_form, tax_expires_on, bank_last4, bank_name, opening_earned_cents)
+      VALUES (${tenant}, ${row.id}, ${p.cadence ?? 'monthly'}, ${p.form}, ${p.expires ?? null}, ${p.bank?.[0] ?? null}, ${p.bank?.[1] ?? null}, ${Math.round((p.openingEarned ?? 0) * 100)})`;
+  }
+  for (const b of BATCHES) {
+    const history = b.status === 'sent' || b.status === 'failed';
+    const [row] = await tx`INSERT INTO payout_batches (tenant_id, slug, name, cadence, period, pays_on, status, approval_id, imported, sent_at)
+      VALUES (${tenant}, ${b.slug}, ${b.name}, ${b.cadence}, ${b.period}, ${b.pays}, ${b.status}, ${b.approval ?? null}, ${history}, ${b.sent ?? null}) RETURNING id`;
+    for (const [slug, role, dollars, status = 'included', ref] of b.lines) {
+      const st = ref ? (await tx`SELECT id FROM payee_statements WHERE tenant_id = ${tenant} AND ref = ${ref}`)[0].id : null;
+      await tx`INSERT INTO payout_lines (tenant_id, batch_id, party_id, statement_id, role, amount_cents, status, failure)
+        VALUES (${tenant}, ${row.id}, ${party[slug]}, ${st}, ${role}, ${Math.round(dollars * 100)}, ${status}, ${status === 'failed' ? 'bank details' : null})`;
+    }
+  }
+  // 4e. Glasshouse recouped its $4,000.00 in October (the 4c waterfall); Night Bus is still recouping.
+  const RECOUP = [
+    { release: 'rel_glasshouse', advance: 0, projected: null, costs: [['Recording', 2200, 10000], ['Mix and master', 800, 10000], ['Artwork', 400, 10000], ['Marketing', 1200, 5000]],
+      entries: [['2026-10-01', 4000, 'DS-1026']] },
+    { release: 'rel_nightbus', advance: 5000, projected: '2027-08-01', costs: [['Recording', 1800, 10000], ['Mix and master', 650, 10000], ['Video', 1000, 5000], ['Tour support', 250, 10000]],
+      entries: [['2025-09-01', 900, 'DS-0925'], ['2026-01-01', 850, 'DS-0126'], ['2026-06-01', 700, 'DS-0626'], ['2026-10-01', 600, 'DS-1026']] },
+  ] as const;
+  for (const r of RECOUP) {
+    const [rel] = await tx`SELECT id FROM releases WHERE tenant_id = ${tenant} AND slug = ${r.release}`;
+    const [a] = await tx`INSERT INTO recoupment_accounts (tenant_id, release_id, advance_cents, projected_on) VALUES (${tenant}, ${rel.id}, ${r.advance * 100}, ${r.projected}) RETURNING id`;
+    for (const [category, cost, share] of r.costs) {
+      await tx`INSERT INTO recoupable_costs (tenant_id, account_id, category, cost_cents, share_bp) VALUES (${tenant}, ${a.id}, ${category}, ${cost * 100}, ${share})`;
+    }
+    for (const [period, dollars, source] of r.entries) {
+      await tx`INSERT INTO recoupment_entries (tenant_id, account_id, period, amount_cents, source) VALUES (${tenant}, ${a.id}, ${period}, ${dollars * 100}, ${source})`;
+    }
+  }
+}
+
+/** One payee and a draft batch for the second label, for cross-tenant checks. */
+async function seedHarborPayouts(tx: Tx, tenant: string) {
+  const [p] = await tx`SELECT id FROM parties WHERE tenant_id = ${tenant} AND slug = 'mara-quill'`;
+  await tx`INSERT INTO payees (tenant_id, party_id, tax_form, bank_last4, bank_name) VALUES (${tenant}, ${p.id}, 'W-9', '4400', 'Checking')`;
+  const [b] = await tx`INSERT INTO payout_batches (tenant_id, slug, name, cadence, period, pays_on, status) VALUES (${tenant}, 'hs-2026-10', 'October 2026', 'monthly', '2026-10-01', '2026-11-12', 'draft') RETURNING id`;
+  const [st] = await tx`SELECT id FROM payee_statements WHERE tenant_id = ${tenant} AND ref = 'ST-2026-10-MQ'`;
+  await tx`INSERT INTO payout_lines (tenant_id, batch_id, party_id, statement_id, role, amount_cents) VALUES (${tenant}, ${b.id}, ${p.id}, ${st.id}, 'Artist', 84210)`;
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

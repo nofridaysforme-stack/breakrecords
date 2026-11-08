@@ -15,7 +15,7 @@ export function ProfileView({ p }: { p: Payee }) {
       <h1 className={s.h1}>Profile</h1>
       <section className={s.card} aria-labelledby="bank" style={{ maxWidth: 560 }}>
         <h2 id="bank" className={s.cardTitle}>Bank details</h2>
-        <p className={s.promptText}>Payments go to {p.bank.name.toLowerCase()} ending {saved ?? p.bank.last4}.</p>
+        <p className={s.promptText}>{saved || p.bank ? `Payments go to ${p.bank ? p.bank.name.toLowerCase() : 'the account'} ending ${saved ?? p.bank!.last4}.` : 'No bank account on file yet. Add one to get paid.'}</p>
         <form className={s.form} onSubmit={(e) => { e.preventDefault(); if (valid) { setSaved(account.slice(-4)); setRouting(''); setAccount(''); } }}>
           <label className={s.field}>Routing number<input className={s.input} inputMode="numeric" autoComplete="off" value={routing} onChange={(e) => setRouting(e.target.value.replace(/\D/g, ''))} maxLength={9} /></label>
           <label className={s.field}>Account number<input className={s.input} inputMode="numeric" autoComplete="off" value={account} onChange={(e) => setAccount(e.target.value.replace(/\D/g, ''))} maxLength={17} /></label>

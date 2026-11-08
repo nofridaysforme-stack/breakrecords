@@ -13,5 +13,5 @@ type Props = { searchParams: Promise<{ state?: string }> };
 
 export default async function RecoupmentPage({ searchParams }: Props) {
   const scenario = toScenario((await searchParams).state);
-  return <Page><MoneyTabs /><ScreenState scenario={scenario} copy={STATES.recoupment} heading="Recoupment"><RecoupmentView items={getRecoupment()} /></ScreenState></Page>;
+  return <Page><MoneyTabs /><ScreenState scenario={scenario} copy={STATES.recoupment} heading="Recoupment"><RecoupmentView items={await getRecoupment()} /></ScreenState></Page>;
 }

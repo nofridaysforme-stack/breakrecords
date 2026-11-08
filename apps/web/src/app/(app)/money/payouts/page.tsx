@@ -13,5 +13,5 @@ type Props = { searchParams: Promise<{ state?: string }> };
 
 export default async function PayoutsPage({ searchParams }: Props) {
   const scenario = toScenario((await searchParams).state);
-  return <Page><MoneyTabs /><ScreenState scenario={scenario} copy={STATES.payouts} heading="Payouts"><PayoutsView data={getPayouts()} /></ScreenState></Page>;
+  return <Page><MoneyTabs /><ScreenState scenario={scenario} copy={STATES.payouts} heading="Payouts"><PayoutsView data={await getPayouts()} /></ScreenState></Page>;
 }

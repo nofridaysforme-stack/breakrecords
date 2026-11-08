@@ -9,7 +9,7 @@ import type { DealTerms } from '@breakrecords/core/dealSplit';
 
 const NODE = 'gh-rec';
 /** Which line of the split each sample payee signs. */
-const ROLE: Record<string, 'producer' | 'artist'> = { marco: 'producer', kesi: 'artist' };
+const ROLE: Record<string, 'producer' | 'artist'> = { 'marco-dela': 'producer', 'kesi-vale': 'artist' };
 
 export function useV5() {
   const [deal, setDeal] = useState<SplitNodeResponse | null>(null);

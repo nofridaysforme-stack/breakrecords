@@ -94,12 +94,12 @@ test.describe('desktop only', () => {
 test('a payee only sees their own statements', async ({ page }) => {
   await page.goto('/portal/statements/ST-2026-10-KV');
   await expect(page.getByText(/404|could not be found/i).first()).toBeVisible();
-  await page.goto('/portal/statements/ST-2026-10-KV?as=kesi');
+  await page.goto('/portal/statements/ST-2026-10-KV?as=kesi-vale');
   await expect(page.getByRole('heading', { level: 1 })).toContainText('$2,346.75');
 });
 
 test('portal statement explains itself', async ({ page }) => {
-  await page.goto('/portal/statements/ST-2026-10-KV?as=kesi');
+  await page.goto('/portal/statements/ST-2026-10-KV?as=kesi-vale');
   await page.getByRole('button', { name: 'Why this amount?' }).click();
   await expect(page.getByRole('dialog')).toContainText('this is the month Glasshouse recouped');
 });

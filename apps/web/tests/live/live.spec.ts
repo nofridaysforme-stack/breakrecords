@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ApprovalError, ApprovalState, CatalogResponse, ENDPOINTS, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, CatalogResponse, ENDPOINTS, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 
@@ -332,5 +332,84 @@ test.describe('statements (live)', () => {
     const audit = await db`SELECT ref, data FROM audit_events WHERE kind = 'income_lines.matched'`;
     await db.end();
     expect(audit).toEqual([{ ref: 'USNL1250031', data: { recording: 'night-bus', lines: 24, cents: 3840 } }]);
+  });
+});
+
+test.describe('payouts (live)', () => {
+  test('batches, tax forms and carry-forward are computed from the lines', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    const p = PayoutsResponse.parse(await (await page.request.get('/api/money/payouts')).json());
+    expect(p.batches.map((b) => [b.id, b.payees, b.total, b.status, b.note])).toEqual([
+      ['pb-2026-10', 6, 124018, 'awaiting', '2 carried forward'], ['pb-2026-q3', 2, 690415, 'draft', 'Opens Jan 15'],
+      ['pb-2026-09', 5, 101844, 'sent', 'Sent Oct 10'], ['pb-2026-08', 5, 93402, 'failed', 'Theo Lind, bank details'], ['pb-2026-07', 4, 82270, 'sent', 'Sent Aug 10'],
+    ]);
+    expect(p.carryForward).toEqual([{ name: 'Jules Arden', role: 'Session bass', amount: 1840 }, { name: 'Pia Novak', role: 'Artwork, 0.5 pt', amount: 912 }]);
+    expect(p.taxForms.filter((t) => t.status !== 'ok').map((t) => [t.name, t.label, t.fix])).toEqual([['Rue Sato', 'Expires Dec 1', 'Request new'], ['Jules Arden', 'Missing', 'Request form']]);
+    const r = RecoupmentResponse.parse(await (await page.request.get('/api/money/recoupment')).json());
+    expect(r.items.map((i) => [i.id, i.recouped, i.recoupedIn ?? i.projected])).toEqual([['rel_glasshouse', 400000, 'Oct 2026'], ['rel_nightbus', 305000, 'Aug 2027']]);
+  });
+
+  test('requests and costs are saved for the label and audited', async ({ page, browser }) => {
+    await signIn(page, USERS.owner);
+    await page.goto('/money/payouts');
+    await page.getByRole('button', { name: 'Request form for Jules Arden' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Request sent' })).toBeVisible();
+    await page.getByRole('button', { name: 'Fix Theo Lind’s bank details' }).click();
+    await expect(page.getByText('Asked Theo for new bank details')).toBeVisible();
+
+    await page.goto('/money/recoupment');
+    await page.getByRole('button', { name: 'Add a cost' }).click();
+    const form = page.getByRole('dialog', { name: 'Add a cost' });
+    await form.getByLabel('Release').selectOption('rel_nightbus');
+    await form.getByLabel('Category').fill('Radio promo');
+    await form.getByLabel('Full cost in dollars').fill('300');
+    await form.getByLabel('Recoupable share').selectOption('50');
+    await form.getByRole('button', { name: 'Add cost' }).click();
+    await expect(form).toBeHidden();
+    await expect(page.getByRole('region', { name: 'Night Bus EP costs by category' })).toContainText('Radio promo');
+
+    const jana = await (await browser.newContext()).newPage();
+    await signIn(jana, USERS.jana);
+    await jana.goto('/money/payouts');
+    await expect(jana.getByText('Asked Theo for new bank details')).toBeVisible();
+    await expect(jana.getByRole('status').filter({ hasText: 'Request sent' })).toHaveCount(1);
+    const items = RecoupmentResponse.parse(await (await jana.request.get('/api/money/recoupment')).json()).items;
+    expect(items.find((i) => i.id === 'rel_nightbus')?.costs.at(-1)).toEqual({ category: 'Radio promo', cost: 30000, shareBp: 5000 });
+    const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+    const audit = await db`SELECT kind, ref FROM audit_events WHERE kind IN ('payee_request.created', 'recoupable_cost.added') ORDER BY id`;
+    await db.end();
+    expect(audit).toEqual([{ kind: 'payee_request.created', ref: 'jules-arden' }, { kind: 'payee_request.created', ref: 'theo-lind' }, { kind: 'recoupable_cost.added', ref: 'rel_nightbus' }]);
+  });
+
+  test('the portal is built from the payee’s own rows', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    const kesi = PayeeResponse.parse(await (await page.request.get('/api/portal/kesi-vale')).json());
+    expect(kesi).toMatchObject({ earned: 234675, paid: 0, next: { amount: 234675, date: 'Jan 15', from: 'From Glasshouse, October. 50% of net profit, less feature.' } });
+    expect(kesi.signPrompt.text).toBe('Your share goes up from 43.65% to 48.02% of recording income.');
+  });
+
+  test('a payee sees only their own portal and none of the label’s payouts', async ({ page }) => {
+    await signIn(page, USERS.payee);
+    const me = PayeeResponse.parse(await (await page.request.get('/api/portal/marco-dela')).json());
+    expect(me).toMatchObject({ name: 'Marco Dela', earned: 114630, paid: 86130, next: { amount: 28500, date: 'Nov 10', from: 'From Glasshouse, October. 3 points.' }, bank: { last4: '4821' } });
+    expect(me.statementIds).toEqual(['ST-2026-10-MD', 'ST-2026-09-MD']);
+    expect((await page.request.get('/api/portal/kesi-vale')).status()).toBe(404);
+    for (const path of ['/api/money/payouts', '/api/money/recoupment']) expect((await page.request.get(path)).status()).toBe(403);
+    expect((await page.request.post('/api/money/payouts/requests', { data: { payeeId: 'jules-arden', kind: 'tax_form' } })).status()).toBe(403);
+    await page.goto('/portal?as=kesi-vale'); // ignored: a payee always sees themselves
+    await expect(page.getByRole('heading', { name: /Hi Marco\. Your next payment is \$285\.00 on Nov 10\./ })).toBeVisible();
+    await page.goto('/portal/profile');
+    await expect(page.getByText('Payments go to checking ending 4821.')).toBeVisible();
+  });
+
+  test('cross-tenant: Harbor Sound sees only its own payouts and payees', async ({ page }) => {
+    await signIn(page, USERS.harbor);
+    const p = PayoutsResponse.parse(await (await page.request.get('/api/money/payouts')).json());
+    expect(p.batches.map((b) => [b.id, b.total])).toEqual([['hs-2026-10', 84210]]);
+    expect(p.taxForms.map((t) => t.name)).toEqual(['Mara Quill']);
+    expect(RecoupmentResponse.parse(await (await page.request.get('/api/money/recoupment')).json()).items).toEqual([]);
+    expect((await page.request.get('/api/portal/marco-dela')).status()).toBe(404);
+    expect((await page.request.post('/api/money/payouts/requests', { data: { payeeId: 'jules-arden', kind: 'tax_form' } })).status()).toBe(404);
+    expect((await page.request.post('/api/money/recoupment/costs', { data: { releaseId: 'rel_nightbus', category: 'x', cost: 100, shareBp: 100 } })).status()).toBe(404);
   });
 });
