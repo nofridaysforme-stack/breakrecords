@@ -73,6 +73,7 @@ async function main() {
     await seedPayouts(tx, ids.northline);
     await seedRunbooks(tx, ids.northline);
     await seedContracts(tx, ids.northline);
+    await seedRoster(tx, ids.northline);
     await seedHarborPayouts(tx, ids['harbor-sound']);
   });
   console.log(`Seeded Northline and Harbor Sound; ${PEOPLE.length} people allowlisted.`);
@@ -529,6 +530,15 @@ async function seedContracts(tx: Tx, tenant: string) {
       const [p] = await tx`SELECT id FROM parties WHERE tenant_id = ${tenant} AND slug = ${slug}`;
       await tx`INSERT INTO agreement_parties (tenant_id, agreement_id, party_id, signers, signed_at, position) VALUES (${tenant}, ${row.id}, ${p.id}, ${signers}, ${signed}, ${i})`;
     }
+  }
+}
+
+/** The roster: who the label works with and in what role. Everything else on a card is read from other tables. */
+async function seedRoster(tx: Tx, tenant: string) {
+  await tx`DELETE FROM roster_members WHERE tenant_id = ${tenant}`;
+  for (const [i, [slug, role, joined]] of ([['kesi-vale', 'Solo artist', '2024-03-06'], ['the-low-hours', 'Band', '2025-01-09'], ['marco-dela', 'Producer and writer', '2024-05-01']] as const).entries()) {
+    const [p] = await tx`SELECT id FROM parties WHERE tenant_id = ${tenant} AND slug = ${slug}`;
+    await tx`INSERT INTO roster_members (tenant_id, party_id, role, position, joined_on) VALUES (${tenant}, ${p.id}, ${role}, ${i}, ${joined})`;
   }
 }
 

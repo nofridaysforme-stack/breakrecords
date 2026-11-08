@@ -398,4 +398,15 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       await expect(asA((tx) => tx`DELETE FROM contract_reviews`)).rejects.toThrow(/permission denied/);
     });
   });
+  describe('roster', () => {
+    it('only the label’s team sees who is on the roster', async () => {
+      const [{ id: kesi }] = await owner`SELECT id FROM parties WHERE tenant_id = ${ids.a} AND slug = 'kesi'`;
+      await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`INSERT INTO roster_members (tenant_id, party_id, role) VALUES (${ids.a}, ${kesi}, 'Solo artist')`);
+      expect(await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT role FROM roster_members`)).toHaveLength(1);
+      expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT 1 FROM roster_members`)).toHaveLength(0);
+      expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT 1 FROM roster_members`)).toHaveLength(0);
+      await expect(withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) =>
+        tx`INSERT INTO roster_members (tenant_id, party_id, role) VALUES (${ids.b}, ${kesi}, 'Poached')`)).rejects.toThrow(/cross-tenant reference|duplicate key/);
+    });
+  });
 });

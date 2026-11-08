@@ -8,7 +8,7 @@ import o from '@/components/ops/Ops.module.css';
 import s from './Roster.module.css';
 
 /** Roster (undrawn): one card per artist, built from the catalog and contract parts. */
-export function RosterView({ artists }: { artists: ReturnType<typeof getRoster> }) {
+export function RosterView({ artists }: { artists: Awaited<ReturnType<typeof getRoster>> }) {
   return (
     <>
       <div className={o.head}>
