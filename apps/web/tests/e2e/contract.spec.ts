@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ApprovalError, ApprovalState, ENDPOINTS, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, ContractsResponse, ENDPOINTS, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
 
 // The API contract over HTTP. Any server behind the UI, mock or live, must pass this file.
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
@@ -188,5 +188,18 @@ test.describe('payout writes', () => {
   });
   test('an unknown payee is a 404', async ({ request }) => {
     expect((await request.get('/api/portal/nobody')).status()).toBe(404);
+  });
+});
+
+test.describe('contract writes', () => {
+  test('a contract sent for review is recorded for the session', async ({ request }) => {
+    const res = await request.post('/api/contracts/reviews', { data: { fileName: 'Sync offer, Netflix.pdf' } });
+    expect(res.status()).toBe(200);
+    expect(ContractsResponse.parse(await res.json()).reviews[0]).toMatchObject({ fileName: 'Sync offer, Netflix.pdf', status: 'queued' });
+    expect(ContractsResponse.parse(await (await request.get('/api/contracts')).json()).reviews).toHaveLength(1);
+  });
+  test('only PDF and Word files', async ({ request }) => {
+    expect((await request.post('/api/contracts/reviews', { data: { fileName: 'deal.exe' } })).status()).toBe(400);
+    expect((await request.post('/api/contracts/reviews', { data: {} })).status()).toBe(400);
   });
 });

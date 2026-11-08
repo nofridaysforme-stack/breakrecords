@@ -10,7 +10,7 @@ import type { SigState } from '@/data/ops';
 import o from '@/components/ops/Ops.module.css';
 import s from './Contracts.module.css';
 
-type Data = ReturnType<typeof getContracts>;
+type Data = Awaited<ReturnType<typeof getContracts>>;
 
 const SIG: Record<SigState, { Icon: typeof Check; cls: string }> = {
   waiting: { Icon: CircleAlert, cls: o.critical },
@@ -19,11 +19,23 @@ const SIG: Record<SigState, { Icon: typeof Check; cls: string }> = {
 };
 
 /** 5b. Agreements with key dates and signatures, then the templates they come from. */
-export function ContractsView({ data }: { data: Data }) {
+export function ContractsView({ data: initial }: { data: Data }) {
   const draft = useRef<HTMLDialogElement>(null);
   const upload = useRef<HTMLDialogElement>(null);
-  const [uploaded, setUploaded] = useState<string | null>(null);
+  const [data, setData] = useState(initial);
   const [file, setFile] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const uploaded = data.reviews.find((r) => r.status === 'queued')?.fileName ?? null;
+  // Records the review request on the server; Legal Agent picks it up.
+  async function sendForReview() {
+    setError(null);
+    try {
+      const res = await fetch('/api/contracts/reviews', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fileName: file }) });
+      const body = await res.json();
+      if (!res.ok) { setError(body.message ?? 'That file wasn’t sent.'); return; }
+      setData(body); setFile(''); upload.current?.close();
+    } catch { setError('Couldn’t reach the server. Nothing was sent.'); }
+  }
 
   return (
     <>
@@ -81,12 +93,13 @@ export function ContractsView({ data }: { data: Data }) {
 
       <dialog ref={upload} className={o.drawer} aria-labelledby="up-h" onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close(); }}>
         <div className={o.drawerHead}><h2 id="up-h" className={o.drawerTitle}>Upload a contract for review</h2><button type="button" className={o.iconBtn} aria-label="Close" onClick={() => upload.current?.close()}><X size={16} aria-hidden="true" /></button></div>
-        <form className={o.form} onSubmit={(e) => { e.preventDefault(); if (file) { setUploaded(file); setFile(''); upload.current?.close(); } }}>
+        <form className={o.form} onSubmit={(e) => { e.preventDefault(); if (file) void sendForReview(); }}>
           <label className={o.drop}>
             <span><Upload size={18} aria-hidden="true" style={{ display: 'block', margin: '0 auto 8px' }} />{file || 'Drop a PDF or Word file, or choose one'}</span>
             <input type="file" accept=".pdf,.doc,.docx" className="visually-hidden" onChange={(e) => setFile(e.target.files?.[0]?.name ?? '')} />
           </label>
           <p className={o.small}>Legal Agent compares it with your playbook and flags terms. It doesn&apos;t sign or reply to anyone.</p>
+          {error && <p className={o.small} role="alert" style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--critical)' }}><CircleAlert size={14} aria-hidden="true" />{error}</p>}
           <div className={o.formActions}>
             <Button variant="primary" type="submit" disabled={!file} disabledReason="Choose a file first.">Send for review</Button>
             <Button onClick={() => upload.current?.close()}>Cancel</Button>

@@ -369,4 +369,33 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       await expect(asA((tx) => tx`UPDATE release_pitches SET char_limit = 5 WHERE release_id = ${rel}`)).rejects.toThrow(/check constraint/);
     });
   });
+  describe('contracts', () => {
+    let agreement = ''; let tpl = '';
+    beforeAll(async () => {
+      [{ id: tpl }] = await owner`INSERT INTO contract_templates (tenant_id, slug, name, version, updated_on, summary, clauses)
+        VALUES (${ids.a}, 'producer', 'Producer agreement', 'v3', '2026-08-14', 'Points.', ${owner.json([])}) RETURNING id`;
+      [{ id: agreement }] = await owner`INSERT INTO agreements (tenant_id, slug, name, source, template_id, terms, approval_id)
+        VALUES (${ids.a}, 'ct_a', 'Producer agreement', 'template', ${tpl}, '3 points', 'apr_a') RETURNING id`;
+    });
+
+    it('the label’s team sees its contracts; payees and other labels see none', async () => {
+      expect(await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT slug FROM agreements`)).toHaveLength(1);
+      for (const who of [{ userId: ids.payee, tenantId: ids.a }, { userId: ids.ub, tenantId: ids.b }]) {
+        for (const t of ['agreements', 'agreement_parties', 'contract_templates', 'contract_reviews']) {
+          expect(await withTenant(app, who, (tx) => tx.unsafe(`SELECT 1 FROM ${t}`))).toHaveLength(0);
+        }
+      }
+      const [{ id: theirs }] = await owner`SELECT id FROM parties WHERE tenant_id = ${ids.b} LIMIT 1`;
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) =>
+        tx`INSERT INTO agreement_parties (tenant_id, agreement_id, party_id) VALUES (${ids.a}, ${agreement}, ${theirs})`)).rejects.toThrow(/cross-tenant reference/);
+    });
+
+    it('a template agreement names its template, and a review is a PDF or Word file that stays on record', async () => {
+      const asA = <T,>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(app, { userId: ids.ua, tenantId: ids.a }, fn);
+      await expect(asA((tx) => tx`INSERT INTO agreements (tenant_id, slug, name, source) VALUES (${ids.a}, 'ct_b', 'No template', 'template')`)).rejects.toThrow(/check constraint/);
+      await expect(asA((tx) => tx`INSERT INTO contract_reviews (tenant_id, file_name) VALUES (${ids.a}, 'deal.exe')`)).rejects.toThrow(/check constraint/);
+      await asA((tx) => tx`INSERT INTO contract_reviews (tenant_id, file_name, requested_by) VALUES (${ids.a}, 'Sync offer.pdf', ${ids.ua})`);
+      await expect(asA((tx) => tx`DELETE FROM contract_reviews`)).rejects.toThrow(/permission denied/);
+    });
+  });
 });
