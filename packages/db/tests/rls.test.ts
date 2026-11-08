@@ -423,4 +423,29 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       }
     });
   });
+  describe('departments and activity', () => {
+    it('“Act within limits” is refused where the work is money, signatures or filings, and only autonomy and person can change', async () => {
+      await owner`INSERT INTO departments (tenant_id, slug, name, agent, phase, autonomy, can_act, act_note) VALUES
+        (${ids.a}, 'legal', 'Legal', 'Legal Agent', 1, 'draft_and_wait', false, 'Signatures always wait for you.'),
+        (${ids.a}, 'metadata', 'Metadata', 'Metadata Agent', 1, 'draft_and_wait', true, '')`;
+      const asA = <T,>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(app, { userId: ids.ua, tenantId: ids.a }, fn);
+      await expect(asA((tx) => tx`UPDATE departments SET autonomy = 'act_within_limits' WHERE slug = 'legal'`)).rejects.toThrow(/check constraint/);
+      expect((await asA((tx) => tx`UPDATE departments SET autonomy = 'act_within_limits' WHERE slug = 'metadata'`)).count).toBe(1);
+      await expect(asA((tx) => tx`UPDATE departments SET can_act = true WHERE slug = 'legal'`)).rejects.toThrow(/permission denied/);
+      await expect(asA((tx) => tx`UPDATE departments SET person_id = ${ids.payee} WHERE slug = 'legal'`)).rejects.toThrow(/isn't on this label's team/);
+      expect((await asA((tx) => tx`UPDATE departments SET person_id = ${ids.ua} WHERE slug = 'legal'`)).count).toBe(1);
+    });
+
+    it('agent history is append-only, and payees and other labels see none of it', async () => {
+      const asA = <T,>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(app, { userId: ids.ua, tenantId: ids.a }, fn);
+      await asA((tx) => tx`INSERT INTO agent_events (tenant_id, id, occurred_at, kind, text, who, dept) VALUES (${ids.a}, 'RUN-1', now(), 'Agent run', 'Did a thing', 'Metadata Agent', 'Metadata')`);
+      await expect(asA((tx) => tx`UPDATE agent_events SET text = 'Did something else'`)).rejects.toThrow(/permission denied/);
+      for (const who of [{ userId: ids.payee, tenantId: ids.a }, { userId: ids.ub, tenantId: ids.b }]) {
+        expect(await withTenant(app, who, (tx) => tx`SELECT 1 FROM agent_events`)).toHaveLength(0);
+        expect(await withTenant(app, who, (tx) => tx`SELECT 1 FROM departments`)).toHaveLength(0);
+      }
+      expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT * FROM app_team()`)).toHaveLength(0);
+      expect((await asA((tx) => tx`SELECT * FROM app_team()`)).map((r) => r.user_id)).toEqual([ids.ua]);
+    });
+  });
 });

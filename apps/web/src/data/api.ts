@@ -255,8 +255,20 @@ export async function getOffers(overrides: Partial<OfferAssumptions> = {}): Prom
   const m = await (await import('@/server/mockFunding')).mockFundingState();
   return compareOffers({ advance: 'fund_advance', sale: 'fund_sale' }, { ...ops.offerAssumptions, ...overrides }, ops.advanceOffer, ops.saleOffer, ops.offerTerms, { declined: m.declined, questions: m.questions });
 }
-export const getDepartments = () => ({ departments: ops.departments, team: ops.team });
-export const getActivity = () => ops.activity;
+export type Departments = { departments: ops.Department[]; team: typeof ops.team };
+/** Departments (5f). Live: the tenant's departments and team. Mock: the sample, plus this session's changes. */
+export async function getDepartments(): Promise<Departments> {
+  const ctx = await liveCtx('activity');
+  if (ctx) return (await import('@/server/live/activity')).liveDepartments(ctx);
+  const changes = await (await import('@/server/mockActivity')).mockDepartmentChanges();
+  return { departments: ops.departments.map((d) => ({ ...d, ...changes[d.id] })), team: ops.team };
+}
+/** The activity log (5g). Live: what agents reported plus the audit log of what people did, newest first. */
+export async function getActivity(): Promise<ops.ActivityEvent[]> {
+  const ctx = await liveCtx('activity');
+  if (!ctx) return ops.activity;
+  return (await import('@/server/live/activity')).liveActivity(ctx);
+}
 export const getSettings = () => ({ nav: ops.settingsNav, routing: ops.routing, config: ops.labelConfig, integrations: ops.integrations, team: ops.team });
 export const getTheme = () => ({ theme: ops.harborTheme, tenant: ops.tenant });
 /** Roster. Live: worked out from the catalog, contracts, statements, payouts and releases. */

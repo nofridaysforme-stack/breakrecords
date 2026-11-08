@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Check, X } from 'lucide-react';
+import { Check, CircleAlert, X } from 'lucide-react';
 import { PageTitle } from '@/components/type/Type';
 import { Button } from '@/components/ui/Button';
 import { AutonomyDial, type Autonomy } from '@/components/ui/AutonomyDial';
@@ -11,7 +11,7 @@ import type { Department } from '@/data/ops';
 import o from '@/components/ops/Ops.module.css';
 import s from './Departments.module.css';
 
-type Data = ReturnType<typeof getDepartments>;
+type Data = Awaited<ReturnType<typeof getDepartments>>;
 
 const LEVEL: Record<Autonomy, string> = { observe: 'Observe', suggest: 'Suggest', draft_and_wait: 'Draft and wait', act_within_limits: 'Act within limits' };
 const DOT: Record<Department['state'], string> = { working: s.dWorking, waitingOnYou: s.dCritical, blocked: s.dCritical, done: s.dDone, idle: s.dIdle, later: s.dIdle };
@@ -19,7 +19,7 @@ const DOT: Record<Department['state'], string> = { working: s.dWorking, waitingO
 /** 5f. One department open for editing, then all 14. Phase 2 departments show but can't be opened. */
 export function DepartmentsView({ data, initialId = 'royalties' }: { data: Data; initialId?: string }) {
   const [depts, setDepts] = useState(data.departments);
-  const [people, setPeople] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
   const [editId, setEditId] = useState(depts.some((d) => d.id === initialId && d.phase === 1) ? initialId : 'royalties');
   const [saved, setSaved] = useState<string | null>(null);
   const d = depts.find((x) => x.id === editId)!;
@@ -27,12 +27,23 @@ export function DepartmentsView({ data, initialId = 'royalties' }: { data: Data;
   const later = depts.length - active;
   const hand = useRef<HTMLDialogElement>(null);
   const [pick, setPick] = useState(data.team[0].id);
-  const person = people[d.id];
+  const person = d.personId;
 
-  const setLevel = (v: Autonomy) => {
-    setDepts((ds) => ds.map((x) => (x.id === d.id ? { ...x, autonomy: v } : x)));
-    setSaved(`${d.name} is now set to ${LEVEL[v]}.`);
-  };
+  // Saved for the label and audited; the server refuses "Act within limits" where it isn't allowed.
+  // The change shows at once and goes back if the server refuses it.
+  async function save(change: { autonomy?: Autonomy; personId?: string | null }, message: string) {
+    const before = depts;
+    setError(null);
+    setDepts((ds) => ds.map((x) => (x.id === d.id ? { ...x, ...change } : x)));
+    setSaved(message);
+    try {
+      const res = await fetch(`/api/departments/${d.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(change) });
+      const body = await res.json();
+      if (!res.ok) { setDepts(before); setSaved(null); setError(body.message ?? 'That didn’t save.'); return; }
+      setDepts(body.departments);
+    } catch { setDepts(before); setSaved(null); setError('Couldn’t reach the server. Nothing changed.'); }
+  }
+  const setLevel = (v: Autonomy) => { void save({ autonomy: v }, `${d.name} is now set to ${LEVEL[v]}.`); };
 
   return (
     <>
@@ -57,6 +68,7 @@ export function DepartmentsView({ data, initialId = 'royalties' }: { data: Data;
             note={d.canAct ? `"Act within limits" is available for ${d.name}: ${d.actNote}` : undefined}
           />
           {saved && <p className={s.saved} role="status"><Check size={14} className={o.good} aria-hidden="true" />{saved}</p>}
+          {error && <p className={s.saved} role="alert" style={{ color: 'var(--critical)' }}><CircleAlert size={14} aria-hidden="true" />{error}</p>}
         </div>
       </section>
 
@@ -82,7 +94,7 @@ export function DepartmentsView({ data, initialId = 'royalties' }: { data: Data;
 
       <dialog ref={hand} className={o.drawer} aria-labelledby="hand-h" onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close(); }}>
         <div className={o.drawerHead}><h2 id="hand-h" className={o.drawerTitle}>Hand {d.name} to a person</h2><button type="button" className={o.iconBtn} aria-label="Close" onClick={() => hand.current?.close()}><X size={16} aria-hidden="true" /></button></div>
-        <form className={o.form} onSubmit={(e) => { e.preventDefault(); setPeople((p) => ({ ...p, [d.id]: pick })); setSaved(`${data.team.find((t) => t.id === pick)?.name} now owns ${d.name}.`); hand.current?.close(); }}>
+        <form className={o.form} onSubmit={(e) => { e.preventDefault(); void save({ personId: pick }, `${data.team.find((t) => t.id === pick)?.name} now owns ${d.name}.`); hand.current?.close(); }}>
           <fieldset className={s.people}>
             <legend className={o.small}>They get {d.agent}&apos;s work and its approvals. The agent keeps preparing work for them.</legend>
             {data.team.map((t) => (

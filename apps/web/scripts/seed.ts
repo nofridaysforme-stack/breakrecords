@@ -6,7 +6,7 @@ import { approvals as items } from '../src/data/sample';
 import { approvalDetails, releases as runbooks } from '../src/data/fixtures';
 import { budgets, glasshouseDeal, statements as payeeStatements } from '../src/data/money';
 import { daysBetween } from '@breakrecords/core/dates';
-import { advanceOffer, catalogAssets, catalogReleases, contracts, funding, offerAssumptions, offerTerms, profileClaims, saleOffer, recordings, regColumns, registrations, songs, templates, unclaimed } from '../src/data/ops';
+import { activity, advanceOffer, catalogAssets, departments, catalogReleases, contracts, funding, offerAssumptions, offerTerms, profileClaims, saleOffer, recordings, regColumns, registrations, songs, templates, unclaimed } from '../src/data/ops';
 import { aiUseFromLabel } from '@breakrecords/core/metadata';
 import { checkStatement } from '@breakrecords/core/statements';
 import type { Tx } from '@breakrecords/db/client';
@@ -75,6 +75,7 @@ async function main() {
     await seedContracts(tx, ids.northline);
     await seedRoster(tx, ids.northline);
     await seedFunding(tx, ids.northline);
+    await seedActivity(tx, ids.northline);
     await seedHarborPayouts(tx, ids['harbor-sound']);
   });
   console.log(`Seeded Northline and Harbor Sound; ${PEOPLE.length} people allowlisted.`);
@@ -559,6 +560,29 @@ async function seedFunding(tx: Tx, tenant: string) {
             ${offerTerms.advance.buyBack}, 7100, '2026-11-02')`;
   await tx`INSERT INTO funding_opportunities (tenant_id, slug, kind, cash_cents, share_bp, album_release_id, offerer, received_on, deadline, fit_bp, verified_on)
     VALUES (${tenant}, 'fund_sale', 'sale', ${saleOffer.cash}, ${saleOffer.shareBp}, ${velvet.id}, 'Catalog Partners', '2026-11-04', '2026-11-30', 3800, '2026-11-04')`;
+}
+
+// ---------- Departments, team and activity (5f, 5g) ----------
+// The 5f departments, the 5g history, and the team: Jana and Priya Shah, the Rights lead (5h).
+async function seedActivity(tx: Tx, tenant: string) {
+  await tx`DELETE FROM departments WHERE tenant_id = ${tenant}`;
+  await tx`DELETE FROM agent_events WHERE tenant_id = ${tenant}`;
+  for (const [i, d] of departments.entries()) {
+    await tx`INSERT INTO departments (tenant_id, slug, name, agent, phase, autonomy, can_act, act_note, spend_cap_cents, state, tasks_this_week, position)
+      VALUES (${tenant}, ${d.id}, ${d.name}, ${d.phase === 2 ? null : d.agent}, ${d.phase}, ${d.autonomy}, ${d.canAct}, ${d.actNote}, ${d.spendCap}, ${d.state}, ${d.tasks}, ${i})`;
+  }
+  for (const e of activity) {
+    const at = new Date(`${e.when.replace(/, (\d+:\d+)$/, ', 2026 $1')} UTC`);
+    await tx`INSERT INTO agent_events (tenant_id, id, occurred_at, kind, text, who, dept, inputs, reasoning, output)
+      VALUES (${tenant}, ${e.id}, ${at}, ${e.kind}, ${e.text}, ${e.who}, ${e.dept}, ${e.inputs}, ${e.reasoning}, ${e.output})`;
+  }
+  // Team members: the user row and membership the allowlist would create, with a name and title.
+  for (const [email, name, role, title] of [['jana@northline.example', 'Jana', 'owner', 'Owner'], ['priya@northline.example', 'Priya Shah', 'team', 'Rights lead']] as const) {
+    const [u] = await tx`INSERT INTO users (email, name) VALUES (${email}, ${name}) ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id`;
+    await tx`INSERT INTO allowlist (email, tenant_id, role) VALUES (${email}, ${tenant}, ${role}) ON CONFLICT (email, tenant_id) DO UPDATE SET role = EXCLUDED.role`;
+    await tx`INSERT INTO memberships (user_id, tenant_id, role, title) VALUES (${u.id}, ${tenant}, ${role}, ${title})
+      ON CONFLICT (user_id, tenant_id) DO UPDATE SET role = EXCLUDED.role, title = EXCLUDED.title`;
+  }
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

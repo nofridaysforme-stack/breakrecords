@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ApprovalError, ApprovalState, ContractsResponse, ENDPOINTS, FundingResponse, OffersResponse, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, ContractsResponse, DepartmentError, DepartmentsResponse, ENDPOINTS, FundingResponse, OffersResponse, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
 
 // The API contract over HTTP. Any server behind the UI, mock or live, must pass this file.
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
@@ -222,5 +222,19 @@ test.describe('funding writes', () => {
     const asked = OffersResponse.parse(await (await request.post('/api/funding/questions', { data: { question: 'Can the sale include a buy-back?' } })).json());
     expect(asked.questions[0].text).toBe('Can the sale include a buy-back?');
     expect((await request.post('/api/funding/questions', { data: { question: ' ' } })).status()).toBe(400);
+  });
+});
+
+test.describe('department writes', () => {
+  test('autonomy and hand-offs are saved for the session; act within limits is refused where it isn’t allowed', async ({ request }) => {
+    const res = await request.patch('/api/departments/royalties', { data: { autonomy: 'suggest', personId: 'u_priya' } });
+    expect(res.status()).toBe(200);
+    expect(DepartmentsResponse.parse(await res.json()).departments.find((d) => d.id === 'royalties')).toMatchObject({ autonomy: 'suggest', personId: 'u_priya' });
+    const refused = await request.patch('/api/departments/legal', { data: { autonomy: 'act_within_limits' } });
+    expect(refused.status()).toBe(409);
+    expect(DepartmentError.parse(await refused.json()).error).toBe('not_allowed');
+    expect((await request.patch('/api/departments/marketing', { data: { autonomy: 'suggest' } })).status()).toBe(409);
+    expect((await request.patch('/api/departments/royalties', { data: { personId: 'u_nobody' } })).status()).toBe(409);
+    expect((await request.patch('/api/departments/royalties', { data: {} })).status()).toBe(400);
   });
 });

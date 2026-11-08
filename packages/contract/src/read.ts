@@ -297,9 +297,15 @@ export const DepartmentsResponse = z.object({
     id: Id, name: z.string(), agent: z.string(), state: z.union([AgentState, z.literal('later')]), stateLabel: z.string(),
     autonomy: Autonomy.nullable(), tasks: z.number().int().nullable(), spendCap: Cents.nullable(), phase: z.union([z.literal(1), z.literal(2)]),
     canAct: z.boolean(), actNote: z.string(),
+    /** The team member it's handed to, or null. */
+    personId: Id.nullable(),
   })),
   team: z.array(TeamMember),
 });
+/** PATCH /api/departments/{id}: change how much a department does alone, or who it's handed to. */
+export const UpdateDepartmentCommand = z.object({ autonomy: Autonomy.optional(), personId: Id.nullable().optional() }).strict()
+  .refine((c) => c.autonomy !== undefined || c.personId !== undefined, 'Send an autonomy level or a person.');
+export const DepartmentError = z.object({ error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'not_allowed', 'not_on_team']), message: z.string() });
 export const ActivityResponse = z.array(z.object({
   id: Id, when: Display, kind: z.enum(['Agent run', 'Flag', 'Error', 'Approval', 'Tool call', 'Edit']),
   text: z.string(), who: z.string(), dept: z.string(), inputs: z.array(z.string()), reasoning: z.string(), output: z.string(),

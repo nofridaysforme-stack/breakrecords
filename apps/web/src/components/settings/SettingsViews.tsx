@@ -61,7 +61,7 @@ function Integrations({ items }: { items: Data['integrations'] }) {
 }
 
 /** 5h and the undrawn Settings sections, built from the same parts. */
-export function SettingsSectionView({ data, section, depts }: { data: Data; section: SettingsSection; depts: ReturnType<typeof getDepartments>['departments'] }) {
+export function SettingsSectionView({ data, section, depts }: { data: Data; section: SettingsSection; depts: Awaited<ReturnType<typeof getDepartments>>['departments'] }) {
   const c = data.config;
   switch (section) {
     case 'routing':
