@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ApprovalError, ApprovalState, CatalogResponse, ENDPOINTS, Recording } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, CatalogResponse, ENDPOINTS, ProfileClaimsResponse, Recording, RegistrationsResponse, UnclaimedResponse } from '@breakrecords/contract';
 import { signIn, USERS } from './helpers';
 
 // Live mode (Postgres + sign-in + approvals module live). Stage 0 gate: screens run on the
@@ -148,5 +148,55 @@ test.describe('catalog (live)', () => {
     await signIn(page, USERS.owner);
     const res = await page.request.patch('/api/catalog/recordings/paper-moons', { data: { ai: 'None' } });
     expect(Recording.safeParse(await res.json()).success).toBe(true);
+  });
+});
+
+test.describe('rights (live)', () => {
+  test('the registrations matrix comes from Northline’s filings', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    const r = RegistrationsResponse.parse(await (await page.request.get('/api/rights/registrations')).json());
+    // Released recordings and recordings with their own filings; the unreleased demo stays out.
+    expect(r.rows.map((x) => x.id)).toEqual(['glasshouse', 'night-bus', 'static-hymn', 'velvet-hours', 'low-light', 'paper-moons']);
+    expect(r.rows[0].cells.map((c) => c.status)).toEqual(['confirmed', 'needsYou', 'confirmed', 'prepared', 'notStarted', 'notStarted']);
+    expect(r.rows[0].cells[0].ref).toBe('BMI #8821');
+    // Paper Moons is on the Velvet Hours album but has no filings yet.
+    expect(r.rows[5].cells.every((c) => c.status === 'notStarted')).toBe(true);
+    await page.goto('/rights/registrations');
+    await expect(page.getByRole('heading', { name: /3 MLC filings need you/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'three hundred twelve dollars and forty cents unclaimed found' })).toBeVisible();
+  });
+
+  test('unclaimed money is read in cents and totals correctly', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    const u = UnclaimedResponse.parse(await (await page.request.get('/api/rights/unclaimed')).json());
+    expect(u.total).toBe(31240);
+    expect(u.items.map((i) => [i.id, i.source, i.amount, i.since])).toEqual([['unc_sx', 'SoundExchange', 19860, 'Jul 2026'], ['unc_mlc', 'MLC', 11380, 'Aug 2026']]);
+  });
+
+  test('preparing profile claims is saved for the label', async ({ page, browser }) => {
+    await signIn(page, USERS.owner);
+    await page.goto('/rights/claims');
+    await page.getByRole('button', { name: 'Prepare the rest' }).click();
+    await expect(page.getByRole('heading', { name: 'Rights Agent is preparing them' })).toBeVisible();
+    const other = await (await browser.newContext()).newPage();
+    await signIn(other, USERS.jana);
+    const c = ProfileClaimsResponse.parse(await (await other.request.get('/api/rights/claims')).json());
+    expect(c.rows.map((r) => r.artist)).toEqual(['Kesi Vale', 'The Low Hours', 'Marco Dela']);
+    expect(c.rows.flatMap((r) => r.cells).filter((x) => x.status === 'notStarted')).toHaveLength(0);
+    expect(c.rows[0].cells.map((x) => x.status)).toEqual(['confirmed', 'confirmed', 'submitted', 'prepared']);
+    expect(c.rows[2].cells[0]).toEqual({ status: 'needsYou', ref: 'verify email' });
+  });
+
+  test('cross-tenant: Harbor Sound sees none of Northline’s rights data', async ({ page }) => {
+    await signIn(page, USERS.harbor);
+    const r = RegistrationsResponse.parse(await (await page.request.get('/api/rights/registrations')).json());
+    expect(r.rows.map((x) => x.id)).toEqual([]);
+    const u = UnclaimedResponse.parse(await (await page.request.get('/api/rights/unclaimed')).json());
+    expect(u).toEqual({ total: 0, items: [] });
+  });
+
+  test('payees can’t manage profile claims', async ({ page }) => {
+    await signIn(page, USERS.payee);
+    expect((await page.request.post('/api/rights/claims/prepare', { data: {} })).status()).toBe(403);
   });
 });

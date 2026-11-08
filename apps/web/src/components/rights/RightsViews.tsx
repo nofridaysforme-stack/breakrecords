@@ -33,7 +33,7 @@ function Legend() {
 }
 
 /** 5c. Recordings by registration, each cell a shape and a word, plus the two callouts. */
-export function RegistrationsView({ data, unclaimed }: { data: ReturnType<typeof getRegistrations>; unclaimed: number }) {
+export function RegistrationsView({ data, unclaimed }: { data: Awaited<ReturnType<typeof getRegistrations>>; unclaimed: number }) {
   const needs = data.rows.filter((r) => r.cells[1].status === 'needsYou').length;
   return (
     <>
@@ -87,7 +87,7 @@ export function RegistrationsView({ data, unclaimed }: { data: ReturnType<typeof
 }
 
 /** Rights > Unclaimed money (undrawn). Each claim is a filing, so it becomes an approval. */
-export function UnclaimedView({ data }: { data: ReturnType<typeof getUnclaimed> }) {
+export function UnclaimedView({ data }: { data: Awaited<ReturnType<typeof getUnclaimed>> }) {
   const { propose, proposals, decisions } = useDecisions();
   return (
     <>
@@ -137,9 +137,21 @@ export function UnclaimedView({ data }: { data: ReturnType<typeof getUnclaimed> 
 }
 
 /** Rights > Profile claims (undrawn): artist profiles on each service. */
-export function ClaimsView({ data }: { data: ReturnType<typeof getProfileClaims> }) {
+export function ClaimsView({ data }: { data: Awaited<ReturnType<typeof getProfileClaims>> }) {
   const [rows, setRows] = useState(data.rows);
   const [asked, setAsked] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  /** Saves on the server, so the prepared claims stay prepared after a reload. */
+  const prepare = async () => {
+    setBusy(true); setError(null);
+    try {
+      const res = await fetch('/api/rights/claims/prepare', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) { setError(json?.message ?? 'That didn’t go through. Nothing was changed.'); return; }
+      setRows(json.rows); setAsked(true);
+    } catch { setError('Couldn’t reach the server. Nothing was changed.'); } finally { setBusy(false); }
+  };
   const left = rows.reduce((n, r) => n + r.cells.filter((c) => c.status === 'notStarted').length, 0);
   return (
     <>
@@ -160,13 +172,14 @@ export function ClaimsView({ data }: { data: ReturnType<typeof getProfileClaims>
           </tbody>
         </table>
       </div>
+      {error && <p className={o.toast} role="alert"><CircleAlert size={16} className={o.critical} aria-hidden="true" />{error}</p>}
       <div className={o.callouts}>
         <section className={o.callout} aria-labelledby="pc-h">
           <div className={o.calloutBody}>
             <h2 id="pc-h" className={o.calloutTitle}>{asked ? 'Rights Agent is preparing them' : `${left} claims not started`}</h2>
             <p className={o.calloutText}>{asked ? 'Each one is prepared for the artist to confirm by email. Nothing is posted publicly.' : 'Rights Agent can prepare each one. The artist confirms by email.'}</p>
           </div>
-          {!asked && left > 0 && <Button onClick={() => { setAsked(true); setRows((rs) => rs.map((r) => ({ ...r, cells: r.cells.map((c) => (c.status === 'notStarted' ? { status: 'prepared' as Status } : c)) }))); }} className={s.nowrap}>Prepare the rest</Button>}
+          {!asked && left > 0 && <Button onClick={prepare} disabled={busy} className={s.nowrap}>Prepare the rest</Button>}
         </section>
       </div>
     </>

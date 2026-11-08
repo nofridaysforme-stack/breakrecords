@@ -91,9 +91,35 @@ export async function getCatalog(): Promise<ReturnType<typeof mockCatalog>> {
 }
 export const getContracts = () => ({ summary: ops.contractsSummary, contracts: ops.contracts, templates: ops.templates });
 export const getTemplate = (id: string) => ops.templates.find((t) => t.id === id) ?? null;
-export const getRegistrations = () => ({ columns: ops.regColumns, rows: ops.registrations });
-export const getUnclaimed = () => ops.unclaimed;
-export const getProfileClaims = () => ({ services: ops.profileServices, rows: ops.profileClaims });
+const mockRegistrations = () => ({ columns: ops.regColumns, rows: ops.registrations });
+const mockProfileClaims = () => ({ services: ops.profileServices, rows: ops.profileClaims });
+
+/** Rights (5c and its tabs). Live: the tenant's registrations, unclaimed royalties and profile claims. */
+export async function getRegistrations(): Promise<ReturnType<typeof mockRegistrations>> {
+  const ctx = await liveCtx('registrations');
+  if (!ctx) return mockRegistrations();
+  const { liveRegistrations } = await import('@/server/live/rights');
+  return liveRegistrations(ctx);
+}
+
+export async function getUnclaimed(): Promise<typeof ops.unclaimed> {
+  const ctx = await liveCtx('registrations');
+  if (!ctx) return ops.unclaimed;
+  const { liveUnclaimed } = await import('@/server/live/rights');
+  return liveUnclaimed(ctx);
+}
+
+export async function getProfileClaims(): Promise<ReturnType<typeof mockProfileClaims>> {
+  const ctx = await liveCtx('registrations');
+  if (ctx) {
+    const { liveProfileClaims } = await import('@/server/live/rights');
+    return liveProfileClaims(ctx);
+  }
+  const { mockClaimsPrepared } = await import('@/server/mockRights');
+  const base = mockProfileClaims();
+  if (!(await mockClaimsPrepared())) return base;
+  return { ...base, rows: base.rows.map((r) => ({ ...r, cells: r.cells.map((c) => (c.status === 'notStarted' ? { status: 'prepared' as const } : c)) })) };
+}
 export const getFunding = () => ({ counts: ops.fundingCounts, items: ops.funding, applications: ops.applications });
 /** Offer comparison. Pass other assumptions to recompute every number. */
 export function getOffers(assumptions: OfferAssumptions = ops.offerAssumptions) {

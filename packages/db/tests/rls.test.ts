@@ -130,6 +130,20 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
         .rejects.toThrow(/cross-tenant reference/);
     });
 
+    it('unclaimed royalties and profile claims stay within their tenant', async () => {
+      await owner`INSERT INTO unclaimed_royalties (tenant_id, slug, source, what, why, amount_cents, held_since, claim_method)
+        VALUES (${ids.a}, 'unc_a', 'mlc', 'Q2 mechanicals', 'Unmatched', 11380, '2026-08-01', 'MLC filing')`;
+      await owner`INSERT INTO profile_claims (tenant_id, party_id, service, status) VALUES (${ids.a}, ${partyA}, 'spotify', 'confirmed')`;
+      const mine = await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT slug FROM unclaimed_royalties`);
+      const theirs = await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT slug FROM unclaimed_royalties`);
+      expect(mine.map((r) => r.slug)).toEqual(['unc_a']);
+      expect(theirs).toHaveLength(0);
+      expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT 1 FROM profile_claims`)).toHaveLength(0);
+      await expect(withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) =>
+        tx`INSERT INTO profile_claims (tenant_id, party_id, service) VALUES (${ids.b}, ${partyA}, 'youtube')`)).rejects.toThrow(/cross-tenant reference/);
+      expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT 1 FROM unclaimed_royalties`)).toHaveLength(0);
+    });
+
     it('registrations attach to the right kind of subject', async () => {
       const [{ id: rec }] = await owner`SELECT id FROM recordings WHERE slug = 'glasshouse'`;
       await expect(owner`INSERT INTO registrations (tenant_id, org, recording_id) VALUES (${ids.a}, 'mlc', ${rec})`).rejects.toThrow(/check constraint/);
