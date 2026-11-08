@@ -149,4 +149,63 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       await expect(owner`INSERT INTO registrations (tenant_id, org, recording_id) VALUES (${ids.a}, 'mlc', ${rec})`).rejects.toThrow(/check constraint/);
     });
   });
+
+  describe('splits', () => {
+    let node = ''; let draft = ''; let sent = ''; let marco = ''; let label = '';
+    const terms = (label: number, artist: number) => ({ producerBp: 300, labelOfNetBp: label, artistOfNetBp: artist, featureOfArtistBp: 1000 });
+    beforeAll(async () => {
+      [{ id: marco }] = await owner`INSERT INTO parties (tenant_id, slug, name) VALUES (${ids.a}, 'marco', 'Marco Dela') RETURNING id`;
+      [{ id: label }] = await owner`INSERT INTO parties (tenant_id, slug, name, type) VALUES (${ids.a}, 'label-a', 'Label A', 'company') RETURNING id`;
+      await owner`UPDATE memberships SET party_id = ${marco} WHERE user_id = ${ids.payee} AND tenant_id = ${ids.a}`;
+      [{ id: node }] = await owner`INSERT INTO split_nodes (tenant_id, slug, label) VALUES (${ids.a}, 'gh-rec', 'Recording income') RETURNING id`;
+      [{ id: sent }] = await owner`INSERT INTO split_versions (tenant_id, node_id, version, status, terms, effective_from)
+        VALUES (${ids.a}, ${node}, 4, 'sent', ${owner.json(terms(5000, 5000))}, '2026-10-01') RETURNING id`;
+      const kesi = (await owner`SELECT id FROM parties WHERE slug = 'kesi'`)[0].id;
+      for (const [role, party] of [['producer', marco], ['label', label], ['artist', kesi], ['feature', kesi]]) {
+        await owner`INSERT INTO split_parties (tenant_id, version_id, role, party_id) VALUES (${ids.a}, ${sent}, ${role}, ${party})`;
+      }
+    });
+
+    it('only a draft may be under 100%, and only one open version per node', async () => {
+      await expect(owner`UPDATE split_versions SET terms = ${owner.json(terms(4000, 5500))} WHERE id = ${sent}`).rejects.toThrow(/check constraint/);
+      await expect(owner`INSERT INTO split_versions (tenant_id, node_id, version, status, terms, effective_from)
+        VALUES (${ids.a}, ${node}, 5, 'draft', ${owner.json(terms(4000, 5500))}, '2027-01-01')`).rejects.toThrow(/split_versions_one_open/);
+    });
+
+    it('a payee sees the versions they are a party to, never drafts, and signs only their own line', async () => {
+      const seen = await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT version FROM split_versions`);
+      expect(seen.map((r) => r.version)).toEqual([4]);
+      const other = await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) =>
+        tx`UPDATE split_parties SET signed_at = now(), signed_by = ${ids.payee} WHERE version_id = ${sent} AND role = 'label'`);
+      expect(other.count).toBe(0);
+      const mine = await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) =>
+        tx`UPDATE split_parties SET signed_at = now(), signed_by = ${ids.payee} WHERE version_id = ${sent} AND role = 'producer'`);
+      expect(mine.count).toBe(1);
+      const again = await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) =>
+        tx`UPDATE split_parties SET signed_at = now(), signed_by = ${ids.payee} WHERE version_id = ${sent} AND role = 'producer'`);
+      expect(again.count).toBe(0); // already signed
+      // Co-signers' names are visible to the payee; other parties aren't.
+      const names = await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT name FROM parties ORDER BY name`);
+      expect(names.map((r) => r.name)).toEqual(['Kesi Vale', 'Label A', 'Marco Dela']);
+    });
+
+    it('the last signature puts the version in effect', async () => {
+      await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) =>
+        tx`UPDATE split_parties SET signed_at = now(), signed_by = ${ids.ua} WHERE version_id = ${sent} AND signed_at IS NULL AND role <> 'feature'`);
+      expect((await owner`SELECT status FROM split_versions WHERE id = ${sent}`)[0].status).toBe('sent');
+      await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) =>
+        tx`UPDATE split_parties SET signed_at = now(), signed_by = ${ids.ua} WHERE version_id = ${sent} AND role = 'feature'`);
+      expect((await owner`SELECT status FROM split_versions WHERE id = ${sent}`)[0].status).toBe('in_effect');
+      [{ id: draft }] = await owner`INSERT INTO split_versions (tenant_id, node_id, version, status, terms, effective_from)
+        VALUES (${ids.a}, ${node}, 5, 'draft', ${owner.json(terms(4000, 5500))}, '2027-01-01') RETURNING id`;
+      expect(draft).toBeTruthy();
+    });
+
+    it('another tenant sees no splits and cannot point at this tenant’s nodes', async () => {
+      expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT 1 FROM split_nodes`)).toHaveLength(0);
+      await expect(withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) =>
+        tx`INSERT INTO split_versions (tenant_id, node_id, version, terms, effective_from) VALUES (${ids.b}, ${node}, 9, ${tx.json(terms(5000, 5000))}, '2027-01-01')`))
+        .rejects.toThrow(/cross-tenant reference/);
+    });
+  });
 });

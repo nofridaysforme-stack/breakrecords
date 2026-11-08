@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ApprovalError, ApprovalState, CatalogResponse, ENDPOINTS, ProfileClaimsResponse, Recording, RegistrationsResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, CatalogResponse, ENDPOINTS, ProfileClaimsResponse, Recording, RegistrationsResponse, SplitNodeResponse, SplitTreeResponse, UnclaimedResponse } from '@breakrecords/contract';
 import { signIn, USERS } from './helpers';
 
 // Live mode (Postgres + sign-in + approvals module live). Stage 0 gate: screens run on the
@@ -198,5 +198,61 @@ test.describe('rights (live)', () => {
   test('payees can’t manage profile claims', async ({ page }) => {
     await signIn(page, USERS.payee);
     expect((await page.request.post('/api/rights/claims/prepare', { data: {} })).status()).toBe(403);
+  });
+});
+
+test.describe('splits (live)', () => {
+  const node = async (page: import('@playwright/test').Page) => SplitNodeResponse.parse(await (await page.request.get('/api/splits/gh-rec')).json());
+
+  test('the tree and Glasshouse versions come from the database', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    const tree = SplitTreeResponse.parse(await (await page.request.get('/api/splits')).json());
+    expect(tree[0].children?.map((c) => c.id)).toEqual(['kesi', 'low-hours', 'marco']);
+    const d = await node(page);
+    expect(d.breadcrumb).toEqual(['Kesi Vale', 'Glasshouse', 'Recording income']);
+    expect(d.v4).toMatchObject({ version: 4, effective: 'Oct 1, 2026', signed: { 'Marco Dela': 'Sep 28', 'Northline Records': 'Sep 26' } });
+    expect(d.v5).toMatchObject({ version: 5, status: 'draft', created: 'Nov 6', terms: { labelOfNetBp: 4000, artistOfNetBp: 5500 } });
+    expect(d.history.map((h) => h.v)).toEqual(['v3', 'v2']);
+    expect(d.market.text).toContain('Marco’s 3 is in range.');
+  });
+
+  test('fix, send, then the payee signs from the portal and the label sees it', async ({ page, browser }) => {
+    await signIn(page, USERS.owner);
+    await page.goto('/splits/gh-rec');
+    const send = page.getByRole('button', { name: 'Send v5 for signatures' });
+    await expect(send).toBeDisabled();
+    await page.getByRole('button', { name: 'Edit draft shares' }).click();
+    await page.getByLabel('Label, share of net profit').fill('45');
+    await expect(send).toBeEnabled();
+    await send.click();
+    await expect(page.getByRole('button', { name: 'v5 sent for signatures' })).toBeDisabled();
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'v5 sent for signatures' })).toBeDisabled();
+
+    // The owner signs only for the label.
+    expect((await page.request.post('/api/splits/gh-rec/sign', { data: { role: 'producer' } })).status()).toBe(403);
+    expect((await page.request.post('/api/splits/gh-rec/sign', { data: { role: 'label' } })).status()).toBe(200);
+
+    const marco = await (await browser.newContext()).newPage();
+    await signIn(marco, USERS.payee);
+    await marco.goto('/portal/sign');
+    await expect(marco.getByRole('heading', { name: 'Glasshouse split v5 needs your signature' })).toBeVisible();
+    expect((await marco.request.post('/api/splits/gh-rec/sign', { data: { role: 'artist' } })).status()).toBe(403);
+    await marco.getByRole('button', { name: 'Sign v5' }).click();
+    await expect(marco.getByText('You signed v5.')).toBeVisible();
+    // A payee can't change the split itself.
+    expect((await marco.request.put('/api/splits/gh-rec/draft', { data: { terms: { producerBp: 400, labelOfNetBp: 4500, artistOfNetBp: 5500, featureOfArtistBp: 1000 } } })).status()).toBe(403);
+
+    const d = await node(page);
+    expect(Object.keys(d.v5!.signed).sort()).toEqual(['Marco Dela', 'Northline Records']);
+    await page.reload();
+    await expect(page.getByText('Sent for signatures · 2 of 4 signed')).toBeVisible();
+  });
+
+  test('cross-tenant: Harbor Sound sees no Northline splits', async ({ page }) => {
+    await signIn(page, USERS.harbor);
+    expect(SplitTreeResponse.parse(await (await page.request.get('/api/splits')).json())).toEqual([]);
+    expect((await page.request.get('/api/splits/gh-rec')).status()).toBe(404);
+    expect((await page.request.post('/api/splits/gh-rec/send', { data: {} })).status()).toBe(404);
   });
 });

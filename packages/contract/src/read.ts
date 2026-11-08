@@ -128,13 +128,42 @@ export const RecoupmentResponse = z.object({
 });
 
 // ---------- Splits (4a) ----------
+export const SplitRole = z.enum(['producer', 'label', 'artist', 'feature']);
+/**
+ * One node's split. `v4` is the version in effect and `v5` the open one (draft or out for
+ * signatures), named after the 4a frame; `version` gives the real numbers. `v5` is null when
+ * nothing is open. `signed` maps a party's name to the date they signed.
+ */
 export const SplitNodeResponse = z.object({
   breadcrumb: z.array(z.string()),
-  v4: z.object({ terms: DealTerms, effective: Display, signed: z.record(z.string(), Display) }),
-  v5: z.object({ terms: DealTerms, effective: Display, created: Display }),
+  parties: z.object({ producer: z.string(), label: z.string(), artist: z.string(), feature: z.string() }),
+  v4: z.object({ version: z.number().int().positive(), terms: DealTerms, effective: Display, signed: z.record(z.string(), Display) }),
+  v5: z.object({
+    version: z.number().int().positive(), status: z.enum(['draft', 'sent']), terms: DealTerms, effective: Display, created: Display,
+    signed: z.record(z.string(), Display),
+  }).nullable(),
   dealTerms: z.array(z.tuple([z.string(), z.string()])),
   market: z.object({ text: z.string(), verified: Display }),
   history: z.array(z.object({ v: z.string(), date: Display })),
+});
+
+export type SplitNodeResponse = z.infer<typeof SplitNodeResponse>;
+export type SplitTreeNode = { id: string; label: string; override?: boolean; children?: SplitTreeNode[] };
+export const SplitTreeNode: z.ZodType<SplitTreeNode> = z.lazy(() => z.object({
+  id: Id, label: z.string(), override: z.boolean().optional(), children: z.array(SplitTreeNode).optional(),
+}));
+/** GET /api/splits: label, artist, release and income-type nodes. `override` marks nodes with a split of their own. */
+export const SplitTreeResponse = z.array(SplitTreeNode);
+
+/** PUT /api/splits/{node}/draft: edit the open draft. Refused once it's sent. */
+export const SaveSplitDraftCommand = z.object({ terms: DealTerms });
+/** POST /api/splits/{node}/send: send the draft for signatures. Refused unless net profit is exactly 100%. */
+export const SendSplitCommand = z.object({}).strict();
+/** POST /api/splits/{node}/sign: sign as one party. Live, a payee signs only their own line; the label signs as owner or team. */
+export const SignSplitCommand = z.object({ role: SplitRole });
+export const SplitError = z.object({
+  error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'invalid_terms', 'not_draft', 'not_100', 'not_sent', 'already_signed', 'not_a_party']),
+  message: z.string(),
 });
 
 // ---------- Payee portal (4f to 4h) ----------

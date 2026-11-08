@@ -21,12 +21,12 @@ type Props = { params: Promise<{ scopeId: string }>; searchParams: Promise<{ sta
 
 export default async function SplitsPage({ params, searchParams }: Props) {
   const { scopeId } = await params;
-  const tree = getSplitTree();
+  const tree = await getSplitTree();
   const hit = find(tree, scopeId);
   if (!hit) notFound();
   return (
     <Page bare>
-      <SplitsEditor tree={tree} nodeId={scopeId} nodeLabel={hit.node.label} parentLabel={hit.parent?.label ?? null} deal={getDeal(scopeId)} scenario={toScenario((await searchParams).state)} />
+      <SplitsEditor tree={tree} nodeId={scopeId} nodeLabel={hit.node.label} parentLabel={hit.parent?.label ?? null} deal={await getDeal(scopeId)} scenario={toScenario((await searchParams).state)} />
     </Page>
   );
 }

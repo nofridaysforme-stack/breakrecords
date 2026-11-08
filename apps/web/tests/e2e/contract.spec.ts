@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ApprovalError, ApprovalState, ENDPOINTS, ProfileClaimsResponse, Recording } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, ENDPOINTS, ProfileClaimsResponse, Recording, SplitError, SplitNodeResponse } from '@breakrecords/contract';
 
 // The API contract over HTTP. Any server behind the UI, mock or live, must pass this file.
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
@@ -105,5 +105,35 @@ test.describe('rights writes', () => {
   });
   test('a malformed body is refused', async ({ request }) => {
     expect((await request.post('/api/rights/claims/prepare', { data: { everything: true } })).status()).toBe(400);
+  });
+});
+
+test.describe('split writes', () => {
+  const v5 = { producerBp: 300, labelOfNetBp: 4000, artistOfNetBp: 5500, featureOfArtistBp: 1000 };
+  test('draft, send and sign follow the version rules', async ({ request }) => {
+    const refused = await request.post('/api/splits/gh-rec/send', { data: {} });
+    expect(refused.status()).toBe(409);
+    expect(SplitError.parse(await refused.json()).error).toBe('not_100');
+
+    const saved = SplitNodeResponse.parse(await (await request.put('/api/splits/gh-rec/draft', { data: { terms: { ...v5, labelOfNetBp: 4500 } } })).json());
+    expect(saved.v5).toMatchObject({ status: 'draft', terms: { labelOfNetBp: 4500 } });
+    const sent = SplitNodeResponse.parse(await (await request.post('/api/splits/gh-rec/send', { data: {} })).json());
+    expect(sent.v5?.status).toBe('sent');
+    expect((await request.put('/api/splits/gh-rec/draft', { data: { terms: v5 } })).status()).toBe(409);
+
+    const one = SplitNodeResponse.parse(await (await request.post('/api/splits/gh-rec/sign', { data: { role: 'producer' } })).json());
+    expect(Object.keys(one.v5!.signed)).toEqual(['Marco Dela']);
+    expect((await request.post('/api/splits/gh-rec/sign', { data: { role: 'producer' } })).status()).toBe(409);
+    for (const role of ['label', 'artist']) await request.post('/api/splits/gh-rec/sign', { data: { role } });
+    const done = SplitNodeResponse.parse(await (await request.post('/api/splits/gh-rec/sign', { data: { role: 'feature' } })).json());
+    expect(done.v5).toBeNull();
+    expect(done.v4).toMatchObject({ version: 5, terms: { labelOfNetBp: 4500 } });
+    expect(done.history[0].v).toBe('v4');
+  });
+
+  test('bad requests and inheriting nodes', async ({ request }) => {
+    expect((await request.put('/api/splits/gh-rec/draft', { data: { terms: { ...v5, producerBp: 12.5 } } })).status()).toBe(400);
+    expect((await request.post('/api/splits/gh-rec/sign', { data: { role: 'manager' } })).status()).toBe(400);
+    expect((await request.get('/api/splits/gh-song')).status()).toBe(404);
   });
 });

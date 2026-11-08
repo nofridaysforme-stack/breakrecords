@@ -8,7 +8,7 @@ import { approvalDetails, home, homeNumbers, releases, TODAY } from './fixtures'
 import type { ApprovalDetail, Release, Scenario } from './types';
 import type { ApprovalSummary } from '@/components/ui/Approval';
 import * as ops from './ops';
-import type { Module } from '@breakrecords/contract';
+import type { Module, SplitNodeResponse, SplitTreeNode } from '@breakrecords/contract';
 import { advance, baselineIncome, sale, type OfferAssumptions } from '@breakrecords/core/offers';
 
 export { TODAY };
@@ -68,9 +68,41 @@ export const getStatement = (id: string) => statements[id] ?? null;
 export const getPayouts = () => payouts;
 export const getRecoupment = () => recoupment;
 export const getBudgets = () => budgets;
-export const getSplitTree = () => splitTree;
-/** Only Glasshouse recording income has its own split; other nodes inherit or are not set up. */
-export const getDeal = (nodeId: string) => (nodeId === 'gh-rec' ? glasshouseDeal : null);
+/** The split tree (4a). Live: the tenant's nodes. */
+export async function getSplitTree(): Promise<SplitTreeNode[]> {
+  const ctx = await liveCtx('splits');
+  if (!ctx) return splitTree;
+  const { liveSplitTree } = await import('@/server/live/splits');
+  return liveSplitTree(ctx);
+}
+
+const ROLE_NAMES = { producer: 'Marco Dela', label: 'Northline Records', artist: 'Kesi Vale', feature: 'Ari Monroe' } as const;
+const dayShort = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+
+/**
+ * One node's split, or null when it inherits its parent's. Mock: only Glasshouse recording
+ * income has its own split, with draft v5 kept per browser session.
+ */
+export async function getDeal(nodeId: string): Promise<SplitNodeResponse | null> {
+  const ctx = await liveCtx('splits');
+  if (ctx) {
+    const { liveSplitNode } = await import('@/server/live/splits');
+    return liveSplitNode(ctx, nodeId);
+  }
+  if (nodeId !== 'gh-rec') return null;
+  const { mockSplitState } = await import('@/server/mockSplits');
+  const st = await mockSplitState();
+  const d = glasshouseDeal;
+  const signed = Object.fromEntries(Object.entries(st.signed).map(([role, iso]) => [ROLE_NAMES[role as keyof typeof ROLE_NAMES], dayShort(iso!)]));
+  if (st.status === 'in_effect') {
+    return { breadcrumb: d.breadcrumb, parties: ROLE_NAMES, dealTerms: d.dealTerms, market: d.market,
+      v4: { version: 5, terms: st.terms, effective: d.v5.effective, signed }, v5: null,
+      history: [{ v: 'v4', date: d.v4.effective }, ...d.history] };
+  }
+  return { breadcrumb: d.breadcrumb, parties: ROLE_NAMES, dealTerms: d.dealTerms, market: d.market, history: d.history,
+    v4: { version: 4, terms: d.v4.terms, effective: d.v4.effective, signed: d.v4.signed },
+    v5: { version: 5, status: st.status === 'sent' ? 'sent' : 'draft', terms: st.terms, effective: d.v5.effective, created: d.v5.created, signed } };
+}
 export const getPayee = (id: string) => payees[id as keyof typeof payees] ?? null;
 
 // ---------- Batch 3: rights and operations ----------
