@@ -279,9 +279,16 @@ const OfferTerms = z.object({ from: z.string(), received: Display, open: Display
 export const OffersResponse = z.object({
   assumptions: z.object({ annualIncome: Cents, growthBp: z.number().int(), albumAnnualIncome: Cents, years: z.number().int().positive() }),
   baseline: Cents,
-  advance: z.object({ cash: Cents, cost: Cents, months: z.number().int(), yearlyCostBp: z.number().int(), income: Cents, offer: z.object({ kind: z.literal('advance'), cash: Cents, repayTotal: Cents, shareBp: Bp }), terms: OfferTerms }),
-  sale: z.object({ cash: Cents, cost: Cents, yearlyCostBp: z.number().int(), income: Cents, offer: z.object({ kind: z.literal('sale'), cash: Cents, shareBp: Bp, album: z.string() }), terms: OfferTerms }),
+  advance: z.object({ id: Id, cash: Cents, cost: Cents, months: z.number().int(), yearlyCostBp: z.number().int(), income: Cents, offer: z.object({ kind: z.literal('advance'), cash: Cents, repayTotal: Cents, shareBp: Bp }), terms: OfferTerms }),
+  sale: z.object({ id: Id, cash: Cents, cost: Cents, yearlyCostBp: z.number().int(), income: Cents, offer: z.object({ kind: z.literal('sale'), cash: Cents, shareBp: Bp, album: z.string() }), terms: OfferTerms }),
+  /** The sale was declined (Finance Agent drafts the reply; undo works until it's sent). */
+  declined: z.boolean(),
+  /** Questions for the offerers, newest first. Finance Agent drafts each email for the label to send. */
+  questions: z.array(z.object({ id: Id, text: z.string(), asked: Display })),
 });
+/** POST /api/funding/questions: save a question for the offerers. Returns the comparison. */
+export const AskFundingQuestionCommand = z.object({ question: z.string().trim().min(1).max(500) }).strict();
+export const FundingError = z.object({ error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'not_an_offer']), message: z.string() });
 
 // ---------- Departments, activity, settings, theme, roster (5f to 5i) ----------
 const TeamMember = z.object({ id: Id, name: z.string(), role: z.string() });

@@ -10,7 +10,7 @@ import type { ApprovalDetail, Release, Scenario } from './types';
 import type { ApprovalSummary } from '@/components/ui/Approval';
 import * as ops from './ops';
 import type { Module, SplitNodeResponse, SplitTreeNode } from '@breakrecords/contract';
-import { advance, baselineIncome, sale, type OfferAssumptions } from '@breakrecords/core/offers';
+import { advance, baselineIncome, sale, type AdvanceOffer, type OfferAssumptions, type SaleOffer } from '@breakrecords/core/offers';
 
 export { TODAY };
 
@@ -226,15 +226,34 @@ export async function getProfileClaims(): Promise<ReturnType<typeof mockProfileC
   if (!(await mockClaimsPrepared())) return base;
   return { ...base, rows: base.rows.map((r) => ({ ...r, cells: r.cells.map((c) => (c.status === 'notStarted' ? { status: 'prepared' as const } : c)) })) };
 }
-export const getFunding = () => ({ counts: ops.fundingCounts, items: ops.funding, applications: ops.applications });
-/** Offer comparison. Pass other assumptions to recompute every number. */
-export function getOffers(assumptions: OfferAssumptions = ops.offerAssumptions) {
+export type Funding = { counts: typeof ops.fundingCounts; items: ops.FundingItem[]; applications: typeof ops.applications };
+/** Funding (5d). Live: the tenant's grants and offers, minus the ones dismissed, with cards worked out from their terms. */
+export async function getFunding(): Promise<Funding> {
+  const ctx = await liveCtx('funding');
+  if (ctx) return (await import('@/server/live/funding')).liveFunding(ctx);
+  const m = await (await import('@/server/mockFunding')).mockFundingState();
+  const items = ops.funding.filter((f) => !m.dismissed.has(f.id));
+  return { counts: { opportunities: items.length, applications: ops.applications.length, offers: items.filter((f) => f.kind !== 'grant').length }, items, applications: ops.applications };
+}
+
+/** The comparison (5e) from offers and assumptions; numbers come from the offer math. */
+export function compareOffers(ids: { advance: string; sale: string }, assumptions: OfferAssumptions, adv: AdvanceOffer, sal: SaleOffer, terms: typeof ops.offerTerms, extra: { declined: boolean; questions: { id: string; text: string; asked: string }[] }) {
   return {
     assumptions,
     baseline: baselineIncome(assumptions),
-    advance: { ...advance(assumptions, ops.advanceOffer), offer: ops.advanceOffer, terms: ops.offerTerms.advance },
-    sale: { ...sale(assumptions, ops.saleOffer), offer: ops.saleOffer, terms: ops.offerTerms.sale },
+    advance: { id: ids.advance, ...advance(assumptions, adv), offer: adv, terms: terms.advance },
+    sale: { id: ids.sale, ...sale(assumptions, sal), offer: sal, terms: terms.sale },
+    ...extra,
   };
+}
+export type Offers = ReturnType<typeof compareOffers>;
+
+/** Offer comparison. Override assumptions to recompute every number. Null when there aren't two offers to compare. */
+export async function getOffers(overrides: Partial<OfferAssumptions> = {}): Promise<Offers | null> {
+  const ctx = await liveCtx('funding');
+  if (ctx) return (await import('@/server/live/funding')).liveOffers(ctx, overrides);
+  const m = await (await import('@/server/mockFunding')).mockFundingState();
+  return compareOffers({ advance: 'fund_advance', sale: 'fund_sale' }, { ...ops.offerAssumptions, ...overrides }, ops.advanceOffer, ops.saleOffer, ops.offerTerms, { declined: m.declined, questions: m.questions });
 }
 export const getDepartments = () => ({ departments: ops.departments, team: ops.team });
 export const getActivity = () => ops.activity;

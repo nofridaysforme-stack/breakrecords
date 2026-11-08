@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ApprovalError, ApprovalState, CatalogResponse, ContractsResponse, ENDPOINTS, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, CatalogResponse, ContractsResponse, ENDPOINTS, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 
@@ -560,5 +560,66 @@ test.describe('roster (live)', () => {
     const harbor = await (await browser.newContext()).newPage();
     await signIn(harbor, USERS.harbor);
     expect(await roster(harbor)).toEqual([]);
+  });
+});
+
+test.describe('funding (live)', () => {
+  test('cards and the comparison are worked out from the offers’ terms', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    const f = FundingResponse.parse(await (await page.request.get('/api/funding')).json());
+    expect(f.items.map((i) => [i.id, i.title, i.cost, i.permanent])).toEqual([
+      ['fund_grant', 'State arts council project grant', 'Nothing to repay', false],
+      ['fund_advance', '$8,000 for 60% of streaming until repaid', 'About $960, 14 months', false],
+      ['fund_sale', '$15,000 for 50% of one album, forever', 'About $12,000 over 5 yrs', true],
+    ]);
+    expect(f.applications).toEqual([expect.objectContaining({ id: 'apr_grant', status: 'Draft 80% done', due: 'Nov 15' })]);
+    const o = OffersResponse.parse(await (await page.request.get('/api/funding/offers?income=26400')).json());
+    expect(o.advance).toMatchObject({ months: 7, cost: 96000 });
+    expect(o.sale.offer.album).toBe('Velvet Hours');
+    await page.goto('/funding/offers/compare');
+    await expect(page.getByText('About 14 months')).toBeVisible();
+  });
+
+  test('dismissing, declining and questions are saved for the label and audited', async ({ page, browser }) => {
+    await signIn(page, USERS.owner);
+    await page.goto('/funding');
+    await page.getByRole('button', { name: 'Dismiss $15,000 for 50% of one album, forever' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'suggest it again' })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('heading', { name: '$15,000 for 50% of one album, forever' })).toHaveCount(0); // still gone after a reload
+    await page.getByRole('button', { name: 'Dismiss State arts council project grant' }).click();
+    await page.getByRole('button', { name: 'Undo' }).click();
+    await expect(page.getByRole('heading', { name: 'State arts council project grant' })).toBeVisible();
+    await page.request.delete('/api/funding/fund_sale/dismiss'); // bring the sale back to compare
+    await page.goto('/funding/offers/compare');
+    await page.getByRole('button', { name: 'Decline the sale' }).first().click();
+    await expect(page.getByText('Sale declined. Finance Agent will draft a short reply for you to send.').first()).toBeVisible();
+    await page.getByRole('button', { name: 'Request more info' }).click();
+    await page.getByLabel('Your question').fill('Can the sale include a buy-back after 5 years?');
+    await page.getByRole('button', { name: 'Save question' }).click();
+    await expect(page.getByText('Saved. Finance Agent drafts the email').first()).toBeVisible();
+
+    const jana = await (await browser.newContext()).newPage();
+    await signIn(jana, USERS.jana);
+    const o = OffersResponse.parse(await (await jana.request.get('/api/funding/offers')).json());
+    expect(o.declined).toBe(true);
+    expect(o.questions.map((q) => q.text)).toEqual(['Can the sale include a buy-back after 5 years?']);
+    await jana.goto('/funding/offers/compare');
+    await expect(jana.getByRole('button', { name: 'Decline the sale' }).first()).toBeDisabled();
+    const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+    const audit = await db`SELECT kind, ref FROM audit_events WHERE kind LIKE 'funding.%' ORDER BY id`;
+    await db.end();
+    expect(audit.map((r) => [r.kind, r.ref])).toEqual([['funding.dismissed', 'fund_sale'], ['funding.dismissed', 'fund_grant'], ['funding.restored', 'fund_grant'], ['funding.restored', 'fund_sale'], ['funding.declined', 'fund_sale'], ['funding.question', 'offers']]);
+  });
+
+  test('payees and other labels see no funding', async ({ page, browser }) => {
+    await signIn(page, USERS.payee);
+    for (const path of ['/api/funding', '/api/funding/offers']) expect((await page.request.get(path)).status()).toBe(403);
+    expect((await page.request.post('/api/funding/fund_grant/dismiss')).status()).toBe(403);
+    const harbor = await (await browser.newContext()).newPage();
+    await signIn(harbor, USERS.harbor);
+    expect(FundingResponse.parse(await (await harbor.request.get('/api/funding')).json()).items).toEqual([]);
+    expect((await harbor.request.get('/api/funding/offers')).status()).toBe(404);
+    expect((await harbor.request.post('/api/funding/fund_sale/dismiss')).status()).toBe(404);
   });
 });

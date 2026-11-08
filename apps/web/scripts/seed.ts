@@ -6,7 +6,7 @@ import { approvals as items } from '../src/data/sample';
 import { approvalDetails, releases as runbooks } from '../src/data/fixtures';
 import { budgets, glasshouseDeal, statements as payeeStatements } from '../src/data/money';
 import { daysBetween } from '@breakrecords/core/dates';
-import { catalogAssets, catalogReleases, contracts, profileClaims, recordings, regColumns, registrations, songs, templates, unclaimed } from '../src/data/ops';
+import { advanceOffer, catalogAssets, catalogReleases, contracts, funding, offerAssumptions, offerTerms, profileClaims, saleOffer, recordings, regColumns, registrations, songs, templates, unclaimed } from '../src/data/ops';
 import { aiUseFromLabel } from '@breakrecords/core/metadata';
 import { checkStatement } from '@breakrecords/core/statements';
 import type { Tx } from '@breakrecords/db/client';
@@ -45,7 +45,7 @@ async function main() {
 
     // Payouts and statements point at parties, recordings and split versions, and batches at approvals, so they go first.
     for (const t of [ids.northline, ids['harbor-sound']]) {
-      for (const table of ['payout_batches', 'payee_requests', 'payees', 'recoupment_accounts', 'payout_policies', 'agreements', 'contract_templates', 'contract_reviews']) {
+      for (const table of ['payout_batches', 'payee_requests', 'payees', 'recoupment_accounts', 'payout_policies', 'agreements', 'contract_templates', 'contract_reviews', 'funding_opportunities', 'funding_questions', 'funding_assumptions']) {
         await tx.unsafe(`DELETE FROM ${table} WHERE tenant_id = $1`, [t]);
       }
       await tx`DELETE FROM payee_statements WHERE tenant_id = ${t}`;
@@ -74,6 +74,7 @@ async function main() {
     await seedRunbooks(tx, ids.northline);
     await seedContracts(tx, ids.northline);
     await seedRoster(tx, ids.northline);
+    await seedFunding(tx, ids.northline);
     await seedHarborPayouts(tx, ids['harbor-sound']);
   });
   console.log(`Seeded Northline and Harbor Sound; ${PEOPLE.length} people allowlisted.`);
@@ -540,6 +541,24 @@ async function seedRoster(tx: Tx, tenant: string) {
     const [p] = await tx`SELECT id FROM parties WHERE tenant_id = ${tenant} AND slug = ${slug}`;
     await tx`INSERT INTO roster_members (tenant_id, party_id, role, position, joined_on) VALUES (${tenant}, ${p.id}, ${role}, ${i}, ${joined})`;
   }
+}
+
+// ---------- Funding (5d, 5e) ----------
+// The grant and the two offers with their real terms; cards and the comparison are worked out
+// from these. ASSUMED: who made the offers (5d doesn't say).
+async function seedFunding(tx: Tx, tenant: string) {
+  const a = offerAssumptions;
+  await tx`INSERT INTO funding_assumptions (tenant_id, annual_income_cents, growth_bp, album_annual_income_cents, years, updated_on)
+    VALUES (${tenant}, ${a.annualIncome}, ${a.growthBp}, ${a.albumAnnualIncome}, ${a.years}, '2026-11-04')`;
+  const [velvet] = await tx`SELECT id FROM releases WHERE tenant_id = ${tenant} AND slug = 'rel_velvet'`;
+  const grant = funding.find((f) => f.kind === 'grant')!;
+  await tx`INSERT INTO funding_opportunities (tenant_id, slug, kind, title, cash_cents, up_to, deadline, fit_bp, draft_pct, approval_id, verified_on)
+    VALUES (${tenant}, ${grant.id}, 'grant', ${grant.title}, 500000, true, '2026-11-15', 8600, 80, 'apr_grant', '2026-11-03')`;
+  await tx`INSERT INTO funding_opportunities (tenant_id, slug, kind, cash_cents, repay_total_cents, share_bp, offerer, received_on, deadline, buy_back, fit_bp, verified_on)
+    VALUES (${tenant}, 'fund_advance', 'advance', ${advanceOffer.cash}, ${advanceOffer.repayTotal}, ${advanceOffer.shareBp}, 'Streamline Advances', '2026-11-02', '2026-12-01',
+            ${offerTerms.advance.buyBack}, 7100, '2026-11-02')`;
+  await tx`INSERT INTO funding_opportunities (tenant_id, slug, kind, cash_cents, share_bp, album_release_id, offerer, received_on, deadline, fit_bp, verified_on)
+    VALUES (${tenant}, 'fund_sale', 'sale', ${saleOffer.cash}, ${saleOffer.shareBp}, ${velvet.id}, 'Catalog Partners', '2026-11-04', '2026-11-30', 3800, '2026-11-04')`;
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

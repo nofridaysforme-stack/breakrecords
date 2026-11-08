@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ApprovalError, ApprovalState, ContractsResponse, ENDPOINTS, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, ContractsResponse, ENDPOINTS, FundingResponse, OffersResponse, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
 
 // The API contract over HTTP. Any server behind the UI, mock or live, must pass this file.
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
@@ -201,5 +201,26 @@ test.describe('contract writes', () => {
   test('only PDF and Word files', async ({ request }) => {
     expect((await request.post('/api/contracts/reviews', { data: { fileName: 'deal.exe' } })).status()).toBe(400);
     expect((await request.post('/api/contracts/reviews', { data: {} })).status()).toBe(400);
+  });
+});
+
+test.describe('funding writes', () => {
+  test('dismissing a card hides it for the session, and undo brings it back', async ({ request }) => {
+    const res = await request.post('/api/funding/fund_sale/dismiss');
+    expect(res.status()).toBe(200);
+    const f = FundingResponse.parse(await res.json());
+    expect(f.items.map((i) => i.id)).toEqual(['fund_grant', 'fund_advance']);
+    expect(f.counts).toMatchObject({ opportunities: 2, offers: 1 });
+    expect(FundingResponse.parse(await (await request.delete('/api/funding/fund_sale/dismiss')).json()).items).toHaveLength(3);
+    expect((await request.post('/api/funding/nope/dismiss')).status()).toBe(404);
+  });
+  test('declining the sale and asking a question are saved; grants can’t be declined', async ({ request }) => {
+    expect(OffersResponse.parse(await (await request.post('/api/funding/fund_sale/decline')).json()).declined).toBe(true);
+    expect(OffersResponse.parse(await (await request.get('/api/funding/offers')).json()).declined).toBe(true);
+    expect(OffersResponse.parse(await (await request.delete('/api/funding/fund_sale/decline')).json()).declined).toBe(false);
+    expect((await request.post('/api/funding/fund_grant/decline')).status()).toBe(409);
+    const asked = OffersResponse.parse(await (await request.post('/api/funding/questions', { data: { question: 'Can the sale include a buy-back?' } })).json());
+    expect(asked.questions[0].text).toBe('Can the sale include a buy-back?');
+    expect((await request.post('/api/funding/questions', { data: { question: ' ' } })).status()).toBe(400);
   });
 });

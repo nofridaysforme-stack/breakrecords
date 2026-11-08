@@ -409,4 +409,18 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
         tx`INSERT INTO roster_members (tenant_id, party_id, role) VALUES (${ids.b}, ${kesi}, 'Poached')`)).rejects.toThrow(/cross-tenant reference|duplicate key/);
     });
   });
+  describe('funding', () => {
+    it('offers carry their real terms; the app can only dismiss or decline them; other people see nothing', async () => {
+      const asA = <T,>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(app, { userId: ids.ua, tenantId: ids.a }, fn);
+      await expect(asA((tx) => tx`INSERT INTO funding_opportunities (tenant_id, slug, kind, cash_cents, share_bp, deadline, fit_bp, verified_on)
+        VALUES (${ids.a}, 'adv', 'advance', 800000, 6000, '2026-12-01', 7100, '2026-11-02')`)).rejects.toThrow(/check constraint/); // an advance says what's repaid
+      await asA((tx) => tx`INSERT INTO funding_opportunities (tenant_id, slug, kind, cash_cents, repay_total_cents, share_bp, deadline, fit_bp, verified_on)
+        VALUES (${ids.a}, 'adv', 'advance', 800000, 896000, 6000, '2026-12-01', 7100, '2026-11-02')`);
+      expect((await asA((tx) => tx`UPDATE funding_opportunities SET dismissed_at = now(), dismissed_by = ${ids.ua} WHERE slug = 'adv'`)).count).toBe(1);
+      await expect(asA((tx) => tx`UPDATE funding_opportunities SET cash_cents = 1 WHERE slug = 'adv'`)).rejects.toThrow(/permission denied/);
+      for (const who of [{ userId: ids.payee, tenantId: ids.a }, { userId: ids.ub, tenantId: ids.b }]) {
+        expect(await withTenant(app, who, (tx) => tx`SELECT 1 FROM funding_opportunities`)).toHaveLength(0);
+      }
+    });
+  });
 });

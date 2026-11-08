@@ -8,6 +8,6 @@ import { getFunding } from '@/data/api';
 /** Shared by the three Funding tabs. */
 export async function FundingPage({ tab, searchParams }: { tab: FundingTab; searchParams: Promise<{ state?: string }> }) {
   const scenario = toScenario((await searchParams).state);
-  const data = getFunding();
+  const data = await getFunding();
   return <Page><FundingHead data={data} /><ScreenState scenario={scenario} copy={OPS_STATES.funding}><FundingView data={data} tab={tab} /></ScreenState></Page>;
 }

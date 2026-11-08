@@ -12,7 +12,7 @@ import type { FundingItem } from '@/data/ops';
 import o from '@/components/ops/Ops.module.css';
 import s from './Funding.module.css';
 
-type Data = ReturnType<typeof getFunding>;
+type Data = Awaited<ReturnType<typeof getFunding>>;
 export type FundingTab = 'opportunities' | 'applications' | 'offers';
 
 export function FundingHead({ data }: { data: Data }) {
@@ -32,11 +32,21 @@ const TYPE_TONE = { grant: s.typeGood, advance: s.typeAccent, sale: s.typeCritic
 const COST_TONE = { good: o.good, plain: '', critical: o.critical };
 
 /** 5d. Grants first, then offers. Permanent offers always carry the red box. */
-export function FundingView({ data, tab }: { data: Data; tab: FundingTab }) {
-  const [dismissed, setDismissed] = useState<string[]>([]);
+export function FundingView({ data: initial, tab }: { data: Data; tab: FundingTab }) {
+  const [data, setData] = useState(initial);
+  const [lastItem, setLastItem] = useState<FundingItem | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const items = data.items.filter((f) => (tab === 'offers' ? f.kind !== 'grant' : true));
-  const last = dismissed.at(-1);
-  const lastItem = data.items.find((f) => f.id === last);
+  // Dismissing is saved for the label; undo brings the card back.
+  async function dismiss(f: FundingItem, on: boolean) {
+    setError(null);
+    try {
+      const res = await fetch(`/api/funding/${f.id}/dismiss`, { method: on ? 'POST' : 'DELETE' });
+      const body = await res.json();
+      if (!res.ok) { setError(body.message ?? 'That didn’t save.'); return; }
+      setData(body); setLastItem(on ? f : null);
+    } catch { setError('Couldn’t reach the server. Nothing changed.'); }
+  }
 
   if (tab === 'applications') {
     return (
@@ -64,11 +74,12 @@ export function FundingView({ data, tab }: { data: Data; tab: FundingTab }) {
       {lastItem && (
         <p className={o.toast} role="status">
           Dismissed &quot;{lastItem.title}&quot;. Funding Scout won&apos;t suggest it again.
-          <button type="button" className={o.linkInline} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 'var(--tap-min)' }} onClick={() => setDismissed((d) => d.slice(0, -1))}><Undo2 size={14} aria-hidden="true" />Undo</button>
+          <button type="button" className={o.linkInline} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 'var(--tap-min)' }} onClick={() => lastItem && dismiss(lastItem, false)}><Undo2 size={14} aria-hidden="true" />Undo</button>
         </p>
       )}
+      {error && <p className={o.small} role="alert" style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--critical)' }}><CircleAlert size={14} aria-hidden="true" />{error}</p>}
       <ul className={s.cards}>
-        {items.filter((f) => !dismissed.includes(f.id)).map((f) => <li key={f.id} className={s.cardItem}><FundingCard f={f} onDismiss={() => setDismissed((d) => [...d, f.id])} /></li>)}
+        {items.map((f) => <li key={f.id} className={s.cardItem}><FundingCard f={f} onDismiss={() => dismiss(f, true)} /></li>)}
       </ul>
       {tab === 'offers' && <div><ButtonLink href="/funding/offers/compare" variant="primary">Compare both offers</ButtonLink></div>}
       <section aria-labelledby="src-h" className={s.sources}>
