@@ -208,4 +208,75 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
         .rejects.toThrow(/cross-tenant reference/);
     });
   });
+  describe('statements', () => {
+    let stA = ''; let lineA = ''; let kesi = ''; let marco = ''; let rec = '';
+    const rows = (net: number) => owner.json([{ kind: 'start', label: 'Income', rule: 'All stores', amount: net, balance: net }]);
+    beforeAll(async () => {
+      [{ id: kesi }] = await owner`SELECT id FROM parties WHERE tenant_id = ${ids.a} AND slug = 'kesi'`;
+      [{ id: marco }] = await owner`SELECT id FROM parties WHERE tenant_id = ${ids.a} AND slug = 'marco'`;
+      [{ id: rec }] = await owner`SELECT id FROM recordings WHERE tenant_id = ${ids.a} AND slug = 'glasshouse'`;
+      await owner.begin(async (tx) => {
+        [{ id: stA }] = await tx`INSERT INTO income_statements (tenant_id, ref, source, period, total_cents) VALUES (${ids.a}, 'DS-1026', 'distributor', '2026-10-01', 1500) RETURNING id`;
+        [{ id: lineA }] = await tx`INSERT INTO income_lines (tenant_id, statement_id, line_no, title, isrc, amount_cents) VALUES (${ids.a}, ${stA}, 1, 'Glasshouse', 'USNL1260014', 1000) RETURNING id`;
+        await tx`INSERT INTO income_lines (tenant_id, statement_id, line_no, title, amount_cents, recording_id) VALUES (${ids.a}, ${stA}, 2, 'Glasshouse', 500, ${rec})`;
+      });
+      await owner.begin(async (tx) => {
+        const [b] = await tx`INSERT INTO income_statements (tenant_id, ref, source, period, total_cents) VALUES (${ids.b}, 'HS-1026', 'distributor', '2026-10-01', 700) RETURNING id`;
+        await tx`INSERT INTO income_lines (tenant_id, statement_id, line_no, title, amount_cents) VALUES (${ids.b}, ${b.id}, 1, 'Tidal', 700)`;
+      });
+      for (const [ref, party, net] of [['ST-2026-10-KV', kesi, 900], ['ST-2026-10-MD', marco, 100]] as const) {
+        await owner`INSERT INTO payee_statements (tenant_id, ref, party_id, period, pays_on, rows, net_cents, simple, audit_ref)
+          VALUES (${ids.a}, ${ref}, ${party}, '2026-10-01', '2026-11-10', ${rows(net)}, ${net}, ${owner.json([])}, 'AUD-1')`;
+      }
+    });
+
+    it('a statement whose lines don’t add up to its total never commits', async () => {
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, async (tx) => {
+        const [s] = await tx`INSERT INTO income_statements (tenant_id, ref, source, period, total_cents) VALUES (${ids.a}, 'SX-1026', 'soundexchange', '2026-10-01', 1000) RETURNING id`;
+        await tx`INSERT INTO income_lines (tenant_id, statement_id, line_no, title, amount_cents) VALUES (${ids.a}, ${s.id}, 1, 'Glasshouse', 999)`;
+      })).rejects.toThrow(/does not reconcile: lines total 999 cents, statement says 1000 cents/);
+      expect(await owner`SELECT 1 FROM income_statements WHERE ref = 'SX-1026'`).toHaveLength(0);
+    });
+
+    it('each label sees only its own income', async () => {
+      const a = await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT ref FROM income_statements`);
+      expect(a.map((r) => r.ref)).toEqual(['DS-1026']);
+      const lines = await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT title FROM income_lines`);
+      expect(lines.map((r) => r.title)).toEqual(['Tidal']);
+    });
+
+    it('matching a line points it at a recording and can’t touch the money', async () => {
+      const ok = await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) =>
+        tx`UPDATE income_lines SET recording_id = ${rec}, matched_by = ${ids.ua}, matched_at = now() WHERE id = ${lineA}`);
+      expect(ok.count).toBe(1);
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`UPDATE income_lines SET amount_cents = 1 WHERE id = ${lineA}`))
+        .rejects.toThrow(/only its match can change/);
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`DELETE FROM income_lines WHERE id = ${lineA}`))
+        .rejects.toThrow(/permission denied/);
+    });
+
+    it('another label can’t match your lines, or match its lines to your recordings', async () => {
+      const none = await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`UPDATE income_lines SET recording_id = NULL WHERE id = ${lineA}`);
+      expect(none.count).toBe(0);
+      await expect(withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`UPDATE income_lines SET recording_id = ${rec}`))
+        .rejects.toThrow(/cross-tenant reference/);
+    });
+
+    it('a payee reads only their own statements, and no income', async () => {
+      const mine = await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT ref FROM payee_statements`);
+      expect(mine.map((r) => r.ref)).toEqual(['ST-2026-10-MD']);
+      expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT 1 FROM income_lines`)).toHaveLength(0);
+      expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT 1 FROM income_statements`)).toHaveLength(0);
+      expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT 1 FROM payee_statements`)).toHaveLength(0);
+    });
+
+    it('an issued statement can’t be changed, and its net must be its last balance', async () => {
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`UPDATE payee_statements SET net_cents = 1`))
+        .rejects.toThrow(/permission denied/);
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) =>
+        tx`INSERT INTO payee_statements (tenant_id, ref, party_id, period, pays_on, rows, net_cents, simple, audit_ref)
+           VALUES (${ids.a}, 'ST-2026-10-XX', ${kesi}, '2026-10-01', '2026-11-10', ${tx.json([{ kind: 'start', label: 'x', rule: 'x', amount: 100, balance: 100 }])}, 101, ${tx.json([])}, 'AUD-2')`))
+        .rejects.toThrow(/check constraint/);
+    });
+  });
 });

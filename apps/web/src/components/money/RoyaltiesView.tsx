@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { CircleAlert, X } from 'lucide-react';
 import { PageTitle } from '@/components/type/Type';
 import { Button } from '@/components/ui/Button';
 import { Money } from '@/components/ui/Money';
@@ -11,11 +11,32 @@ import type { royalties as R } from '@/data/money';
 import { Filter } from './Filter';
 import s from './Money.module.css';
 
-export function RoyaltiesView({ data }: { data: typeof R }) {
+type Suggestion = (typeof R)['unmatched']['suggestions'][number];
+const owner = (source: string) => (source === 'Distributor' ? 'the distributor' : source);
+
+export function RoyaltiesView({ data: initial }: { data: typeof R }) {
   const [artist, setArtist] = useState('All');
-  const [matched, setMatched] = useState(data.stats.matched);
+  const [data, setData] = useState(initial);
+  const [done, setDone] = useState<{ count: number; recording: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
+  const matched = data.stats.matched;
   const unmatched = data.stats.lines - matched;
+  const { suggestions, unknown } = data.unmatched;
+
+  async function match(x: Suggestion) {
+    setBusy(true); setError(null);
+    try {
+      const res = await fetch('/api/money/royalties/match', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ isrc: x.isrc, recordingId: x.recordingId }) });
+      const body = await res.json();
+      if (!res.ok) { setError(body.message ?? 'Those lines couldn’t be matched.'); return; }
+      setData(body); setDone({ count: x.count, recording: x.recording });
+      if (!body.unmatched.suggestions.length) dialog.current?.close();
+    } catch {
+      setError('Couldn’t reach the server. Nothing was matched.');
+    } finally { setBusy(false); }
+  }
   const pctMatched = (matched / data.stats.lines) * 100;
   const a = data.byArtist.find((x) => x.name === artist);
   const max = Math.max(...data.sources.map((x) => x.amount));
@@ -69,13 +90,16 @@ export function RoyaltiesView({ data }: { data: typeof R }) {
         <section className={s.card} aria-labelledby="unmatched">
           <div className={s.cardHead}><h2 id="unmatched" className={s.cardTitle}>Unmatched lines <span className={s.accent}>{unmatched}</span></h2><span className={s.monoMeta}>{matched.toLocaleString('en-US')} of {data.stats.lines.toLocaleString('en-US')} matched</span></div>
           <div className={s.matchTrack} role="progressbar" aria-valuenow={Math.round(pctMatched)} aria-valuemin={0} aria-valuemax={100} aria-label={`${pctMatched.toFixed(1)}% of statement lines matched`}><div className={s.matchFill} style={{ width: `${pctMatched}%` }} /></div>
-          {unmatched > 3 ? (
+          {suggestions.length ? (
             <>
               <p className={s.text}>{data.unmatched.count} lines worth <Money cents={data.unmatched.value} /> have an <Term term="ISRC" /> we don&apos;t recognize. {data.unmatched.note}</p>
               <div><Button variant="primary" onClick={() => dialog.current?.showModal()}>Resolve {unmatched} lines</Button></div>
             </>
           ) : (
-            <p className={s.text} role="status">24 lines matched to Night Bus. {unmatched} lines are still unknown; Royalties Agent asked the distributor about them.</p>
+            <p className={s.text} role="status">
+              {done && `${done.count} lines matched to ${done.recording}. `}
+              {unmatched ? `${unmatched} lines are still unknown; Royalties Agent asked the distributor about them.` : 'Every line is matched.'}
+            </p>
           )}
         </section>
         <section className={s.card} aria-labelledby="zero">
@@ -92,10 +116,13 @@ export function RoyaltiesView({ data }: { data: typeof R }) {
 
       <dialog ref={dialog} className={s.drawer} aria-labelledby="resolve" onClick={(e) => { if (e.target === dialog.current) dialog.current?.close(); }}>
         <div className={s.drawerHead}><h2 id="resolve" className={s.cardTitle}>Resolve {unmatched} lines</h2><button type="button" className={s.iconBtn} aria-label="Close" onClick={() => dialog.current?.close()}><X size={16} aria-hidden="true" /></button></div>
-        <p className={s.text}><strong style={{ color: 'var(--text)' }}>24 lines</strong> carry ISRC USNL1250031, one digit short of Night Bus (USNL12500031). I think it&apos;s a typo in the distributor&apos;s metadata. I haven&apos;t confirmed it with them.</p>
-        <p className={s.text}><strong style={{ color: 'var(--text)' }}>3 lines</strong> don&apos;t look like anything in your catalog. I&apos;ll ask the distributor.</p>
+        {suggestions.map((x) => (
+          <p key={x.isrc} className={s.text}><strong style={{ color: 'var(--text)' }}>{x.count} lines</strong> carry ISRC {x.isrc}, {x.reason}. I think it&apos;s a typo in {owner(x.source)}&apos;s metadata. I haven&apos;t confirmed it with them.</p>
+        ))}
+        {unknown.count > 0 && <p className={s.text}><strong style={{ color: 'var(--text)' }}>{unknown.count} lines</strong> don&apos;t look like anything in your catalog. I&apos;ll ask the distributor.</p>}
+        {error && <p className={s.text} role="alert" style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--critical)' }}><CircleAlert size={16} aria-hidden="true" />Not matched. {error}</p>}
         <div className={s.formActions}>
-          <Button variant="primary" onClick={() => { setMatched(data.stats.lines - 3); dialog.current?.close(); }}>Match 24 lines to Night Bus</Button>
+          {suggestions.map((x) => <Button key={x.isrc} variant="primary" disabled={busy} onClick={() => match(x)}>Match {x.count} lines to {x.recording}</Button>)}
           <Button onClick={() => dialog.current?.close()}>Not now</Button>
         </div>
       </dialog>

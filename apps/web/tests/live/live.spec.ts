@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { ApprovalError, ApprovalState, CatalogResponse, ENDPOINTS, ProfileClaimsResponse, Recording, RegistrationsResponse, SplitNodeResponse, SplitTreeResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, CatalogResponse, ENDPOINTS, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 
 // Live mode (Postgres + sign-in + approvals module live). Stage 0 gate: screens run on the
@@ -254,5 +255,82 @@ test.describe('splits (live)', () => {
     expect(SplitTreeResponse.parse(await (await page.request.get('/api/splits')).json())).toEqual([]);
     expect((await page.request.get('/api/splits/gh-rec')).status()).toBe(404);
     expect((await page.request.post('/api/splits/gh-rec/send', { data: {} })).status()).toBe(404);
+  });
+});
+
+test.describe('statements (live)', () => {
+  const royalties = async (page: import('@playwright/test').Page) => RoyaltiesResponse.parse(await (await page.request.get('/api/money/royalties')).json());
+
+  test('Royalties are computed from the income lines', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    const r = await royalties(page);
+    expect(r.period).toBe('October 2026');
+    expect(r.stats).toMatchObject({ income: 1428640, incomeNote: 'Up 18% on September', matched: 1204, lines: 1231, unclaimed: 31240, unclaimedNote: '2 sources to claim' });
+    expect(r.sources.reduce((a, x) => a + x.amount, 0)).toBe(r.stats.income); // reconciles to the cent
+    expect(r.sources.map((x) => x.name)).toEqual(['Distributor', 'SoundExchange', 'MLC', 'PRO', 'Sync', 'Bandcamp']);
+    expect(r.byArtist.reduce((a, x) => a + x.amount, 0) + r.unmatched.value).toBe(r.stats.income);
+    expect(r.byArtist[0]).toMatchObject({ name: 'Kesi Vale', amount: 1081260, meta: 'Glasshouse, Velvet Hours and Paper Moons' });
+    expect(r.unmatched).toMatchObject({ count: 27, value: 4112, note: 'Royalties Agent thinks 24 are a typo in "Night Bus" metadata.', unknown: { count: 3, value: 272 } });
+    expect(r.zeroTracks).toEqual([{ name: 'Night Bus (demo)', streams: 412 }, { name: 'Static Hymn', streams: 688 }]);
+
+    await page.goto('/money/royalties');
+    await expect(page.getByText('1,204 of 1,231').first()).toBeVisible();
+  });
+
+  test('statements are served as issued, and checked', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    const list = StatementsResponse.parse(await (await page.request.get('/api/statements')).json());
+    expect(list.items.map((s) => s.id)).toEqual(['ST-2026-10-KV', 'ST-2026-10-MD', 'ST-2026-09-MD']);
+    const kv = StatementResponse.parse(await (await page.request.get('/api/statements/ST-2026-10-KV')).json());
+    expect(kv).toMatchObject({ payee: 'Kesi Vale', release: 'Glasshouse', period: 'October 2026', split: 'split v4', net: 234675, pays: 'Jan 15 on the quarterly artist run' });
+    expect(kv.rows.at(-1)?.balance).toBe(kv.net);
+    await page.goto('/money/statements');
+    await expect(page.getByRole('row', { name: /Kesi Vale/ })).toContainText('$2,346.75');
+    await page.goto('/money/statements/ST-2026-10-KV');
+    await expect(page.getByText('$2,346.75').first()).toBeVisible();
+  });
+
+  test('cross-tenant: Harbor Sound sees only its own income and statements', async ({ page }) => {
+    await signIn(page, USERS.harbor);
+    const r = await royalties(page);
+    expect(r.stats).toMatchObject({ income: 84210, lines: 1, matched: 1 });
+    expect(r.byArtist.map((a) => a.name)).toEqual(['Mara Quill']);
+    expect(StatementsResponse.parse(await (await page.request.get('/api/statements')).json()).items.map((s) => s.id)).toEqual(['ST-2026-10-MQ']);
+    expect((await page.request.get('/api/statements/ST-2026-10-KV')).status()).toBe(404);
+    expect((await page.request.post('/api/money/royalties/match', { data: { isrc: 'USNL1250031', recordingId: 'night-bus' } })).status()).toBe(404);
+  });
+
+  test('a payee sees only their own statements, and no label income', async ({ page }) => {
+    await signIn(page, USERS.payee);
+    expect((await page.request.get('/api/money/royalties')).status()).toBe(403);
+    expect(StatementsResponse.parse(await (await page.request.get('/api/statements')).json()).items.map((s) => s.id)).toEqual(['ST-2026-10-MD', 'ST-2026-09-MD']);
+    expect((await page.request.get('/api/statements/ST-2026-10-KV')).status()).toBe(404);
+    expect((await page.request.post('/api/money/royalties/match', { data: { isrc: 'USNL1250031', recordingId: 'night-bus' } })).status()).toBe(403);
+    await page.goto('/portal/statements');
+    await expect(page.getByRole('link', { name: /October 2026 · Glasshouse/ })).toContainText('$285.00');
+    await expect(page.getByRole('link', { name: /September 2026 · Glasshouse/ })).toContainText('$312.60');
+    await page.goto('/portal/statements/ST-2026-10-MD');
+    await expect(page.getByText('$285.00').first()).toBeVisible();
+  });
+
+  test('matching the mistyped lines is saved for the label and audited', async ({ page, browser }) => {
+    await signIn(page, USERS.owner);
+    await page.goto('/money/royalties');
+    await page.getByRole('button', { name: 'Resolve 27 lines' }).click();
+    await expect(page.getByText('carry ISRC USNL1250031, one digit short of Night Bus (USNL12500031)')).toBeVisible();
+    await page.getByRole('button', { name: 'Match 24 lines to Night Bus' }).click();
+    await expect(page.getByRole('status').filter({ hasText: '24 lines matched to Night Bus.' })).toContainText('3 lines are still unknown');
+
+    const jana = await (await browser.newContext()).newPage();
+    await signIn(jana, USERS.jana);
+    const r = await royalties(jana);
+    expect(r.stats).toMatchObject({ matched: 1228, income: 1428640 });
+    expect(r.unmatched).toMatchObject({ count: 3, value: 272, suggestions: [] });
+    expect(r.byArtist.find((a) => a.name === 'The Low Hours')?.amount).toBe(322128 + 3840);
+    expect((await jana.request.post('/api/money/royalties/match', { data: { isrc: 'USNL1250031', recordingId: 'night-bus' } })).status()).toBe(409);
+    const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+    const audit = await db`SELECT ref, data FROM audit_events WHERE kind = 'income_lines.matched'`;
+    await db.end();
+    expect(audit).toEqual([{ ref: 'USNL1250031', data: { recording: 'night-bus', lines: 24, cents: 3840 } }]);
   });
 });

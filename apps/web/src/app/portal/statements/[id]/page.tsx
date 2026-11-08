@@ -10,8 +10,8 @@ type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ as?: str
 
 export default async function PortalStatementPage({ params, searchParams }: Props) {
   const p = resolvePayee((await searchParams).as);
-  const st = getStatement((await params).id);
+  const st = await getStatement((await params).id);
   // A payee only ever sees their own statements.
-  if (!st || st.payeeId !== p.id) notFound();
+  if (!st || st.payee !== p.name) notFound();
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 640 }}><PortalStatement st={st} payeeId={p.id} /></div>;
 }

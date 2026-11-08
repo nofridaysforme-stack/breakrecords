@@ -10,8 +10,8 @@ import s from '@/components/money/Money.module.css';
 export const metadata: Metadata = { title: 'Statements' };
 
 // Undrawn: the 4d table pattern listing every statement; each opens 4c.
-export default function StatementsPage() {
-  const list = listStatements();
+export default async function StatementsPage() {
+  const list = await listStatements();
   return (
     <Page>
       <MoneyTabs />

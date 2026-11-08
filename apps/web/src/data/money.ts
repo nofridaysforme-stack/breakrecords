@@ -19,7 +19,12 @@ export const royalties = {
     { name: 'The Low Hours', meta: 'Night Bus EP', amount: toCents(3262.4) },
     { name: 'Marco Dela', meta: 'Producer and writer income', amount: toCents(211.4) },
   ],
-  unmatched: { count: 27, value: toCents(41.12), note: 'Royalties Agent thinks 24 are a typo in "Night Bus" metadata.' },
+  unmatched: {
+    count: 27, value: toCents(41.12), note: 'Royalties Agent thinks 24 are a typo in "Night Bus" metadata.',
+    // ASSUMED: how the $41.12 divides between the typo lines and the unknown ones.
+    suggestions: [{ isrc: 'USNL1250031', source: 'Distributor', count: 24, value: toCents(38.4), recordingId: 'night-bus', recording: 'Night Bus', recordingIsrc: 'USNL12500031', reason: 'one digit short of Night Bus (USNL12500031)' }],
+    unknown: { count: 3, value: toCents(2.72) },
+  },
   zeroTracks: [{ name: 'Night Bus (demo)', streams: 412 }, { name: 'Static Hymn', streams: 688 }],
   policyVerified: { date: 'Oct 12, 2026', href: '#spotify-policy' },
 };

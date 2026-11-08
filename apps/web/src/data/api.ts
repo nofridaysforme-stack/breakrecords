@@ -2,7 +2,7 @@ import 'server-only';
 
 // Mock API: the single source the route handlers (/api/*) and server components
 // read from. Replace these functions with real calls; the shapes stay the same.
-import { budgets, glasshouseDeal, payees, payouts, recoupment, royalties, splitTree, statements } from './money';
+import { budgets, glasshouseDeal, payees, payouts, recoupment, royalties, splitTree, statements, type Statement } from './money';
 import { approvals as allApprovals } from './sample';
 import { approvalDetails, home, homeNumbers, releases, TODAY } from './fixtures';
 import type { ApprovalDetail, Release, Scenario } from './types';
@@ -62,9 +62,34 @@ export function listReleases(): Release[] {
 
 // ---------- Batch 2: money, splits, payee portal ----------
 
-export const getRoyalties = () => royalties;
-export const listStatements = () => Object.values(statements);
-export const getStatement = (id: string) => statements[id] ?? null;
+/** Royalties (4b). Live: computed from the tenant's income lines. Mock: the sample, plus this session's matches. */
+export async function getRoyalties(): Promise<typeof royalties> {
+  const ctx = await liveCtx('statements');
+  if (!ctx) return (await import('@/server/mockStatements')).mockRoyalties();
+  const { liveRoyalties } = await import('@/server/live/statements');
+  return liveRoyalties(ctx);
+}
+
+export type StatementSummary = Pick<Statement, 'id' | 'payee' | 'payeeId' | 'release' | 'period' | 'net' | 'pays'>;
+const summary = ({ id, payee, payeeId, release, period, net, pays }: Statement): StatementSummary => ({ id, payee, payeeId, release, period, net, pays });
+
+/** Every payee statement the signed-in user may read (a payee: only their own). `payee` narrows to one name. */
+export async function listStatements(payee?: string): Promise<StatementSummary[]> {
+  const ctx = await liveCtx('statements');
+  let list: StatementSummary[];
+  if (ctx) {
+    const { liveStatements } = await import('@/server/live/statements');
+    list = await liveStatements(ctx);
+  } else list = Object.values(statements).map(summary);
+  return payee ? list.filter((s) => s.payee === payee) : list;
+}
+
+export async function getStatement(id: string): Promise<Statement | null> {
+  const ctx = await liveCtx('statements');
+  if (!ctx) return statements[id] ?? null;
+  const { liveStatement } = await import('@/server/live/statements');
+  return liveStatement(ctx, id);
+}
 export const getPayouts = () => payouts;
 export const getRecoupment = () => recoupment;
 export const getBudgets = () => budgets;
