@@ -4,6 +4,7 @@
 import { connect } from '@breakrecords/db/client';
 import { approvals as items } from '../src/data/sample';
 import { approvalDetails } from '../src/data/fixtures';
+import { glasshouseDeal } from '../src/data/money';
 import { catalogAssets, catalogReleases, profileClaims, recordings, regColumns, registrations, songs, unclaimed } from '../src/data/ops';
 import { aiUseFromLabel } from '@breakrecords/core/metadata';
 import type { Tx } from '@breakrecords/db/client';
@@ -15,8 +16,8 @@ if (!url || process.env.BR_ALLOW_SEED !== '1') {
 }
 
 // Who can sign in to the sample world. E2E addresses receive links in the test mailbox.
-const PEOPLE = (process.env.SEED_EMAILS ?? 'jana@northline.example:northline:owner,e2e-owner@northline.example:northline:owner,e2e-harbor@harbor.example:harbor-sound:owner,e2e-payee@northline.example:northline:payee')
-  .split(',').map((s) => { const [email, tenant, role] = s.split(':'); return { email: email.toLowerCase(), tenant, role }; });
+const PEOPLE = (process.env.SEED_EMAILS ?? 'jana@northline.example:northline:owner,e2e-owner@northline.example:northline:owner,e2e-harbor@harbor.example:harbor-sound:owner,e2e-payee@northline.example:northline:payee:marco-dela')
+  .split(',').map((s) => { const [email, tenant, role, party] = s.split(':'); return { email: email.toLowerCase(), tenant, role, party: party ?? null }; });
 
 const DUE: Record<string, string> = { apr_payout_oct: '2026-11-10', apr_producer: '2026-11-09', apr_mlc: '2026-11-12', apr_grant: '2026-11-15' };
 
@@ -36,7 +37,8 @@ async function main() {
     };
 
     for (const p of PEOPLE) {
-      await tx`INSERT INTO allowlist (email, tenant_id, role) VALUES (${p.email}, ${ids[p.tenant]}, ${p.role}) ON CONFLICT (email, tenant_id) DO UPDATE SET role = EXCLUDED.role`;
+      await tx`INSERT INTO allowlist (email, tenant_id, role, party_slug) VALUES (${p.email}, ${ids[p.tenant]}, ${p.role}, ${p.party})
+        ON CONFLICT (email, tenant_id) DO UPDATE SET role = EXCLUDED.role, party_slug = EXCLUDED.party_slug`;
     }
 
     // Agent-prepared approvals with what the person is shown, frozen in `detail`.
@@ -54,6 +56,7 @@ async function main() {
       VALUES (${ids['harbor-sound']}, 'apr_harbor_payout', 'agent', 'money', 'Payout batch for October', 'Royalties Agent', 'Nov 12', '2026-11-12', '$842.10 to 4 payees', 'low', 'October statements')`;
     await seedCatalog(tx, ids.northline);
     await seedRights(tx, ids.northline);
+    await seedSplits(tx, ids.northline);
     await seedHarborCatalog(tx, ids['harbor-sound']);
   });
   console.log(`Seeded Northline and Harbor Sound; ${PEOPLE.length} people allowlisted.`);
@@ -85,6 +88,7 @@ const ASSET_KIND = (name: string, kind: string) =>
 
 /** The Northline catalog from the 5a, 5b and 5c sample data. Replaces the tenant's catalog rows. */
 async function seedCatalog(tx: Tx, tenant: string) {
+  await tx`DELETE FROM split_nodes WHERE tenant_id = ${tenant}`; // split signatures point at parties
   for (const t of ['registrations', 'assets', 'release_tracks', 'releases', 'recording_credits', 'recordings', 'work_writers', 'works', 'parties']) {
     await tx.unsafe(`DELETE FROM ${t} WHERE tenant_id = $1`, [tenant]);
   }
@@ -176,8 +180,59 @@ async function seedRights(tx: Tx, tenant: string) {
   }
 }
 
+/** The 4a split tree and Glasshouse recording versions v2 to v5 (v5 is the 95% draft), plus Night Bus v2. */
+async function seedSplits(tx: Tx, tenant: string) {
+  await tx`DELETE FROM split_nodes WHERE tenant_id = ${tenant}`;
+  const node = async (slug: string, label: string, parent: string | null, pos: number, notes: [string, string][] = []) => {
+    const [r] = await tx`INSERT INTO split_nodes (tenant_id, slug, label, parent_id, position, deal_notes)
+      VALUES (${tenant}, ${slug}, ${label}, ${parent}, ${pos}, ${tx.json(notes as never)}) RETURNING id`;
+    return r.id as string;
+  };
+  const root = await node('northline', 'Northline Records', null, 0);
+  const kesi = await node('kesi', 'Kesi Vale', root, 0);
+  const gh = await node('glasshouse', 'Glasshouse (single)', kesi, 0);
+  const ghRec = await node('gh-rec', 'Recording income', gh, 0, glasshouseDeal.dealTerms);
+  await node('gh-song', 'Song income', gh, 1);
+  await node('gh-sync', 'Sync', gh, 2);
+  const lh = await node('low-hours', 'The Low Hours', root, 1);
+  const nb = await node('night-bus', 'Night Bus EP', lh, 0);
+  const nbRec = await node('nb-rec', 'Recording income', nb, 0, [['Type', 'Net profit, 50/50'], ['Funded by', 'Label'], ['Advance', '$5,000, recoupable'], ['Term', '3 years from release']]);
+  const marco = await node('marco', 'Marco Dela', root, 2);
+  await node('marco-prod', 'Production credits', marco, 0);
+
+  const party = async (slug: string) => (await tx`SELECT id FROM parties WHERE tenant_id = ${tenant} AND slug = ${slug}`)[0]?.id as string;
+  const label = (await tx`INSERT INTO parties (tenant_id, slug, name, type) VALUES (${tenant}, 'northline-records', 'Northline Records', 'company')
+    ON CONFLICT (tenant_id, slug) DO UPDATE SET name = EXCLUDED.name RETURNING id`)[0].id as string;
+  const who = { producer: await party('marco-dela'), label, artist: await party('kesi-vale'), feature: await party('ari-monroe') };
+  const v4 = glasshouseDeal.v4.terms;
+  // ASSUMED: v2 and v3 terms (4a shows only their dates); they match v4.
+  const versions: { v: number; status: string; terms: object; from: string; signed?: Record<string, string> }[] = [
+    { v: 2, status: 'superseded', terms: v4, from: '2026-02-12' },
+    { v: 3, status: 'superseded', terms: v4, from: '2026-06-01' },
+    { v: 4, status: 'in_effect', terms: v4, from: '2026-10-01', signed: { producer: '2026-09-28', label: '2026-09-26', artist: '2026-09-27', feature: '2026-09-30' } },
+    { v: 5, status: 'draft', terms: glasshouseDeal.v5.terms, from: '2027-01-01' },
+  ];
+  for (const ver of versions) {
+    const [row] = await tx`INSERT INTO split_versions (tenant_id, node_id, version, status, terms, effective_from, created_at)
+      VALUES (${tenant}, ${ghRec}, ${ver.v}, ${ver.status}, ${tx.json(ver.terms as never)}, ${ver.from}, ${ver.v === 5 ? '2026-11-06T15:00:00Z' : ver.from})
+      RETURNING id`;
+    for (const [role, id] of Object.entries(who)) {
+      const at = ver.signed?.[role] ?? (ver.status === 'superseded' ? ver.from : null);
+      await tx`INSERT INTO split_parties (tenant_id, version_id, role, party_id, signed_at) VALUES (${tenant}, ${row.id}, ${role}, ${id}, ${at})`;
+    }
+  }
+  // Night Bus recording income, v2, signed. ASSUMED: no producer points; the band shares the artist side.
+  const band = await party('the-low-hours');
+  const [nbv] = await tx`INSERT INTO split_versions (tenant_id, node_id, version, status, terms, effective_from)
+    VALUES (${tenant}, ${nbRec}, 2, 'in_effect', ${tx.json({ producerBp: 0, labelOfNetBp: 5000, artistOfNetBp: 5000, featureOfArtistBp: 0 } as never)}, '2025-06-13') RETURNING id`;
+  for (const [role, id] of Object.entries({ producer: band, label, artist: band, feature: band })) {
+    await tx`INSERT INTO split_parties (tenant_id, version_id, role, party_id, signed_at) VALUES (${tenant}, ${nbv.id}, ${role}, ${id}, '2025-06-01')`;
+  }
+}
+
 /** A small, different catalog for the second label, so cross-tenant checks have something to miss. */
 async function seedHarborCatalog(tx: Tx, tenant: string) {
+  await tx`DELETE FROM split_nodes WHERE tenant_id = ${tenant}`;
   for (const t of ['registrations', 'assets', 'release_tracks', 'releases', 'recording_credits', 'recordings', 'work_writers', 'works', 'parties']) {
     await tx.unsafe(`DELETE FROM ${t} WHERE tenant_id = $1`, [tenant]);
   }

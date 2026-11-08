@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { CircleAlert, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { MarketRangeWarning } from '@/components/ui/Blocks';
 import { Money } from '@/components/ui/Money';
@@ -11,55 +11,76 @@ import { Eyebrow } from '@/components/type/Type';
 import { deriveShares, type DealTerms } from '@breakrecords/core/dealSplit';
 import { formatPercent, type Bp } from '@breakrecords/core/percent';
 import { pctOf } from '@breakrecords/core/splits';
-import type { glasshouseDeal } from '@/data/money';
+import type { SplitNodeResponse } from '@breakrecords/contract';
 import { ScreenState } from '@/components/ui/ScreenState';
 import { STATES } from '@/data/states';
 import type { Scenario } from '@/data/types';
 import s from './SplitsEditor.module.css';
 
-type Deal = typeof glasshouseDeal;
+type Deal = SplitNodeResponse;
+type Names = SplitNodeResponse['parties'];
 type Props = { tree: SplitNode[]; nodeId: string; nodeLabel: string; parentLabel: string | null; deal: Deal | null; scenario?: Scenario };
 
 const RULES = {
-  producer: 'Producer, 3 points off the top',
+  producer: (t: DealTerms) => `Producer, ${t.producerBp / 100} points off the top`,
   label: (t: DealTerms) => `${formatPercent(t.labelOfNetBp)} of net profit`,
   artist: (t: DealTerms) => `${formatPercent(t.artistOfNetBp)} of net profit, less feature`,
   feature: (t: DealTerms) => `Feature, ${formatPercent(t.featureOfArtistBp)} of artist share`,
 };
 
-function parties(t: DealTerms, signed: Record<string, string> | null): SplitParty[] {
+function parties(t: DealTerms, signed: Record<string, string> | null, n: Names): SplitParty[] {
   const d = deriveShares(t);
   const row = (party: string, short: string, bp: Bp, rule: string, color: SplitParty['color']) => ({ party, short, bp, rule, color, signed: signed ? signed[party] ?? null : null });
   return [
-    row('Marco Dela', 'Producer', d.producer, RULES.producer, 1),
-    row('Northline Records', 'Label', d.label, RULES.label(t), 2),
-    row('Kesi Vale', 'Kesi', d.artist, RULES.artist(t), 3),
-    row('Ari Monroe', 'Ari', d.feature, RULES.feature(t), 4),
+    row(n.producer, 'Producer', d.producer, RULES.producer(t), 1),
+    row(n.label, 'Label', d.label, RULES.label(t), 2),
+    row(n.artist, n.artist.split(' ')[0], d.artist, RULES.artist(t), 3),
+    row(n.feature, n.feature.split(' ')[0], d.feature, RULES.feature(t), 4),
   ];
 }
 
-const KEY = 'br.split.gh-rec.v5';
 const pct = (bp: Bp) => String(bp / 100);
 const toBp = (v: string) => Math.round(Number(v) * 100);
 
-export function SplitsEditor({ tree, nodeId, nodeLabel, parentLabel, deal, scenario = 'default' }: Props) {
+export function SplitsEditor({ tree, nodeId, nodeLabel, parentLabel, deal: initial, scenario = 'default' }: Props) {
   const router = useRouter();
-  const [draft, setDraft] = useState<DealTerms | null>(deal?.v5.terms ?? null);
-  const [sent, setSent] = useState(false);
+  // The server owns the split (PUT draft, POST send); this shows edits at once and takes its answer.
+  const [deal, setDeal] = useState(initial);
+  const [draft, setDraft] = useState<DealTerms | null>(initial?.v5?.terms ?? null);
+  const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [income, setIncome] = useState('10000');
   const preview = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    try { const raw = sessionStorage.getItem(KEY); if (raw) { const v = JSON.parse(raw); setDraft(v.terms); setSent(v.sent); } } catch { /* ignore */ }
-  }, []);
-  const save = (terms: DealTerms, isSent: boolean) => {
-    setDraft(terms); setSent(isSent);
-    try { sessionStorage.setItem(KEY, JSON.stringify({ terms, sent: isSent })); } catch { /* ignore */ }
-  };
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sent = deal?.v5?.status === 'sent';
 
-  const v4 = useMemo(() => (deal ? parties(deal.v4.terms, deal.v4.signed) : []), [deal]);
+  const call = async (path: string, method: 'PUT' | 'POST', body: unknown) => {
+    try {
+      const res = await fetch(`/api/splits/${encodeURIComponent(nodeId)}/${path}`, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) { setError(json?.message ?? 'That didn’t save. Nothing was changed.'); return null; }
+      setError(null); setDeal(json); return json as Deal;
+    } catch { setError('Couldn’t reach the server. Nothing was changed.'); return null; }
+  };
+  /** Draft edits save a moment after typing stops. */
+  const save = (terms: DealTerms) => {
+    setDraft(terms);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => { void call('draft', 'PUT', { terms }); }, 300);
+  };
+  const sendForSignatures = async () => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; if (draft) await call('draft', 'PUT', { terms: draft }); }
+    const next = await call('send', 'POST', {});
+    if (next?.v5) setDraft(next.v5.terms);
+  };
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
+  const v4 = useMemo(() => (deal ? parties(deal.v4.terms, deal.v4.signed, deal.parties) : []), [deal]);
   const d5 = draft ? deriveShares(draft) : null;
-  const v5 = draft ? parties(draft, null) : [];
+  const v5 = draft && deal ? parties(draft, sent ? deal.v5?.signed ?? {} : null, deal.parties) : [];
+  const signedN = Object.keys(deal?.v5?.signed ?? {}).length;
+  const n5 = deal?.v5?.version ?? 5;
+  const n4 = deal?.v4.version ?? 4;
   const valid = d5 ? d5.gapOfNetBp === 0 : false;
   const crumb = deal ? deal.breadcrumb.join(' / ') : nodeLabel;
 
@@ -69,7 +90,29 @@ export function SplitsEditor({ tree, nodeId, nodeLabel, parentLabel, deal, scena
     </div>
   );
 
-  if (!deal || !draft || !d5) {
+  // Every party signed: the newest version is in effect and nothing is open.
+  if (deal && !deal.v5) {
+    return (
+      <div className={s.layout}>
+        {treeBlock}
+        <div className={s.main}>
+          <div><p className={s.crumb}>{crumb}</p><h1 className={s.title}>Who gets what</h1></div>
+          {error && <p className={s.bad} role="alert" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><CircleAlert size={14} aria-hidden="true" />{error}</p>}
+          <SplitBar title={`Version ${n4} · in effect since ${deal.v4.effective}`} parties={v4} okMessage={`Signed by all ${v4.length} parties`} />
+          <p className={s.note}>Nothing is open. Payouts follow v{n4}. A change starts a new version that every party signs again.</p>
+          <section className={s.card} aria-labelledby="history" style={{ gap: 6 }}>
+            <Eyebrow as="h2" id="history">Version history</Eyebrow>
+            <ul>
+              <li className={s.version}><span className={s.vName}>v{n4}</span><span className={s.vDate}>{deal.v4.effective}</span><span className={s.good}>✓ In effect</span></li>
+              {deal.history.map((h) => <li key={h.v} className={s.version}><span className={s.vName}>{h.v}</span><span className={s.vDate}>{h.date}</span><span className={s.muted}>Replaced</span></li>)}
+            </ul>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+  if (!deal || !deal.v5 || !draft || !d5) {
     return (
       <div className={s.layout}>
         {treeBlock}
@@ -85,7 +128,7 @@ export function SplitsEditor({ tree, nodeId, nodeLabel, parentLabel, deal, scena
   }
 
   const gross = Math.max(0, Math.round(Number(income) * 100) || 0);
-  const setTerm = (k: keyof DealTerms, v: string) => { const bp = toBp(v); if (!Number.isNaN(bp) && bp >= 0 && bp <= 10000) save({ ...draft, [k]: bp }, false); };
+  const setTerm = (k: keyof DealTerms, v: string) => { const bp = toBp(v); if (!Number.isNaN(bp) && bp >= 0 && bp <= 10000) save({ ...draft, [k]: bp }); };
 
   return (
     <div className={s.layout}>
@@ -98,22 +141,23 @@ export function SplitsEditor({ tree, nodeId, nodeLabel, parentLabel, deal, scena
             <Button
               variant="primary" id="send-v5" disabled={!valid || sent}
               disabledReason={sent ? 'Already sent. Waiting on signatures.' : `Assign the missing ${formatPercent(d5.gapOfNetBp)} of net profit first.`}
-              onClick={() => save(draft, true)}
+              onClick={() => void sendForSignatures()}
             >
-              {sent ? 'v5 sent for signatures' : 'Send v5 for signatures'}
+              {sent ? `v${n5} sent for signatures` : `Send v${n5} for signatures`}
             </Button>
           </div>
         </div>
 
+        {error && <p className={s.bad} role="alert" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><CircleAlert size={14} aria-hidden="true" />{error}</p>}
         <ScreenState scenario={scenario} copy={STATES.splits}>
-        <SplitBar title={`Version 4 · in effect since ${deal.v4.effective}`} parties={v4} />
+        <SplitBar title={`Version ${n4} · in effect since ${deal.v4.effective}`} parties={v4} />
 
         <SplitBar
-          title={`Draft version 5 · effective ${deal.v5.effective}`}
+          title={`Draft version ${n5} · effective ${deal.v5.effective}`}
           parties={v5}
           table={false}
           gapMessage={`${formatPercent(d5.gapOfNetBp)} of net profit is unassigned`}
-          okMessage={sent ? 'Sent for signatures · 0 of 4 signed' : 'Totals 100% · ready to send'}
+          okMessage={sent ? `Sent for signatures · ${signedN} of 4 signed` : 'Totals 100% · ready to send'}
           note={valid
             ? 'Every share is assigned. Payouts under v5 stay in suspense until every party signs.'
             : `You raised Kesi to ${formatPercent(draft.artistOfNetBp)} and lowered the label to ${formatPercent(draft.labelOfNetBp)}. Assign the missing ${formatPercent(d5.gapOfNetBp)} before sending. Payouts under v5 stay in suspense until every party signs.`}
@@ -141,7 +185,7 @@ export function SplitsEditor({ tree, nodeId, nodeLabel, parentLabel, deal, scena
             </p>
           </fieldset>
         ) : (
-          <div><Button size="sm" onClick={() => setEditing(true)} disabled={sent} disabledReason="v5 is out for signatures. Make a new version to change it.">Edit draft shares</Button></div>
+          <div><Button size="sm" onClick={() => setEditing(true)} disabled={sent} disabledReason={`v${n5} is out for signatures. Make a new version to change it.`}>Edit draft shares</Button></div>
         )}
 
         <div className={s.cards}>
@@ -153,9 +197,9 @@ export function SplitsEditor({ tree, nodeId, nodeLabel, parentLabel, deal, scena
           <section className={s.card} aria-labelledby="history" style={{ gap: 6 }}>
             <Eyebrow as="h2" id="history">Version history</Eyebrow>
             <ul>
-              <li className={s.version}><span className={s.vName}>v5</span><span className={s.vDate}>Draft · {deal.v5.created}</span>
+              <li className={s.version}><span className={s.vName}>v{n5}</span><span className={s.vDate}>Draft · {deal.v5.created}</span>
                 <span className={sent ? s.warn : valid ? s.good : s.bad}>{sent ? '○ Out for signatures' : valid ? '✓ Ready to send' : '! Not 100%'}</span></li>
-              <li className={s.version}><span className={s.vName}>v4</span><span className={s.vDate}>{deal.v4.effective}</span><span className={s.good}>✓ In effect</span></li>
+              <li className={s.version}><span className={s.vName}>v{n4}</span><span className={s.vDate}>{deal.v4.effective}</span><span className={s.good}>✓ In effect</span></li>
               {deal.history.map((h) => <li key={h.v} className={s.version}><span className={s.vName}>{h.v}</span><span className={s.vDate}>{h.date}</span><span className={s.muted}>Replaced</span></li>)}
             </ul>
           </section>

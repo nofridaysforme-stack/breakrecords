@@ -22,7 +22,7 @@ export default defineConfig({
     env: {
       DATABASE_URL: process.env.TEST_APP_DATABASE_URL ?? '',
       BR_AUTH: 'required',
-      BR_LIVE_MODULES: 'approvals,catalog,registrations',
+      BR_LIVE_MODULES: 'approvals,catalog,registrations,splits',
       AUTH_SECRET: 'live-e2e-secret-not-for-production-0123456789',
       APP_URL: `http://localhost:${PORT}`,
       AUTH_TEST_MAILBOX: MAILBOX,
