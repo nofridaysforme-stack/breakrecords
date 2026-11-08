@@ -4,9 +4,10 @@
 import { connect } from '@breakrecords/db/client';
 import { approvals as items } from '../src/data/sample';
 import { approvalDetails } from '../src/data/fixtures';
-import { glasshouseDeal } from '../src/data/money';
+import { glasshouseDeal, statements as payeeStatements } from '../src/data/money';
 import { catalogAssets, catalogReleases, profileClaims, recordings, regColumns, registrations, songs, unclaimed } from '../src/data/ops';
 import { aiUseFromLabel } from '@breakrecords/core/metadata';
+import { checkStatement } from '@breakrecords/core/statements';
 import type { Tx } from '@breakrecords/db/client';
 
 const url = process.env.SEED_DATABASE_URL;
@@ -54,10 +55,17 @@ async function main() {
     await tx`DELETE FROM approvals WHERE tenant_id = ${ids['harbor-sound']} AND origin = 'agent'`;
     await tx`INSERT INTO approvals (tenant_id, id, origin, type, title, agent, due, due_on, impact, risk, context)
       VALUES (${ids['harbor-sound']}, 'apr_harbor_payout', 'agent', 'money', 'Payout batch for October', 'Royalties Agent', 'Nov 12', '2026-11-12', '$842.10 to 4 payees', 'low', 'October statements')`;
+    // Statements point at parties, recordings and split versions, so they go first.
+    for (const t of [ids.northline, ids['harbor-sound']]) {
+      await tx`DELETE FROM payee_statements WHERE tenant_id = ${t}`;
+      await tx`DELETE FROM income_statements WHERE tenant_id = ${t}`;
+    }
     await seedCatalog(tx, ids.northline);
     await seedRights(tx, ids.northline);
     await seedSplits(tx, ids.northline);
     await seedHarborCatalog(tx, ids['harbor-sound']);
+    await seedStatements(tx, ids.northline);
+    await seedHarborStatements(tx, ids['harbor-sound']);
   });
   console.log(`Seeded Northline and Harbor Sound; ${PEOPLE.length} people allowlisted.`);
   await sql.end();
@@ -240,6 +248,121 @@ async function seedHarborCatalog(tx: Tx, tenant: string) {
   const [w] = await tx`INSERT INTO works (tenant_id, slug, title) VALUES (${tenant}, 'tidal-lines', 'Tidal Lines') RETURNING id`;
   await tx`INSERT INTO recordings (tenant_id, slug, title, work_id, artist_id, isrc, duration_s, genre, ai_use)
     VALUES (${tenant}, 'tidal-lines', 'Tidal Lines', ${w.id}, ${artist.id}, 'USHS12600001', 201, 'Folk', 'none')`;
+}
+
+// ---------- Statements (4b, 4c, portal) ----------
+// Income lines that add up to the 4b figures: $14,286.40 for October across six sources, 1,231
+// lines of which 27 are unmatched (24 carry a mistyped Night Bus ISRC), and a September of
+// $12,107.12 so October reads "Up 18% on September". ASSUMED: how each source's total divides
+// between recordings, stores and lines; only the totals are in the sample data.
+type Bucket = { subject: ['rec' | 'work', string] | ['raw', string | null, string]; lines: number; cents: number; units?: number | 'streams' | 'sales' };
+type IncomeStatement = { ref: string; source: string; period: string; received: string; buckets: Bucket[] };
+const STORES = ['Spotify', 'Apple Music', 'YouTube Music', 'Amazon Music', 'Tidal', 'Deezer'];
+const TERRITORIES = ['US', 'GB', 'CA', 'DE', 'AU', 'FR', 'SE', 'NL', 'BR', 'JP'];
+const INCOME: IncomeStatement[] = [
+  { ref: 'DS-1026', source: 'distributor', period: '2026-10-01', received: '2026-11-03', buckets: [
+    { subject: ['rec', 'glasshouse'], lines: 724, cents: 1000000, units: 'streams' },
+    { subject: ['rec', 'velvet-hours'], lines: 120, cents: 38000, units: 'streams' },
+    { subject: ['rec', 'paper-moons'], lines: 90, cents: 25000, units: 'streams' },
+    { subject: ['rec', 'night-bus'], lines: 160, cents: 109928, units: 'streams' },
+    { subject: ['rec', 'low-light'], lines: 40, cents: 15000, units: 'streams' },
+    { subject: ['rec', 'static-hymn'], lines: 12, cents: 0, units: 688 },
+    { subject: ['rec', 'night-bus-demo'], lines: 6, cents: 0, units: 412 },
+    { subject: ['raw', 'USNL1250031', 'Night Bus'], lines: 24, cents: 3840, units: 'streams' },
+    { subject: ['raw', 'QZK6P2500113', 'Lights Out (Live)'], lines: 2, cents: 190, units: 'streams' },
+    { subject: ['raw', null, 'Track 07'], lines: 1, cents: 82, units: 'streams' },
+  ] },
+  { ref: 'SX-1026', source: 'soundexchange', period: '2026-10-01', received: '2026-11-04', buckets: [
+    { subject: ['rec', 'velvet-hours'], lines: 10, cents: 7000 }, { subject: ['rec', 'paper-moons'], lines: 8, cents: 4260 },
+    { subject: ['rec', 'night-bus'], lines: 12, cents: 99160 },
+  ] },
+  { ref: 'MLC-1026', source: 'mlc', period: '2026-10-01', received: '2026-11-05', buckets: [
+    { subject: ['work', 'velvet-hours'], lines: 4, cents: 7000 }, { subject: ['work', 'low-light'], lines: 3, cents: 6140 },
+    { subject: ['work', 'night-bus'], lines: 6, cents: 48690 },
+  ] },
+  { ref: 'PRO-1026', source: 'pro', period: '2026-10-01', received: '2026-11-05', buckets: [
+    { subject: ['work', 'night-bus'], lines: 3, cents: 30000 }, { subject: ['work', 'static-hymn'], lines: 2, cents: 10210 },
+  ] },
+  { ref: 'SYNC-1026', source: 'sync', period: '2026-10-01', received: '2026-10-21', buckets: [{ subject: ['rec', 'night-bus'], lines: 1, cents: 20000 }] },
+  { ref: 'BC-1026', source: 'bandcamp', period: '2026-10-01', received: '2026-11-01', buckets: [{ subject: ['rec', 'night-bus'], lines: 3, cents: 4140, units: 'sales' }] },
+  { ref: 'DS-0926', source: 'distributor', period: '2026-09-01', received: '2026-10-03', buckets: [
+    { subject: ['rec', 'glasshouse'], lines: 300, cents: 1096842, units: 'streams' },
+    { subject: ['rec', 'velvet-hours'], lines: 40, cents: 30000, units: 'streams' },
+    { subject: ['rec', 'paper-moons'], lines: 30, cents: 20000, units: 'streams' },
+    { subject: ['rec', 'night-bus'], lines: 60, cents: 50000, units: 'streams' },
+    { subject: ['rec', 'low-light'], lines: 10, cents: 13870, units: 'streams' },
+  ] },
+];
+
+/** Splits a total over n lines by fixed uneven weights; the remainder goes to the first line. */
+function spread(total: number, n: number): number[] {
+  const w = Array.from({ length: n }, (_, i) => 1 + ((i * 7919) % 97));
+  const sum = w.reduce((a, b) => a + b, 0);
+  const parts = w.map((x) => Math.floor((total * x) / sum));
+  parts[0] += total - parts.reduce((a, b) => a + b, 0);
+  return parts;
+}
+
+async function insertIncome(tx: Tx, tenant: string, st: IncomeStatement) {
+  const total = st.buckets.reduce((a, b) => a + b.cents, 0);
+  const [row] = await tx`INSERT INTO income_statements (tenant_id, ref, source, period, received_on, total_cents)
+    VALUES (${tenant}, ${st.ref}, ${st.source}, ${st.period}, ${st.received}, ${total}) RETURNING id`;
+  const lines: Record<string, unknown>[] = [];
+  for (const b of st.buckets) {
+    let recording: string | null = null; let work: string | null = null; let isrc: string | null = null; let title: string;
+    if (b.subject[0] === 'raw') { isrc = b.subject[1]; title = b.subject[2]; }
+    else if (b.subject[0] === 'rec') {
+      const [r] = await tx`SELECT id, title, isrc FROM recordings WHERE tenant_id = ${tenant} AND slug = ${b.subject[1]}`;
+      recording = r.id; title = r.title; isrc = r.isrc;
+    } else {
+      const [w] = await tx`SELECT id, title FROM works WHERE tenant_id = ${tenant} AND slug = ${b.subject[1]}`;
+      work = w.id; title = w.title;
+    }
+    const cents = spread(b.cents, b.lines);
+    const units = typeof b.units === 'number' ? spread(b.units, b.lines) : null;
+    cents.forEach((c, i) => {
+      const n = lines.length;
+      lines.push({
+        tenant_id: tenant, statement_id: row.id, line_no: n + 1, title, isrc,
+        store: st.source === 'distributor' ? STORES[n % STORES.length] : st.source === 'bandcamp' ? 'Bandcamp' : null,
+        territory: TERRITORIES[n % TERRITORIES.length],
+        units: units ? units[i] : b.units === 'streams' ? Math.round(c * 2.5) : b.units === 'sales' ? 1 : null,
+        amount_cents: c, recording_id: recording, work_id: work,
+      });
+    });
+  }
+  for (let i = 0; i < lines.length; i += 500) await tx`INSERT INTO income_lines ${tx(lines.slice(i, i + 500) as never)}`;
+}
+
+const PAYS: Record<string, { on: string; run: string | null; party: string; period: string }> = {
+  'ST-2026-10-KV': { on: '2027-01-15', run: 'quarterly artist run', party: 'kesi-vale', period: '2026-10-01' },
+  'ST-2026-10-MD': { on: '2026-11-10', run: null, party: 'marco-dela', period: '2026-10-01' },
+  'ST-2026-09-MD': { on: '2026-10-10', run: null, party: 'marco-dela', period: '2026-09-01' },
+};
+
+/** Northline's income for September and October, and the three payee statements issued from it. */
+async function seedStatements(tx: Tx, tenant: string) {
+  for (const st of INCOME) await insertIncome(tx, tenant, st);
+  const [rel] = await tx`SELECT id FROM releases WHERE tenant_id = ${tenant} AND slug = 'rel_glasshouse'`;
+  const [ver] = await tx`SELECT v.id FROM split_versions v JOIN split_nodes n ON n.id = v.node_id WHERE n.tenant_id = ${tenant} AND n.slug = 'gh-rec' AND v.version = 4`;
+  for (const st of Object.values(payeeStatements)) {
+    const problem = checkStatement(st.rows, st.net);
+    if (problem) throw new Error(`Sample statement ${st.id} fails its check: ${problem}`);
+    const p = PAYS[st.id];
+    const [party] = await tx`SELECT id FROM parties WHERE tenant_id = ${tenant} AND slug = ${p.party}`;
+    await tx`INSERT INTO payee_statements (tenant_id, ref, party_id, release_id, version_id, period, pays_on, pay_run, rows, net_cents, simple, qa, audit_ref)
+      VALUES (${tenant}, ${st.id}, ${party.id}, ${rel.id}, ${ver.id}, ${p.period}, ${p.on}, ${p.run}, ${tx.json(st.rows as never)}, ${st.net},
+              ${tx.json(st.simple as never)}, ${st.qa ? tx.json(st.qa as never) : null}, ${st.auditId})`;
+  }
+}
+
+/** One statement and one line for the second label, for cross-tenant checks. */
+async function seedHarborStatements(tx: Tx, tenant: string) {
+  await insertIncome(tx, tenant, { ref: 'HS-1026', source: 'distributor', period: '2026-10-01', received: '2026-11-02', buckets: [{ subject: ['rec', 'tidal-lines'], lines: 1, cents: 84210, units: 'streams' }] });
+  const [party] = await tx`SELECT id FROM parties WHERE tenant_id = ${tenant} AND slug = 'mara-quill'`;
+  const rows = [{ kind: 'start', label: 'Tidal Lines income', rule: 'Distributor, all stores', amount: 84210, source: 'HS-1026', balance: 84210 }];
+  await tx`INSERT INTO payee_statements (tenant_id, ref, party_id, period, pays_on, rows, net_cents, simple, audit_ref)
+    VALUES (${tenant}, 'ST-2026-10-MQ', ${party.id}, '2026-10-01', '2026-11-12', ${tx.json(rows as never)}, 84210, ${tx.json([] as never)}, 'AUD-HS-0001')`;
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

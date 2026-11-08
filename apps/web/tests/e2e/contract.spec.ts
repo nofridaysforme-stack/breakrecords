@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ApprovalError, ApprovalState, ENDPOINTS, ProfileClaimsResponse, Recording, SplitError, SplitNodeResponse } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, ENDPOINTS, ProfileClaimsResponse, Recording, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
 
 // The API contract over HTTP. Any server behind the UI, mock or live, must pass this file.
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
@@ -135,5 +135,30 @@ test.describe('split writes', () => {
     expect((await request.put('/api/splits/gh-rec/draft', { data: { terms: { ...v5, producerBp: 12.5 } } })).status()).toBe(400);
     expect((await request.post('/api/splits/gh-rec/sign', { data: { role: 'manager' } })).status()).toBe(400);
     expect((await request.get('/api/splits/gh-song')).status()).toBe(404);
+  });
+});
+
+test.describe('statement writes', () => {
+  test('matching the mistyped ISRC moves its lines to matched, for the session', async ({ request }) => {
+    const before = RoyaltiesResponse.parse(await (await request.get('/api/money/royalties')).json());
+    const typo = before.unmatched.suggestions[0];
+    expect(typo).toMatchObject({ isrc: 'USNL1250031', count: 24, recordingId: 'night-bus' });
+    const res = await request.post('/api/money/royalties/match', { data: { isrc: typo.isrc, recordingId: typo.recordingId } });
+    expect(res.status()).toBe(200);
+    const after = RoyaltiesResponse.parse(await res.json());
+    expect(after.stats.matched).toBe(before.stats.matched + typo.count);
+    expect(after.unmatched).toMatchObject({ count: before.unmatched.count - typo.count, value: before.unmatched.value - typo.value, suggestions: [] });
+    expect(after.stats.income).toBe(before.stats.income); // matching never changes the money
+    expect(RoyaltiesResponse.parse(await (await request.get('/api/money/royalties')).json())).toEqual(after);
+    const again = await request.post('/api/money/royalties/match', { data: { isrc: typo.isrc, recordingId: typo.recordingId } });
+    expect(again.status()).toBe(409);
+    expect(StatementError.parse(await again.json()).error).toBe('nothing_to_match');
+  });
+  test('malformed bodies are refused', async ({ request }) => {
+    expect((await request.post('/api/money/royalties/match', { data: { isrc: '' , recordingId: 'night-bus' } })).status()).toBe(400);
+    expect((await request.post('/api/money/royalties/match', { data: { isrc: 'USNL1250031' } })).status()).toBe(400);
+  });
+  test('an unknown statement is a 404', async ({ request }) => {
+    expect((await request.get('/api/statements/ST-1999-01-XX')).status()).toBe(404);
   });
 });

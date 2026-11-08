@@ -103,7 +103,13 @@ export const RoyaltiesResponse = z.object({
   stats: z.object({ income: Cents, incomeNote: z.string(), paid: Cents, paidNote: z.string(), matched: z.number().int(), lines: z.number().int(), unclaimed: Cents, unclaimedNote: z.string() }),
   sources: z.array(z.object({ name: z.string(), amount: Cents })),
   byArtist: z.array(z.object({ name: z.string(), meta: z.string(), amount: Cents })),
-  unmatched: z.object({ count: z.number().int(), value: Cents, note: z.string() }),
+  unmatched: z.object({
+    count: z.number().int(), value: Cents, note: z.string(),
+    /** Reported ISRCs that are one keystroke from exactly one recording. Never applied without a person. */
+    suggestions: z.array(z.object({ isrc: z.string(), source: z.string(), count: z.number().int().positive(), value: Cents, recordingId: Id, recording: z.string(), recordingIsrc: z.string(), reason: z.string() })),
+    /** Lines that look like nothing in the catalog. */
+    unknown: z.object({ count: z.number().int(), value: Cents }),
+  }),
   zeroTracks: z.array(z.object({ name: z.string(), streams: z.number().int() })),
   policyVerified: z.object({ date: Display, href: z.string() }),
 });
@@ -112,6 +118,15 @@ export const StatementResponse = z.object({
   rows: z.array(WaterfallRow), net: Cents, auditId: z.string(),
   simple: z.array(z.object({ label: z.string(), amount: Cents })),
   qa: z.array(z.object({ question: z.string(), answer: z.string(), basis: z.string() })).optional(),
+});
+/** GET /api/statements: every payee statement the signed-in user may read, newest period first. */
+export const StatementSummary = StatementResponse.pick({ id: true, payee: true, payeeId: true, release: true, period: true, net: true, pays: true });
+export const StatementsResponse = z.object({ items: z.array(StatementSummary) });
+/** POST /api/money/royalties/match: point every unmatched line carrying `isrc` at a recording. Returns 4b. */
+export const MatchLinesCommand = z.object({ isrc: z.string().trim().min(1).max(20), recordingId: Id }).strict();
+export const StatementError = z.object({
+  error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'nothing_to_match']),
+  message: z.string(),
 });
 export const PayoutsResponse = z.object({
   minimum: Cents,

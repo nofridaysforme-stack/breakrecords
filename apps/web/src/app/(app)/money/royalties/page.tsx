@@ -13,5 +13,5 @@ type Props = { searchParams: Promise<{ state?: string }> };
 
 export default async function RoyaltiesPage({ searchParams }: Props) {
   const scenario = toScenario((await searchParams).state);
-  return <Page><MoneyTabs /><ScreenState scenario={scenario} copy={STATES.royalties} heading="Royalties"><RoyaltiesView data={getRoyalties()} /></ScreenState></Page>;
+  return <Page><MoneyTabs /><ScreenState scenario={scenario} copy={STATES.royalties} heading="Royalties"><RoyaltiesView data={await getRoyalties()} /></ScreenState></Page>;
 }

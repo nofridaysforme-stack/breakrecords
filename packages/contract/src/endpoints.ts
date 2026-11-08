@@ -21,6 +21,7 @@ export const ENDPOINTS: Endpoint[] = [
   { path: '/api/releases', schema: R.ReleasesResponse, module: 'releases' },
   { path: '/api/releases/rel_glasshouse', schema: R.Release, module: 'releases' },
   { path: '/api/money/royalties', schema: R.RoyaltiesResponse, module: 'statements' },
+  { path: '/api/statements', schema: R.StatementsResponse, module: 'statements' },
   { path: '/api/statements/ST-2026-10-KV', schema: R.StatementResponse, module: 'statements' },
   { path: '/api/statements/ST-2026-10-MD', schema: R.StatementResponse, module: 'statements' },
   { path: '/api/money/payouts', schema: R.PayoutsResponse, module: 'payouts' },

@@ -13,7 +13,7 @@ import s from './Portal.module.css';
 
 export function EarningsView({ p, statements }: { p: Payee; statements: Statement[] }) {
   const v5 = useV5();
-  const latest = statements[0];
+  const latest = statements[0] as Statement | undefined;
   const signed = v5.signedBy(p.id);
   const needsSign = v5.sent && !signed;
   const v5Status = (sp: Payee['splits'][number]) =>
@@ -33,12 +33,19 @@ export function EarningsView({ p, statements }: { p: Payee; statements: Statemen
           <div className={s.stat}><dt className={s.statLabel}>Tax form</dt><dd className={s.taxOk}><Check size={16} strokeWidth={3} aria-hidden="true" />{p.tax.label}</dd></div>
         </dl>
         <div className={s.grid}>
-          <section className={s.card} aria-labelledby="stmt">
-            <div className={s.cardHead}><h2 id="stmt" className={s.cardTitle}>{latest.period.split(' ')[0]} statement</h2><button type="button" className={s.link} onClick={() => window.print()}>Download PDF</button></div>
-            <dl className={s.lines}>{latest.simple.map((l) => <div key={l.label} style={{ display: 'contents' }}><dt>{l.label}</dt><dd><Money cents={l.amount} /></dd></div>)}</dl>
-            <p className={s.total}><span>You receive</span><span><Money cents={latest.net} /></span></p>
-            <Link href={withAs(`/portal/statements/${latest.id}`, p.id)} className={s.link}>See every line</Link>
-          </section>
+          {latest ? (
+            <section className={s.card} aria-labelledby="stmt">
+              <div className={s.cardHead}><h2 id="stmt" className={s.cardTitle}>{latest.period.split(' ')[0]} statement</h2><button type="button" className={s.link} onClick={() => window.print()}>Download PDF</button></div>
+              <dl className={s.lines}>{latest.simple.map((l) => <div key={l.label} style={{ display: 'contents' }}><dt>{l.label}</dt><dd><Money cents={l.amount} /></dd></div>)}</dl>
+              <p className={s.total}><span>You receive</span><span><Money cents={latest.net} /></span></p>
+              <Link href={withAs(`/portal/statements/${latest.id}`, p.id)} className={s.link}>See every line</Link>
+            </section>
+          ) : (
+            <section className={s.card} aria-labelledby="stmt">
+              <h2 id="stmt" className={s.cardTitle}>Statements</h2>
+              <p className={s.splitMeta}>Your first statement appears here after the label&apos;s next royalty run.</p>
+            </section>
+          )}
           <section className={s.card} aria-labelledby="splits">
             <h2 id="splits" className={s.cardTitle}>Splits you&apos;re part of</h2>
             <ul>
