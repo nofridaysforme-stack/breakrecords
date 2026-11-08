@@ -12,7 +12,7 @@ const ROUTES = [
   '/dev/type', '/dev/components',
   '/splits/gh-rec', '/splits/gh-song', '/money/royalties', '/money/statements', '/money/statements/ST-2026-10-KV',
   '/money/payouts', '/money/recoupment', '/money/budgets',
-  '/portal', '/portal/statements', '/portal/statements/ST-2026-10-MD', '/portal/statements/ST-2026-10-KV?as=kesi',
+  '/portal', '/portal/statements', '/portal/statements/ST-2026-10-MD', '/portal/statements/ST-2026-10-KV?as=kesi-vale',
   '/portal/tax', '/portal/profile', '/portal/sign',
   ...['/money/royalties', '/money/payouts', '/money/recoupment', '/money/statements/ST-2026-10-KV', '/splits/gh-rec', '/portal']
     .flatMap((r) => ['empty', 'working', 'blocked', 'error', 'partial'].map((st) => `${r}?state=${st}`)),

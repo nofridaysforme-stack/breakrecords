@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Check } from 'lucide-react';
-import { resolvePayee } from '@/components/portal/payee';
+import { getPortalPayee } from '@/data/api';
 import s from '@/components/portal/Portal.module.css';
 
 export const metadata: Metadata = { title: 'Tax forms' };
@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'Tax forms' };
 type Props = { searchParams: Promise<{ as?: string }> };
 
 export default async function TaxPage({ searchParams }: Props) {
-  const p = resolvePayee((await searchParams).as);
+  const p = await getPortalPayee((await searchParams).as);
   return (
     <>
       <h1 className={s.h1}>Tax forms</h1>

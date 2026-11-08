@@ -128,12 +128,26 @@ export const StatementError = z.object({
   error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'nothing_to_match']),
   message: z.string(),
 });
+export const PayeeRequestKind = z.enum(['tax_form', 'bank_details']);
 export const PayoutsResponse = z.object({
   minimum: Cents,
-  batches: z.array(z.object({ id: Id, name: z.string(), payees: z.number().int(), total: Cents, status: z.enum(['awaiting', 'draft', 'sent', 'failed']), note: z.string(), approvalId: Id.optional() })),
-  taxForms: z.array(z.object({ name: z.string(), form: z.string(), status: z.enum(['ok', 'expiring', 'missing']), label: z.string(), fix: z.string().optional() })),
+  batches: z.array(z.object({
+    id: Id, name: z.string(), payees: z.number().int(), total: Cents, status: z.enum(['awaiting', 'draft', 'sent', 'failed']), note: z.string(), approvalId: Id.optional(),
+    /** The payee whose payment failed in a failed batch, and why. */
+    failed: z.object({ payeeId: Id, name: z.string(), reason: z.string() }).optional(),
+  })),
+  taxForms: z.array(z.object({ payeeId: Id, name: z.string(), form: z.string(), status: z.enum(['ok', 'expiring', 'missing']), label: z.string(), fix: z.string().optional() })),
   carryForward: z.array(z.object({ name: z.string(), role: z.string(), amount: Cents })),
+  /** Open requests to payees. Recorded here; the payout provider sends them (Stage 3). */
+  requests: z.array(z.object({ payeeId: Id, kind: PayeeRequestKind })),
 });
+/** POST /api/money/payouts/requests: ask a payee for a tax form or new bank details. Returns 4d. */
+export const RequestFromPayeeCommand = z.object({ payeeId: Id, kind: PayeeRequestKind }).strict();
+/** POST /api/money/recoupment/costs: add a recoupable cost to a release. Returns 4e's items. */
+export const AddRecoupableCostCommand = z.object({
+  releaseId: Id, category: z.string().trim().min(1).max(60), cost: Cents.refine((c) => c > 0, 'A cost is above $0.00.'), shareBp: Bp, // 0 records a cost the label pays itself
+}).strict();
+export const PayoutError = z.object({ error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'already_requested']), message: z.string() });
 export const RecoupmentResponse = z.object({
   items: z.array(z.object({
     id: Id, title: z.string(), artist: z.string(), advance: Cents, recouped: Cents,
@@ -187,7 +201,8 @@ export const PayeeResponse = z.object({
   earned: Cents, paid: Cents,
   next: z.object({ amount: Cents, date: Display, from: z.string() }),
   tax: z.object({ ok: z.boolean(), label: z.string(), form: z.string(), expires: Display.optional() }),
-  bank: z.object({ last4: z.string().regex(/^\d{4}$/), name: z.string() }),
+  /** The last 4 digits only; the account lives with the payout provider. Null until one is on file. */
+  bank: z.object({ last4: z.string().regex(/^\d{4}$/), name: z.string() }).nullable(),
   statementIds: z.array(Id),
   splits: z.array(z.object({ title: z.string(), meta: z.string(), terms: z.string(), status: z.enum(['signed', 'waiting']), note: z.string(), v5: z.boolean().optional() })),
   signPrompt: z.object({ title: z.string(), text: z.string() }),

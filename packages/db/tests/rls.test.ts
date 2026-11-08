@@ -279,4 +279,66 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
         .rejects.toThrow(/check constraint/);
     });
   });
+  describe('payouts', () => {
+    let batch = ''; let kesi = ''; let marco = ''; let account = '';
+    const asOwner = <T,>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(app, { userId: ids.ua, tenantId: ids.a }, fn);
+    beforeAll(async () => {
+      [{ id: kesi }] = await owner`SELECT id FROM parties WHERE tenant_id = ${ids.a} AND slug = 'kesi'`;
+      [{ id: marco }] = await owner`SELECT id FROM parties WHERE tenant_id = ${ids.a} AND slug = 'marco'`;
+      await owner`INSERT INTO payees (tenant_id, party_id, tax_form) VALUES (${ids.a}, ${kesi}, 'W-9'), (${ids.a}, ${marco}, 'W-9')`;
+      [{ id: batch }] = await owner`INSERT INTO payout_batches (tenant_id, slug, name, cadence, period, pays_on, status, approval_id)
+        VALUES (${ids.a}, 'pb-a', 'October', 'monthly', '2026-10-01', '2026-11-10', 'awaiting', 'apr_a') RETURNING id`;
+      await owner`INSERT INTO payout_lines (tenant_id, batch_id, party_id, role, amount_cents) VALUES (${ids.a}, ${batch}, ${kesi}, 'Artist', 1000), (${ids.a}, ${batch}, ${marco}, 'Producer', 300)`;
+      const [{ id: rel }] = await owner`INSERT INTO releases (tenant_id, slug, title, kind, artist_id) VALUES (${ids.a}, 'rel_a', 'Release A', 'single', ${kesi}) RETURNING id`;
+      [{ id: account }] = await owner`INSERT INTO recoupment_accounts (tenant_id, release_id, advance_cents) VALUES (${ids.a}, ${rel}, 0) RETURNING id`;
+    });
+
+    it('money is never sent without an approved approval, and sending ends undo', async () => {
+      await owner`DELETE FROM approval_decisions WHERE tenant_id = ${ids.a} AND approval_id = 'apr_a'`;
+      await expect(asOwner((tx) => tx`UPDATE payout_batches SET status = 'sent', sent_at = now() WHERE id = ${batch}`)).rejects.toThrow(/no approved approval/);
+      await owner`INSERT INTO approval_decisions (tenant_id, approval_id, status, reason, decided_by, audit_id) VALUES (${ids.a}, 'apr_a', 'rejected', 'No', ${ids.ua}, 'AUD-R')`;
+      await expect(asOwner((tx) => tx`UPDATE payout_batches SET status = 'sent', sent_at = now() WHERE id = ${batch}`)).rejects.toThrow(/no approved approval/);
+      await owner`UPDATE approval_decisions SET status = 'approved', reason = NULL WHERE tenant_id = ${ids.a} AND approval_id = 'apr_a'`;
+      await asOwner((tx) => tx`UPDATE payout_batches SET status = 'sent', sent_at = now() WHERE id = ${batch}`);
+      expect((await owner`SELECT executed_at FROM approvals WHERE tenant_id = ${ids.a} AND id = 'apr_a'`)[0].executed_at).not.toBeNull();
+    });
+
+    it('a sent batch and its lines never change', async () => {
+      await expect(asOwner((tx) => tx`UPDATE payout_batches SET status = 'awaiting', sent_at = NULL WHERE id = ${batch}`)).rejects.toThrow(/can no longer change/);
+      await expect(asOwner((tx) => tx`UPDATE payout_lines SET amount_cents = 1 WHERE batch_id = ${batch}`)).rejects.toThrow(/can no longer change/);
+      await expect(asOwner((tx) => tx`DELETE FROM payout_batches WHERE id = ${batch}`)).rejects.toThrow(/permission denied/);
+    });
+
+    it('the app can’t record a batch as imported history to skip the approval', async () => {
+      await expect(asOwner((tx) => tx`INSERT INTO payout_batches (tenant_id, slug, name, cadence, period, pays_on, status, imported, sent_at)
+        VALUES (${ids.a}, 'pb-fake', 'Fake', 'monthly', '2026-10-01', '2026-11-10', 'sent', true, now())`)).rejects.toThrow(/permission denied/);
+      await expect(asOwner((tx) => tx`INSERT INTO payout_batches (tenant_id, slug, name, cadence, period, pays_on, status)
+        VALUES (${ids.a}, 'pb-fake', 'Fake', 'monthly', '2026-10-01', '2026-11-10', 'sent')`)).rejects.toThrow(/no approved approval/);
+    });
+
+    it('a payee reads only their own payee record and lines, and can’t ask or add', async () => {
+      const lines = await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT role FROM payout_lines`);
+      expect(lines.map((r) => r.role)).toEqual(['Producer']);
+      const mine = await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT party_id FROM payees`);
+      expect(mine.map((r) => r.party_id)).toEqual([marco]);
+      expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT slug FROM payout_batches`)).toHaveLength(1);
+      await expect(withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`INSERT INTO payee_requests (tenant_id, party_id, kind) VALUES (${ids.a}, ${kesi}, 'tax_form')`))
+        .rejects.toThrow(/row-level security/);
+      await expect(withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`INSERT INTO recoupable_costs (tenant_id, account_id, category, cost_cents, share_bp) VALUES (${ids.a}, ${account}, 'Promo', 100, 10000)`))
+        .rejects.toThrow(/row-level security/);
+    });
+
+    it('one open request of each kind per payee', async () => {
+      await asOwner((tx) => tx`INSERT INTO payee_requests (tenant_id, party_id, kind, requested_by) VALUES (${ids.a}, ${kesi}, 'tax_form', ${ids.ua})`);
+      await expect(asOwner((tx) => tx`INSERT INTO payee_requests (tenant_id, party_id, kind, requested_by) VALUES (${ids.a}, ${kesi}, 'tax_form', ${ids.ua})`)).rejects.toThrow(/duplicate key/);
+    });
+
+    it('another label sees none of it and can’t point at it', async () => {
+      for (const t of ['payout_batches', 'payout_lines', 'payees', 'recoupment_accounts']) {
+        expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx.unsafe(`SELECT 1 FROM ${t}`))).toHaveLength(0);
+      }
+      await expect(withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`INSERT INTO recoupable_costs (tenant_id, account_id, category, cost_cents, share_bp) VALUES (${ids.b}, ${account}, 'Promo', 100, 10000)`))
+        .rejects.toThrow(/cross-tenant reference/);
+    });
+  });
 });

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Check, Circle, X } from 'lucide-react';
+import { Check, Circle, CircleAlert, X } from 'lucide-react';
 import { PageTitle } from '@/components/type/Type';
 import { Button } from '@/components/ui/Button';
 import { Money } from '@/components/ui/Money';
@@ -22,11 +22,19 @@ export function RecoupmentView({ items }: { items: Recoup[] }) {
   const [form, setForm] = useState({ release: items[0].id, category: '', amount: '', share: '100' });
   const [error, setError] = useState('');
 
-  const addCost = () => {
+  const [busy, setBusy] = useState(false);
+  const addCost = async () => {
     const cost = toCents(Number(form.amount));
     if (!form.category.trim() || !(cost > 0)) { setError('Add a category and an amount above $0.00.'); return; }
-    setList((l) => l.map((r) => (r.id === form.release ? { ...r, costs: [...r.costs, { category: form.category.trim(), cost, shareBp: Math.round(Number(form.share) * 100) }] } : r)));
-    setForm({ ...form, category: '', amount: '' }); setError(''); dialog.current?.close();
+    setBusy(true);
+    try {
+      const res = await fetch('/api/money/recoupment/costs', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ releaseId: form.release, category: form.category.trim(), cost, shareBp: Math.round(Number(form.share) * 100) }) });
+      const body = await res.json();
+      if (!res.ok) { setError(body.message ?? 'That cost wasn’t saved.'); return; }
+      setList(body.items);
+      setForm({ ...form, category: '', amount: '' }); setError(''); dialog.current?.close();
+    } catch { setError('Couldn’t reach the server. The cost wasn’t saved.'); } finally { setBusy(false); }
   };
 
   return (
@@ -82,9 +90,9 @@ export function RecoupmentView({ items }: { items: Recoup[] }) {
           <label className={s.field}>Category<input className={s.input} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="For example: Radio promo" /></label>
           <label className={s.field}>Full cost in dollars<input className={s.input} type="number" min={0} step={0.01} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></label>
           <label className={s.field}>Recoupable share<select className={s.input} value={form.share} onChange={(e) => setForm({ ...form, share: e.target.value })}><option value="100">100%</option><option value="50">50%</option><option value="0">0% (label pays)</option></select></label>
-          {error && <p className={s.small} style={{ color: 'var(--critical)' }} role="alert">! {error}</p>}
+          {error && <p className={s.small} style={{ color: 'var(--critical)', display: 'flex', gap: 6, alignItems: 'center' }} role="alert"><CircleAlert size={14} aria-hidden="true" />{error}</p>}
           <p className={s.small}>Recoupable costs come out of the release&apos;s income before the profit split. This doesn&apos;t move any money.</p>
-          <div className={s.formActions}><Button type="submit" variant="primary">Add cost</Button><Button onClick={() => dialog.current?.close()}>Cancel</Button></div>
+          <div className={s.formActions}><Button type="submit" variant="primary" disabled={busy}>Add cost</Button><Button onClick={() => dialog.current?.close()}>Cancel</Button></div>
         </form>
       </dialog>
     </>

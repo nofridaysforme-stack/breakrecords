@@ -1,9 +1,9 @@
 import Link from 'next/link';
+import { getPortalPayee, listStatements } from '@/data/api';
 import type { Metadata } from 'next';
 import { ChevronRight } from 'lucide-react';
 import { Money } from '@/components/ui/Money';
-import { resolvePayee, withAs } from '@/components/portal/payee';
-import { listStatements } from '@/data/api';
+import { withAs } from '@/components/portal/payee';
 import s from '@/components/portal/Portal.module.css';
 
 export const metadata: Metadata = { title: 'Statements' };
@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: 'Statements' };
 type Props = { searchParams: Promise<{ as?: string }> };
 
 export default async function PortalStatements({ searchParams }: Props) {
-  const p = resolvePayee((await searchParams).as);
+  const p = await getPortalPayee((await searchParams).as);
   const list = await listStatements(p.name);
   return (
     <>

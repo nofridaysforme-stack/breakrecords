@@ -2,7 +2,8 @@ import 'server-only';
 
 // Mock API: the single source the route handlers (/api/*) and server components
 // read from. Replace these functions with real calls; the shapes stay the same.
-import { budgets, glasshouseDeal, payees, payouts, recoupment, royalties, splitTree, statements, type Statement } from './money';
+import { budgets, glasshouseDeal, payees, payouts, recoupment, royalties, splitTree, statements, type Payee, type Statement } from './money';
+import { DEFAULT_PAYEE } from '@/components/portal/payee';
 import { approvals as allApprovals } from './sample';
 import { approvalDetails, home, homeNumbers, releases, TODAY } from './fixtures';
 import type { ApprovalDetail, Release, Scenario } from './types';
@@ -90,8 +91,18 @@ export async function getStatement(id: string): Promise<Statement | null> {
   const { liveStatement } = await import('@/server/live/statements');
   return liveStatement(ctx, id);
 }
-export const getPayouts = () => payouts;
-export const getRecoupment = () => recoupment;
+/** Payouts (4d). Live: the tenant's batches, lines, payees and requests. */
+export async function getPayouts(): Promise<typeof payouts> {
+  const ctx = await liveCtx('payouts');
+  if (!ctx) return (await import('@/server/mockPayouts')).mockPayouts();
+  return (await import('@/server/live/payouts')).livePayouts(ctx);
+}
+/** Recoupment (4e). Live: each release's account, costs and entries. */
+export async function getRecoupment(): Promise<typeof recoupment> {
+  const ctx = await liveCtx('payouts');
+  if (!ctx) return (await import('@/server/mockPayouts')).mockRecoupment();
+  return (await import('@/server/live/payouts')).liveRecoupment(ctx);
+}
 export const getBudgets = () => budgets;
 /** The split tree (4a). Live: the tenant's nodes. */
 export async function getSplitTree(): Promise<SplitTreeNode[]> {
@@ -128,7 +139,25 @@ export async function getDeal(nodeId: string): Promise<SplitNodeResponse | null>
     v4: { version: 4, terms: d.v4.terms, effective: d.v4.effective, signed: d.v4.signed },
     v5: { version: 5, status: st.status === 'sent' ? 'sent' : 'draft', terms: st.terms, effective: d.v5.effective, created: d.v5.created, signed } };
 }
-export const getPayee = (id: string) => payees[id as keyof typeof payees] ?? null;
+/** One payee's portal (4f). Live: built from their own rows; a payee can only get themselves. */
+export async function getPayee(id: string): Promise<Payee | null> {
+  const ctx = await liveCtx('payouts');
+  if (!ctx) return payees[id] ?? null;
+  return (await import('@/server/live/payouts')).livePayee(ctx, id);
+}
+
+/**
+ * Whose portal to show. Live, a payee always sees themselves; the label's owner and team can
+ * preview anyone's with `?as=`. Mock: `?as=` picks a sample payee; Marco Dela by default.
+ */
+export async function getPortalPayee(as?: string): Promise<Payee> {
+  const ctx = await liveCtx('payouts');
+  if (!ctx) return payees[as ?? DEFAULT_PAYEE] ?? payees[DEFAULT_PAYEE];
+  const live = await import('@/server/live/payouts');
+  const p = await live.livePayee(ctx, ctx.role === 'payee' ? null : (as ?? null));
+  if (!p) (await import('next/navigation')).notFound();
+  return p!;
+}
 
 // ---------- Batch 3: rights and operations ----------
 

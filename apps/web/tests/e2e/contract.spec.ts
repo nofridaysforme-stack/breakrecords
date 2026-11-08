@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ApprovalError, ApprovalState, ENDPOINTS, ProfileClaimsResponse, Recording, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, ENDPOINTS, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
 
 // The API contract over HTTP. Any server behind the UI, mock or live, must pass this file.
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
@@ -160,5 +160,33 @@ test.describe('statement writes', () => {
   });
   test('an unknown statement is a 404', async ({ request }) => {
     expect((await request.get('/api/statements/ST-1999-01-XX')).status()).toBe(404);
+  });
+});
+
+test.describe('payout writes', () => {
+  test('asking a payee for a tax form is recorded once, for the session', async ({ request }) => {
+    const res = await request.post('/api/money/payouts/requests', { data: { payeeId: 'jules-arden', kind: 'tax_form' } });
+    expect(res.status()).toBe(200);
+    expect(PayoutsResponse.parse(await res.json()).requests).toEqual([{ payeeId: 'jules-arden', kind: 'tax_form' }]);
+    expect(PayoutsResponse.parse(await (await request.get('/api/money/payouts')).json()).requests).toHaveLength(1);
+    const again = await request.post('/api/money/payouts/requests', { data: { payeeId: 'jules-arden', kind: 'tax_form' } });
+    expect(again.status()).toBe(409);
+    expect(PayoutError.parse(await again.json()).error).toBe('already_requested');
+  });
+  test('bad requests are refused', async ({ request }) => {
+    expect((await request.post('/api/money/payouts/requests', { data: { payeeId: 'nobody', kind: 'tax_form' } })).status()).toBe(404);
+    expect((await request.post('/api/money/payouts/requests', { data: { payeeId: 'jules-arden', kind: 'passport' } })).status()).toBe(400);
+  });
+  test('a recoupable cost is added to its release', async ({ request }) => {
+    const res = await request.post('/api/money/recoupment/costs', { data: { releaseId: 'rel_nightbus', category: 'Radio promo', cost: 30000, shareBp: 5000 } });
+    expect(res.status()).toBe(200);
+    const nb = RecoupmentResponse.parse(await res.json()).items.find((r) => r.id === 'rel_nightbus')!;
+    expect(nb.costs.at(-1)).toEqual({ category: 'Radio promo', cost: 30000, shareBp: 5000 });
+    expect((await request.post('/api/money/recoupment/costs', { data: { releaseId: 'rel_nightbus', category: 'Promo', cost: 0, shareBp: 5000 } })).status()).toBe(400);
+    expect((await request.post('/api/money/recoupment/costs', { data: { releaseId: 'rel_nightbus', category: 'Promo', cost: 12.5, shareBp: 5000 } })).status()).toBe(400);
+    expect((await request.post('/api/money/recoupment/costs', { data: { releaseId: 'nope', category: 'Promo', cost: 100, shareBp: 5000 } })).status()).toBe(404);
+  });
+  test('an unknown payee is a 404', async ({ request }) => {
+    expect((await request.get('/api/portal/nobody')).status()).toBe(404);
   });
 });
