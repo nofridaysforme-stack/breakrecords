@@ -6,7 +6,7 @@ import { approvals as items } from '../src/data/sample';
 import { approvalDetails, releases as runbooks } from '../src/data/fixtures';
 import { budgets, glasshouseDeal, statements as payeeStatements } from '../src/data/money';
 import { daysBetween } from '@breakrecords/core/dates';
-import { activity, advanceOffer, catalogAssets, departments, catalogReleases, contracts, funding, offerAssumptions, offerTerms, profileClaims, saleOffer, recordings, regColumns, registrations, songs, templates, unclaimed } from '../src/data/ops';
+import { activity, advanceOffer, catalogAssets, departments, catalogReleases, contracts, funding, harborTheme, integrations, labelConfig, routing, tenant, offerAssumptions, offerTerms, profileClaims, saleOffer, recordings, regColumns, registrations, songs, templates, unclaimed } from '../src/data/ops';
 import { aiUseFromLabel } from '@breakrecords/core/metadata';
 import { checkStatement } from '@breakrecords/core/statements';
 import type { Tx } from '@breakrecords/db/client';
@@ -18,7 +18,7 @@ if (!url || process.env.BR_ALLOW_SEED !== '1') {
 }
 
 // Who can sign in to the sample world. E2E addresses receive links in the test mailbox.
-const PEOPLE = (process.env.SEED_EMAILS ?? 'jana@northline.example:northline:owner,e2e-owner@northline.example:northline:owner,e2e-harbor@harbor.example:harbor-sound:owner,e2e-payee@northline.example:northline:payee:marco-dela')
+const PEOPLE = (process.env.SEED_EMAILS ?? 'jana@northline.example:northline:owner,e2e-owner@northline.example:northline:owner,e2e-harbor@harbor.example:harbor-sound:owner,e2e-payee@northline.example:northline:payee:marco-dela,e2e-licensee@harbor.example:harbor-sound-licensee:owner')
   .split(',').map((s) => { const [email, tenant, role, party] = s.split(':'); return { email: email.toLowerCase(), tenant, role, party: party ?? null }; });
 
 const DUE: Record<string, string> = { apr_payout_oct: '2026-11-10', apr_producer: '2026-11-09', apr_mlc: '2026-11-12', apr_grant: '2026-11-15' };
@@ -34,6 +34,7 @@ async function main() {
     // 5i: Harbor Sound licenses the platform; Northline Records is one of its sub-tenants.
     const licensee = await tenant('harbor-sound-licensee', 'Harbor Sound', 'licensee', null);
     const ids: Record<string, string> = {
+      'harbor-sound-licensee': licensee,
       northline: await tenant('northline', 'Northline Records', 'label', licensee),
       'harbor-sound': await tenant('harbor-sound', 'Harbor Sound', 'label', licensee),
     };
@@ -76,6 +77,7 @@ async function main() {
     await seedRoster(tx, ids.northline);
     await seedFunding(tx, ids.northline);
     await seedActivity(tx, ids.northline);
+    await seedSettings(tx, ids.northline, ids['harbor-sound'], licensee);
     await seedHarborPayouts(tx, ids['harbor-sound']);
   });
   console.log(`Seeded Northline and Harbor Sound; ${PEOPLE.length} people allowlisted.`);
@@ -583,6 +585,33 @@ async function seedActivity(tx: Tx, tenant: string) {
     await tx`INSERT INTO memberships (user_id, tenant_id, role, title) VALUES (${u.id}, ${tenant}, ${role}, ${title})
       ON CONFLICT (user_id, tenant_id) DO UPDATE SET role = EXCLUDED.role, title = EXCLUDED.title`;
   }
+}
+
+// ---------- Settings and white label (5h, 5i) ----------
+// When each integration's real connection arrives (it needs the partner's account).
+const ARRIVES: Record<string, string> = {
+  distributor: 'Stage 1', pro: 'Stage 1', soundexchange: 'Stage 1', payouts: 'Stage 3 (Trolley)', esign: 'Stage 2 (Dropbox Sign)', accounting: 'a later stage',
+};
+const CAPS: Record<string, number | null> = { money: 0, signature: null, filing: null, public: null, plan: 25000 };
+
+async function seedSettings(tx: Tx, northline: string, harbor: string, licensee: string) {
+  for (const t of [northline, harbor, licensee]) {
+    for (const table of ['label_settings', 'approval_routes', 'integrations', 'white_label']) await tx.unsafe(`DELETE FROM ${table} WHERE tenant_id = $1`, [t]);
+  }
+  const c = labelConfig;
+  await tx`INSERT INTO label_settings (tenant_id, country, profile, statement_period, spend_cap_cents) VALUES (${northline}, ${c.country}, ${c.profile}, ${c.statementPeriod}, ${c.spendCap})`;
+  await tx`INSERT INTO label_settings (tenant_id, country, profile, statement_period, spend_cap_cents) VALUES (${harbor}, 'US', 'Small label', 'Quarterly', 20000)`;
+  for (const [i, r] of routing.entries()) {
+    await tx`INSERT INTO approval_routes (tenant_id, type, label, rule, approver, cap_cents, position) VALUES (${northline}, ${r.type}, ${r.label}, ${r.rule}, ${r.who}, ${CAPS[r.type]}, ${i})`;
+  }
+  for (const [i, x] of integrations.entries()) {
+    await tx`INSERT INTO integrations (tenant_id, slug, name, abbr, state, status, arrives_with, position) VALUES (${northline}, ${x.id}, ${x.name}, ${x.abbr}, ${x.state}, ${x.status}, ${ARRIVES[x.id] ?? null}, ${i})`;
+  }
+  await tx`INSERT INTO white_label (tenant_id, domain, email, dns_status, theme) VALUES (${licensee}, ${tenant.domain}, ${tenant.email}, ${tenant.dns}, ${tx.json(harborTheme)})`;
+  // Harbor Sound's own roster, so the licensee's sub-label list counts real artists.
+  await tx`DELETE FROM roster_members WHERE tenant_id = ${harbor}`;
+  const [mara] = await tx`SELECT id FROM parties WHERE tenant_id = ${harbor} AND slug = 'mara-quill'`;
+  await tx`INSERT INTO roster_members (tenant_id, party_id, role) VALUES (${harbor}, ${mara.id}, 'Solo artist')`;
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

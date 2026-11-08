@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
 import { getSettings } from '@/data/api';
+import { teamOnly } from '@/server/teamRoute';
 
-export function GET() { return NextResponse.json(getSettings()); }
+export async function GET() { return (await teamOnly('Settings')) ?? NextResponse.json(await getSettings()); }

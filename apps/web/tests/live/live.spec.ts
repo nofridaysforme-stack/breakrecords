@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, ApprovalError, ApprovalState, CatalogResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { ActivityResponse, ApprovalError, ApprovalState, CatalogResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 
@@ -559,7 +559,7 @@ test.describe('roster (live)', () => {
     expect((await page.request.get('/api/roster')).status()).toBe(403);
     const harbor = await (await browser.newContext()).newPage();
     await signIn(harbor, USERS.harbor);
-    expect(await roster(harbor)).toEqual([]);
+    expect((await roster(harbor)).map((a) => a.name)).toEqual(['Mara Quill']); // only its own artist
   });
 });
 
@@ -669,5 +669,48 @@ test.describe('activity (live)', () => {
     const log = ActivityResponse.parse(await (await harbor.request.get('/api/activity')).json());
     expect(log.every((e) => !e.text.includes('Royalties') && !e.id.startsWith('RUN-'))).toBe(true);
     expect((await harbor.request.patch('/api/departments/royalties', { data: { autonomy: 'suggest' } })).status()).toBe(404);
+  });
+});
+
+test.describe('settings (live)', () => {
+  const theme = { background: '#0f1a1c', surface: '#13221f', brand: '#1d4a4f', primary: '#e2b33c', text: '#e8f0ef' }; // lint-allow-hex: tenant data from 5i
+
+  test('settings, routing and integrations come from the database; the minimum payout from payouts', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    const st = SettingsResponse.parse(await (await page.request.get('/api/settings')).json());
+    expect(st.config).toEqual({ name: 'Northline Records', country: 'US', profile: 'Small label', statementPeriod: 'Monthly, artists quarterly', minimumPayout: 2500, spendCap: 30000 });
+    expect(st.routing.map((r) => [r.type, r.cap])).toEqual([['money', 'Over $0'], ['signature', 'Always'], ['filing', 'Always'], ['public', 'Always'], ['plan', 'Over $250']]);
+    expect(st.integrations.find((i) => i.id === 'accounting')).toMatchObject({ state: 'err', status: 'Token expired' });
+    const res = await page.request.post('/api/settings/integrations/soundexchange/connect');
+    expect(res.status()).toBe(409);
+    expect((await res.json()).message).toBe('Connecting SoundExchange needs its account set up first. It arrives with Stage 1.');
+  });
+
+  test('a label reads its licensee’s theme but can’t publish it; the licensee’s owner can, checked for contrast', async ({ page, browser }) => {
+    await signIn(page, USERS.owner);
+    const t = ThemeResponse.parse(await (await page.request.get('/api/settings/theme')).json());
+    expect(t).toMatchObject({ theme, canPublish: false, published: null, tenant: { name: 'Harbor Sound', subTenants: [{ name: 'Harbor Sound', artists: 1 }, { name: 'Northline Records', artists: 3 }] } });
+    expect((await page.request.post('/api/settings/theme', { data: { theme } })).status()).toBe(403);
+
+    const lic = await (await browser.newContext()).newPage();
+    await signIn(lic, USERS.licensee);
+    expect((await lic.request.post('/api/settings/theme', { data: { theme: { ...theme, text: '#1a1a1a' } } })).status()).toBe(409); // lint-allow-hex: test data
+    await lic.goto('/settings/white-label');
+    await lic.getByLabel('Primary action', { exact: true }).fill('#f0c050'); // lint-allow-hex: test data
+    await lic.getByRole('button', { name: 'Publish theme' }).click();
+    await expect(lic.getByRole('status').filter({ hasText: 'Published for Harbor Sound' })).toBeVisible();
+    const after = ThemeResponse.parse(await (await page.request.get('/api/settings/theme')).json());
+    expect(after.theme.primary).toBe('#f0c050'); // lint-allow-hex: test data
+    expect(after.published?.by).toBe('e2e-licensee');
+  });
+
+  test('payees and other labels', async ({ page, browser }) => {
+    await signIn(page, USERS.payee);
+    for (const path of ['/api/settings', '/api/settings/theme']) expect((await page.request.get(path)).status()).toBe(403);
+    const harbor = await (await browser.newContext()).newPage();
+    await signIn(harbor, USERS.harbor);
+    const st = SettingsResponse.parse(await (await harbor.request.get('/api/settings')).json());
+    expect(st.config.name).toBe('Harbor Sound');
+    expect(st.integrations).toEqual([]);
   });
 });

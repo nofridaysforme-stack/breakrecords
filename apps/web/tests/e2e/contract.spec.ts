@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ApprovalError, ApprovalState, ContractsResponse, DepartmentError, DepartmentsResponse, ENDPOINTS, FundingResponse, OffersResponse, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, ContractsResponse, DepartmentError, DepartmentsResponse, ENDPOINTS, SettingsError, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
 
 // The API contract over HTTP. Any server behind the UI, mock or live, must pass this file.
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
@@ -236,5 +236,23 @@ test.describe('department writes', () => {
     expect((await request.patch('/api/departments/marketing', { data: { autonomy: 'suggest' } })).status()).toBe(409);
     expect((await request.patch('/api/departments/royalties', { data: { personId: 'u_nobody' } })).status()).toBe(409);
     expect((await request.patch('/api/departments/royalties', { data: {} })).status()).toBe(400);
+  });
+});
+
+test.describe('settings writes', () => {
+  const theme = { background: '#0f1a1c', surface: '#13221f', brand: '#1d4a4f', primary: '#e2b33c', text: '#e8f0ef' }; // lint-allow-hex: tenant data from 5i
+  test('publishing the theme is saved for the session; a failing pair is refused', async ({ request }) => {
+    const res = await request.post('/api/settings/theme', { data: { theme: { ...theme, primary: '#F0C050' } } }); // lint-allow-hex: test data
+    expect(res.status()).toBe(200);
+    expect(ThemeResponse.parse(await res.json())).toMatchObject({ theme: { primary: '#f0c050' }, published: { by: 'You' } }); // lint-allow-hex: test data
+    const bad = await request.post('/api/settings/theme', { data: { theme: { ...theme, text: '#1a1a1a' } } }); // lint-allow-hex: test data
+    expect(bad.status()).toBe(409);
+    expect(SettingsError.parse(await bad.json()).error).toBe('fails_contrast');
+    expect((await request.post('/api/settings/theme', { data: { theme: { ...theme, text: 'white' } } })).status()).toBe(400);
+  });
+  test('connecting an integration (sample data)', async ({ request }) => {
+    const res = await request.post('/api/settings/integrations/soundexchange/connect');
+    expect(SettingsResponse.parse(await res.json()).integrations.find((i) => i.id === 'soundexchange')).toMatchObject({ state: 'ok', status: 'Connected' });
+    expect((await request.post('/api/settings/integrations/nope/connect')).status()).toBe(404);
   });
 });

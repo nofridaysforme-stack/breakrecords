@@ -4,6 +4,7 @@ import 'server-only';
 // read from. Replace these functions with real calls; the shapes stay the same.
 import { budgets, glasshouseDeal, payees, payouts, recoupment, royalties, splitTree, statements, type Payee, type Statement } from './money';
 import { DEFAULT_PAYEE } from '@/components/portal/payee';
+import type { ThemeColors } from '@/lib/theme';
 import { approvals as allApprovals } from './sample';
 import { approvalDetails, home, homeNumbers, releases, TODAY } from './fixtures';
 import type { ApprovalDetail, Release, Scenario } from './types';
@@ -269,8 +270,23 @@ export async function getActivity(): Promise<ops.ActivityEvent[]> {
   if (!ctx) return ops.activity;
   return (await import('@/server/live/activity')).liveActivity(ctx);
 }
-export const getSettings = () => ({ nav: ops.settingsNav, routing: ops.routing, config: ops.labelConfig, integrations: ops.integrations, team: ops.team });
-export const getTheme = () => ({ theme: ops.harborTheme, tenant: ops.tenant });
+export type Settings = { nav: typeof ops.settingsNav; routing: typeof ops.routing; config: typeof ops.labelConfig; integrations: typeof ops.integrations; team: typeof ops.team };
+/** Settings (5h). Live: the tenant's settings, routing, integrations and team. */
+export async function getSettings(): Promise<Settings> {
+  const ctx = await liveCtx('settings');
+  if (ctx) return (await import('@/server/live/settings')).liveSettings(ctx);
+  const m = await (await import('@/server/mockSettings')).mockSettingsState();
+  return { nav: ops.settingsNav, routing: ops.routing, config: ops.labelConfig, team: ops.team,
+    integrations: ops.integrations.map((i) => (m.connected.has(i.id) ? { ...i, state: 'ok' as const, status: 'Connected' } : i)) };
+}
+export type Theme = { theme: ThemeColors; tenant: typeof ops.tenant; published: { at: string; by: string } | null; canPublish: boolean };
+/** White label (5i). Live: the licensee's theme, which its labels read and only its owners publish. */
+export async function getTheme(): Promise<Theme> {
+  const ctx = await liveCtx('settings');
+  if (ctx) return (await import('@/server/live/settings')).liveTheme(ctx);
+  const m = await (await import('@/server/mockSettings')).mockSettingsState();
+  return { theme: m.theme ?? ops.harborTheme, tenant: ops.tenant, published: m.theme ? { at: 'Just now', by: 'You' } : null, canPublish: true };
+}
 /** Roster. Live: worked out from the catalog, contracts, statements, payouts and releases. */
 export async function getRoster(): Promise<typeof ops.roster> {
   const ctx = await liveCtx('roster');

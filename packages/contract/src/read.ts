@@ -321,7 +321,14 @@ const Hex = z.string().regex(/^#[0-9a-f]{6}$/i);
 export const ThemeResponse = z.object({
   theme: z.object({ background: Hex, surface: Hex, brand: Hex, primary: Hex, text: Hex }),
   tenant: z.object({ name: z.string(), domain: z.string(), email: z.email(), dns: z.string(), subTenants: z.array(z.object({ name: z.string(), artists: z.number().int() })) }),
+  /** When the theme was last published and by whom; null if it never was. */
+  published: z.object({ at: Display, by: z.string() }).nullable(),
+  /** Only the licensee's owners can publish its theme. */
+  canPublish: z.boolean(),
 });
+/** POST /api/settings/theme: publish the five colors. Refused unless every text pair passes WCAG AA. */
+export const PublishThemeCommand = z.object({ theme: ThemeResponse.shape.theme }).strict();
+export const SettingsError = z.object({ error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'fails_contrast', 'not_yet']), message: z.string() });
 export const RosterResponse = z.array(z.object({
   id: Id, name: z.string(), type: z.string(), genre: z.string(), releases: z.number().int(), contract: z.string(), income: Cents, open: z.string(), href: Link,
 }));

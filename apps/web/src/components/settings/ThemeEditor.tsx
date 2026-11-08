@@ -10,8 +10,7 @@ import type { getTheme } from '@/data/api';
 import o from '@/components/ops/Ops.module.css';
 import s from './Theme.module.css';
 
-type Data = ReturnType<typeof getTheme>;
-const KEY = 'br.theme.harbor.v1';
+type Data = Awaited<ReturnType<typeof getTheme>>;
 
 /** Writes the theme's variables onto an element, so everything inside re-skins at runtime. */
 export function applyTheme(el: HTMLElement, colors: ThemeColors) {
@@ -24,11 +23,11 @@ export function applyTheme(el: HTMLElement, colors: ThemeColors) {
 export function ThemeEditor({ data }: { data: Data }) {
   const [colors, setColors] = useState<ThemeColors>(data.theme);
   const [draft, setDraft] = useState<Record<keyof ThemeColors, string>>(data.theme);
-  const [published, setPublished] = useState<ThemeColors | null>(null);
+  const [published, setPublished] = useState<ThemeColors | null>(data.published ? data.theme : null);
+  const [error, setError] = useState<string | null>(null);
   const [onApp, setOnApp] = useState(false);
   const [logo, setLogo] = useState<string | null>(null);
 
-  useEffect(() => { try { const raw = sessionStorage.getItem(KEY); if (raw) { const t = JSON.parse(raw); setPublished(t); setColors(t); setDraft(t); } } catch { /* none */ } }, []);
   // "Try it on this app": the same variables on <html>, removed when you turn it off or leave.
   useEffect(() => (onApp ? applyTheme(document.documentElement, colors) : undefined), [onApp, colors]);
   useEffect(() => () => { if (logo) URL.revokeObjectURL(logo); }, [logo]);
@@ -45,13 +44,19 @@ export function ThemeEditor({ data }: { data: Data }) {
     if (isHex(val)) setColors((c) => ({ ...c, [key]: val.toLowerCase() }));
   };
 
-  const publish = () => {
+  // Saved on the server, which checks contrast again and that you may publish for this licensee.
+  const publish = async () => {
     if (failing.length || !valid) return;
-    setPublished(colors);
-    try { sessionStorage.setItem(KEY, JSON.stringify(colors)); } catch { /* ignore */ }
+    setError(null);
+    try {
+      const res = await fetch('/api/settings/theme', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ theme: colors }) });
+      const body = await res.json();
+      if (!res.ok) { setError(body.message ?? 'The theme wasn’t published.'); return; }
+      setPublished(body.theme);
+    } catch { setError('Couldn’t reach the server. The theme wasn’t published.'); }
   };
 
-  const reason = !valid ? 'Every color needs a 6-digit hex value.' : failing.length ? `${failing.length} text ${failing.length === 1 ? 'pair fails' : 'pairs fail'} WCAG AA. Fix ${failing.length === 1 ? 'it' : 'them'} to publish.` : 'No changes to publish.';
+  const reason = !data.canPublish ? `Only ${data.tenant.name}’s owners can publish its theme.` : !valid ? 'Every color needs a 6-digit hex value.' : failing.length ? `${failing.length} text ${failing.length === 1 ? 'pair fails' : 'pairs fail'} WCAG AA. Fix ${failing.length === 1 ? 'it' : 'them'} to publish.` : 'No changes to publish.';
 
   return (
     <div className={s.layout}>
@@ -110,10 +115,11 @@ export function ThemeEditor({ data }: { data: Data }) {
           <h2 id="pv-h" className={o.eyebrow}>Preview</h2>
           <div className={o.actions}>
             <Button size="sm" onClick={() => setOnApp((v) => !v)} aria-pressed={onApp} disabled={!valid} disabledReason="Every color needs a 6-digit hex value.">{onApp ? 'Stop trying on this app' : 'Try it on this app'}</Button>
-            <Button variant="primary" id="publish" onClick={publish} disabled={!!failing.length || !valid || !dirty} disabledReason={reason}>Publish theme</Button>
+            <Button variant="primary" id="publish" onClick={publish} disabled={!data.canPublish || !!failing.length || !valid || !dirty} disabledReason={reason}>Publish theme</Button>
           </div>
         </div>
         {(failing.length > 0 || !valid) && <p className={`${o.small} ${o.critical}`}>{reason}</p>}
+        {error && <p className={o.small} role="alert" style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--critical)' }}><CircleAlert size={14} aria-hidden="true" />Not published. {error}</p>}
         {published && !dirty && <p className={o.toast} role="status"><Check size={16} className={o.good} aria-hidden="true" />Published for {data.tenant.name}. Its artists see it next time they load the app.</p>}
         <div className={s.preview} style={previewStyle} aria-label={`${data.tenant.name} app preview`} role="img">
           <div className={s.pSide}>

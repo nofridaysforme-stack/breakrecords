@@ -29,7 +29,7 @@ export type Checks = [
   Is<typeof C.OffersResponse, NonNullable<Awaited<ReturnType<typeof api.getOffers>>>>,
   Is<typeof C.DepartmentsResponse, Awaited<ReturnType<typeof api.getDepartments>>>,
   Is<typeof C.ActivityResponse, Awaited<ReturnType<typeof api.getActivity>>>,
-  Is<typeof C.SettingsResponse, ReturnType<typeof api.getSettings>>,
-  Is<typeof C.ThemeResponse, ReturnType<typeof api.getTheme>>,
+  Is<typeof C.SettingsResponse, Awaited<ReturnType<typeof api.getSettings>>>,
+  Is<typeof C.ThemeResponse, Awaited<ReturnType<typeof api.getTheme>>>,
   Is<typeof C.RosterResponse, Awaited<ReturnType<typeof api.getRoster>>>,
 ];

@@ -12,7 +12,7 @@ import { useShellUI, type Density } from '@/components/shell/ShellUI';
 import o from '@/components/ops/Ops.module.css';
 import s from './Settings.module.css';
 
-type Data = ReturnType<typeof getSettings>;
+type Data = Awaited<ReturnType<typeof getSettings>>;
 
 export function SettingsNav({ nav, current }: { nav: Data['nav']; current: SettingsSection }) {
   return (
@@ -34,10 +34,12 @@ const ICON: Record<IntegrationState, { Icon: typeof Check; cls: string }> = { ok
 function Integrations({ items }: { items: Data['integrations'] }) {
   const [list, setList] = useState(items);
   const [msg, setMsg] = useState('');
+  const [error, setError] = useState('');
   return (
     <section className={o.section} aria-labelledby="int-h">
       <h2 id="int-h" className={o.sectionTitleLg}>Integrations</h2>
       {msg && <p className={o.toast} role="status"><Check size={16} className={o.good} aria-hidden="true" />{msg}</p>}
+      {error && <p className={o.small} role="alert" style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--critical)' }}><CircleAlert size={14} aria-hidden="true" />{error}</p>}
       <ul className={s.ints}>
         {list.map((i) => {
           const { Icon, cls } = ICON[i.state];
@@ -47,10 +49,16 @@ function Integrations({ items }: { items: Data['integrations'] }) {
               <span className={s.abbr} aria-hidden="true">{i.abbr}</span>
               <span className={s.intBody}><span className={s.intName}>{i.name}</span><span className={`${s.intStatus} ${cls}`}><Icon size={12} strokeWidth={2.5} aria-hidden="true" />{i.status}</span></span>
               <Button size="sm" variant={i.state === 'ok' ? 'secondary' : 'primary'} aria-label={`${action} ${i.name}`}
-                onClick={() => {
+                onClick={async () => {
+                  setError('');
                   if (i.state === 'ok') { setMsg(`${i.name} is connected. Settings for it open here in the full app.`); return; }
-                  setList((l) => l.map((x) => (x.id === i.id ? { ...x, state: 'ok', status: 'Connected' } : x)));
-                  setMsg(`${i.name} connected. Nothing is filed or paid through it without your approval.`);
+                  try {
+                    const res = await fetch(`/api/settings/integrations/${i.id}/connect`, { method: 'POST' });
+                    const body = await res.json();
+                    if (!res.ok) { setMsg(''); setError(body.message ?? `${i.name} wasn’t connected.`); return; }
+                    setList(body.integrations);
+                    setMsg(`${i.name} connected. Nothing is filed or paid through it without your approval.`);
+                  } catch { setMsg(''); setError('Couldn’t reach the server. Nothing was connected.'); }
                 }}>{action}</Button>
             </li>
           );

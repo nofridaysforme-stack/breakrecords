@@ -448,4 +448,31 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       expect((await asA((tx) => tx`SELECT * FROM app_team()`)).map((r) => r.user_id)).toEqual([ids.ua]);
     });
   });
+  describe('settings and white label', () => {
+    const theme = { background: '#0f1a1c', surface: '#13221f', brand: '#1d4a4f', primary: '#e2b33c', text: '#e8f0ef' }; // lint-allow-hex: test data
+    beforeAll(async () => {
+      await owner`INSERT INTO white_label (tenant_id, domain, email, dns_status, theme) VALUES (${ids.lic}, 'app.lic.test', 'team@lic.test', 'Waiting', ${owner.json(theme)})`;
+    });
+
+    it('a label reads its licensee’s theme; only the licensee’s owners publish it', async () => {
+      const read = await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT domain FROM white_label`);
+      expect(read.map((r) => r.domain)).toEqual(['app.lic.test']);
+      expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT 1 FROM white_label`)).toHaveLength(0); // not under this licensee
+      const label = await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`UPDATE white_label SET theme = ${tx.json(theme)}, published_at = now(), published_by = ${ids.ua}`);
+      expect(label.count).toBe(0);
+      const lic = await withTenant(app, { userId: ids.licOwner, tenantId: ids.lic }, (tx) => tx`UPDATE white_label SET theme = ${tx.json(theme)}, published_at = now(), published_by = ${ids.licOwner}`);
+      expect(lic.count).toBe(1);
+      await expect(withTenant(app, { userId: ids.licOwner, tenantId: ids.lic }, (tx) => tx`UPDATE white_label SET domain = 'evil.test'`)).rejects.toThrow(/permission denied/);
+    });
+
+    it('a theme is five valid colors; signatures and filings always need a person', async () => {
+      await expect(withTenant(app, { userId: ids.licOwner, tenantId: ids.lic }, (tx) =>
+        tx`UPDATE white_label SET theme = ${tx.json({ ...theme, primary: 'orange' })}, published_by = ${ids.licOwner}`)).rejects.toThrow(/check constraint/);
+      await expect(owner`INSERT INTO approval_routes (tenant_id, type, label, rule, approver, cap_cents) VALUES (${ids.a}, 'signature', 'Signature', 'Any', 'Owner', 10000)`)
+        .rejects.toThrow(/check constraint/);
+      await owner`INSERT INTO integrations (tenant_id, slug, name, abbr, status) VALUES (${ids.a}, 'distributor', 'Distributor', 'DS', 'Not connected')`;
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`UPDATE integrations SET state = 'ok'`)).rejects.toThrow(/permission denied/);
+      expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT 1 FROM integrations`)).toHaveLength(0);
+    });
+  });
 });
