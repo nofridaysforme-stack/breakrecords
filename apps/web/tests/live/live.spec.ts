@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ApprovalError, ApprovalState, CatalogResponse, ContractsResponse, ENDPOINTS, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, CatalogResponse, ContractsResponse, ENDPOINTS, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 
@@ -522,5 +522,43 @@ test.describe('contracts (live)', () => {
     const c = await contracts(harbor);
     expect([c.contracts, c.templates, c.reviews]).toEqual([[], [], []]);
     expect((await harbor.request.get('/api/contracts/templates/artist')).status()).toBe(404);
+  });
+});
+
+test.describe('roster (live)', () => {
+  const roster = async (page: import('@playwright/test').Page) => RosterResponse.parse(await (await page.request.get('/api/roster')).json());
+
+  test('each card is worked out from the catalog, contracts, statements, payouts and releases', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    await page.request.delete('/api/approvals/apr_producer/decision');
+    const r = await roster(page);
+    expect(r.map((a) => [a.name, a.type, a.genre, a.releases, a.contract])).toEqual([
+      ['Kesi Vale', 'Solo artist', 'R&B', 2, 'Artist agreement · Signed'],
+      ['The Low Hours', 'Band · 3 members', 'Indie rock', 1, 'Band agreement · Signed'],
+      ['Marco Dela', 'Producer and writer', 'R&B', 0, 'Producer agreement · Waiting on you'],
+    ]);
+    expect(r.map((a) => [a.open, a.href])).toEqual([
+      ['Glasshouse release in 17 weeks', '/releases/rel_glasshouse'], ['Rue Sato’s tax form expires Dec 1', '/money/payouts'],
+      ['Producer agreement needs your eyes', '/approvals/apr_producer'],
+    ]);
+    expect([r[0].income, r[2].income]).toEqual([1081260, 21140]);
+    await page.goto('/roster');
+    await expect(page.getByRole('heading', { name: 'Kesi Vale', level: 2 })).toBeVisible();
+  });
+
+  test('once the producer agreement is approved, Marco’s card moves on', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    await page.request.delete('/api/approvals/apr_producer/decision');
+    await page.request.post('/api/approvals/apr_producer/decision', { data: { action: 'approve' } });
+    expect((await roster(page))[2]).toMatchObject({ contract: 'Producer agreement · 0 of 1 signed', open: 'Nothing open' });
+    await page.request.delete('/api/approvals/apr_producer/decision');
+  });
+
+  test('payees and other labels see no roster', async ({ page, browser }) => {
+    await signIn(page, USERS.payee);
+    expect((await page.request.get('/api/roster')).status()).toBe(403);
+    const harbor = await (await browser.newContext()).newPage();
+    await signIn(harbor, USERS.harbor);
+    expect(await roster(harbor)).toEqual([]);
   });
 });

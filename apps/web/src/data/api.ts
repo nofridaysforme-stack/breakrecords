@@ -240,4 +240,9 @@ export const getDepartments = () => ({ departments: ops.departments, team: ops.t
 export const getActivity = () => ops.activity;
 export const getSettings = () => ({ nav: ops.settingsNav, routing: ops.routing, config: ops.labelConfig, integrations: ops.integrations, team: ops.team });
 export const getTheme = () => ({ theme: ops.harborTheme, tenant: ops.tenant });
-export const getRoster = () => ops.roster;
+/** Roster. Live: worked out from the catalog, contracts, statements, payouts and releases. */
+export async function getRoster(): Promise<typeof ops.roster> {
+  const ctx = await liveCtx('roster');
+  if (!ctx) return ops.roster;
+  return (await import('@/server/live/roster')).liveRoster(ctx);
+}

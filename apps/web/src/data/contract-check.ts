@@ -31,5 +31,5 @@ export type Checks = [
   Is<typeof C.ActivityResponse, ReturnType<typeof api.getActivity>>,
   Is<typeof C.SettingsResponse, ReturnType<typeof api.getSettings>>,
   Is<typeof C.ThemeResponse, ReturnType<typeof api.getTheme>>,
-  Is<typeof C.RosterResponse, ReturnType<typeof api.getRoster>>,
+  Is<typeof C.RosterResponse, Awaited<ReturnType<typeof api.getRoster>>>,
 ];
