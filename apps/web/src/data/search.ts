@@ -12,7 +12,7 @@ export type SearchItem = { id: string; group: SearchGroup; label: string; hint: 
 const pages: SearchItem[] = [
   ...[...primaryNav, ...footerNav].filter((n) => !n.locked).map((n) => ({ id: `nav-${n.label}`, group: 'Go to' as const, label: n.label, hint: 'Page', href: n.href })),
   ...[['Statements', '/money/statements'], ['Payouts', '/money/payouts'], ['Recoupment', '/money/recoupment'], ['Budgets', '/money/budgets'],
-    ['Registrations', '/rights/registrations'], ['Unclaimed money', '/rights/unclaimed'], ['Profile claims', '/rights/claims'],
+    ['Registrations', '/rights/registrations'], ['Unclaimed money', '/rights/unclaimed'], ['Profile claims', '/rights/claims'], ['Documents', '/rights/documents'],
     ['Compare offers', '/funding/offers/compare'], ['Integrations', '/settings/integrations'], ['White label theme', '/settings/white-label'],
     ['Approval routing', '/settings/routing'], ['Display density', '/settings/profile'], ['Payee portal', '/portal']]
     .map(([label, href]) => ({ id: `page-${href}`, group: 'Go to' as const, label, hint: 'Page', href })),

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { ActivityResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 
@@ -801,4 +801,33 @@ test('an owner invites a payee, who signs in to their own portal; a team member 
   await signIn(priya, 'priya@northline.example');
   expect(SettingsResponse.parse(await (await priya.request.get('/api/settings')).json()).canInvite).toBe(false);
   expect((await priya.request.post('/api/settings/invites', { data: { email: 'x@y.example', role: 'team' } })).status()).toBe(403);
+});
+
+test('documents: the label’s team prepares and downloads; other labels and payees can’t; only owners switch AI', async ({ page, browser }) => {
+  await signIn(page, USERS.owner);
+  await page.goto('/rights/documents');
+  await page.getByRole('button', { name: 'Prepare: Split sheet for Glasshouse' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Split sheet for Glasshouse prepared, version' })).toBeVisible();
+  const view = DocumentsResponse.parse(await (await page.request.get('/api/rights/documents')).json());
+  const doc = view.subjects.find((x) => x.subject === 'work' && x.id === 'glasshouse')!.docs.find((d) => d.kind === 'split_sheet')!.latest!;
+  expect(doc.gaps.map((g) => g.field)).toEqual(expect.arrayContaining(['PRO', 'IPI', 'Signatures']));
+  expect(view.artists).toEqual(expect.arrayContaining(['Kesi Vale', 'The Low Hours']));
+  const pdf = await page.request.get(`/api/rights/documents/${doc.id}/file`);
+  expect((await pdf.body()).subarray(0, 5).toString()).toBe('%PDF-');
+
+  const harbor = await (await browser.newContext()).newPage();
+  await signIn(harbor, USERS.harbor);
+  expect((await harbor.request.get(`/api/rights/documents/${doc.id}/file`)).status()).toBe(404);
+  const theirs = DocumentsResponse.parse(await (await harbor.request.get('/api/rights/documents')).json());
+  expect(theirs.subjects.some((x) => x.id === 'glasshouse')).toBe(false);
+
+  const payee = await (await browser.newContext()).newPage();
+  await signIn(payee, USERS.payee);
+  expect((await payee.request.get('/api/rights/documents')).status()).toBe(403);
+  expect((await payee.request.get(`/api/rights/documents/${doc.id}/file`)).status()).toBe(403);
+
+  const priya = await (await browser.newContext()).newPage();
+  await signIn(priya, 'priya@northline.example');
+  expect((await priya.request.post('/api/rights/documents', { data: { kind: 'label_copy', subject: 'release', id: 'rel_nightbus' } })).status()).toBe(200);
+  expect((await priya.request.post('/api/rights/documents/ai', { data: { on: true } })).status()).toBe(403);
 });

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ApprovalError, ApprovalState, ContractsResponse, OnboardingResponse, DepartmentError, DepartmentsResponse, ENDPOINTS, SettingsError, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
+import { ApprovalError, DocumentsResponse, ApprovalState, ContractsResponse, OnboardingResponse, DepartmentError, DepartmentsResponse, ENDPOINTS, SettingsError, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
 
 // The API contract over HTTP. Any server behind the UI, mock or live, must pass this file.
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
@@ -276,5 +276,38 @@ test.describe('invitation writes', () => {
     expect(SettingsResponse.parse(await (await request.delete('/api/settings/invites?email=sam@example.com')).json()).invites).toEqual([]);
     expect((await request.post('/api/settings/invites', { data: { email: 'sam@example.com', role: 'payee' } })).status()).toBe(400);
     expect((await request.post('/api/settings/invites', { data: { email: 'not an email', role: 'team' } })).status()).toBe(400);
+  });
+});
+
+test.describe('prepared documents', () => {
+  test('preparing a document stores a version with its gaps; the PDF and CSV download', async ({ request }) => {
+    const res = await request.post('/api/rights/documents', { data: { kind: 'registration_packet', subject: 'work', id: 'night-bus' } });
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    const view = DocumentsResponse.parse(body);
+    const slot = view.subjects.find((x) => x.subject === 'work' && x.id === 'night-bus')!.docs.find((d) => d.kind === 'registration_packet')!;
+    expect(slot.latest).toMatchObject({ id: body.prepared, version: 1, hasCsv: true, summary: '1 to fix' });
+    expect(slot.latest!.gaps[0].message).toMatch(/Rue Sato's IPI/);
+    const pdf = await request.get(`/api/rights/documents/${body.prepared}/file`);
+    expect(pdf.headers()['content-type']).toBe('application/pdf');
+    expect((await pdf.body()).subarray(0, 5).toString()).toBe('%PDF-');
+    const csv = await (await request.get(`/api/rights/documents/${body.prepared}/file?format=csv`)).text();
+    expect(csv.split('\r\n')[0]).toContain('"Performance share","MLC share"');
+    const again = DocumentsResponse.parse(await (await request.post('/api/rights/documents', { data: { kind: 'registration_packet', subject: 'work', id: 'night-bus' } })).json());
+    expect(again.subjects.find((x) => x.id === 'night-bus')!.docs.find((d) => d.kind === 'registration_packet')).toMatchObject({ versions: 2, latest: { version: 2 } });
+  });
+  test('documents only exist for what they apply to, and bad requests are refused', async ({ request }) => {
+    expect((await request.post('/api/rights/documents', { data: { kind: 'label_copy', subject: 'work', id: 'night-bus' } })).status()).toBe(400);
+    expect((await request.post('/api/rights/documents', { data: { kind: 'split_sheet', subject: 'work', id: 'nope' } })).status()).toBe(404);
+    expect((await request.post('/api/rights/documents', { data: { kind: 'split_sheet' } })).status()).toBe(400);
+    expect((await request.get('/api/rights/documents/00000000-0000-0000-0000-000000000000/file')).status()).toBe(404);
+  });
+  test('AI review is refused while the platform switch is off', async ({ request }) => {
+    const view = DocumentsResponse.parse(await (await request.get('/api/rights/documents')).json());
+    expect(view.ai).toMatchObject({ available: false, on: false });
+    const prepared = (await (await request.post('/api/rights/documents', { data: { kind: 'split_sheet', subject: 'work', id: 'glasshouse' } })).json()).prepared;
+    const res = await request.post(`/api/rights/documents/${prepared}/review`, { data: {} });
+    expect(res.status()).toBe(409);
+    expect((await res.json()).error).toBe('ai_off');
   });
 });

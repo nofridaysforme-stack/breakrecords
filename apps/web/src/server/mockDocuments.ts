@@ -4,6 +4,7 @@ import { prepare, toCsv, DOC_LABEL, type DocKind, type DocSubject, type Person, 
 import type { DocReview, DocumentsResponse } from '@breakrecords/contract';
 import { catalogReleases, recordings, songs } from '@/data/ops';
 import { SAMPLE_LYRICS, SAMPLE_MASTER_OWNER, SAMPLE_PEOPLE, SAMPLE_P_YEAR, SAMPLE_RELEASE_TRACKS, SAMPLE_SIGNED, SAMPLE_SIGNED_BY, SAMPLE_SONGS } from '@/data/rightsDetails';
+import { cookies } from 'next/headers';
 import { mockSession } from './session';
 import { renderPdf } from './documents/render';
 import { documentStore } from './documents/storage';
@@ -72,9 +73,11 @@ const emptyDocs: MockDoc[] = [];
 const store: Map<string, MockDoc[]> = (g.__brMockDocs ??= new Map());
 const aiOn: Map<string, boolean> = (g.__brMockAi ??= new Map());
 
+/** This browser session's documents; writes start a session, reads never do (pages can't set cookies). */
 const mine = async () => { const s = await mockSession(); if (!store.has(s)) store.set(s, []); return { session: s, docs: store.get(s)! }; };
+const current = async () => { const s = (await cookies()).get('br_mock_session')?.value ?? ''; return { session: s, docs: store.get(s) ?? [] }; };
 const view = async (): Promise<DocumentsResponse> => {
-  const { session, docs } = await mine();
+  const { session, docs } = await current();
   return documentsView(subjects(facts()), docs, aiState(aiOn.get(session) ?? false, true));
 };
 
@@ -108,7 +111,7 @@ export async function mockPrepareDocument(c: { kind: DocKind; subject: DocSubjec
 }
 
 export async function mockDocumentFile(id: string, format: 'pdf' | 'csv'): Promise<{ name: string; body: Uint8Array } | null> {
-  const d = (await mine()).docs.find((x) => x.id === id);
+  const d = (await current()).docs.find((x) => x.id === id);
   const key = d && (format === 'pdf' ? d.pdfKey : d.csvKey);
   if (!d || !key) return null;
   const body = await documentStore(false).get(key);
@@ -116,7 +119,7 @@ export async function mockDocumentFile(id: string, format: 'pdf' | 'csv'): Promi
 }
 
 export async function mockDocumentForReview(id: string) {
-  const d = (await mine()).docs.find((x) => x.id === id);
+  const d = (await current()).docs.find((x) => x.id === id);
   if (!d) return null;
   const f = factsFor(d.subject, d.subjectId);
   return f ? prepare(d.kind, f as Parameters<typeof prepare>[1], today()) : null;
@@ -128,5 +131,5 @@ export async function mockSaveReview(id: string, r: { model: string; findings: D
   return view();
 }
 
-export async function mockAiOn(): Promise<boolean> { return aiOn.get(await mockSession()) ?? false; }
+export async function mockAiOn(): Promise<boolean> { return aiOn.get((await current()).session) ?? false; }
 export async function mockSetAiAssist(on: boolean): Promise<DocumentsResponse> { aiOn.set(await mockSession(), on); return view(); }
