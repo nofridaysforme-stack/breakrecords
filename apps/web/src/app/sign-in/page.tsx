@@ -18,7 +18,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
   return (
     <main id="main" className={s.page}>
       <div className={s.card}>
-        <p className={s.brand}><span className={s.mark} aria-hidden="true">B</span>Break Records.</p>
+        <p className={s.brand}><span className={s.mark} aria-hidden="true">I</span>Indie SRVCS.</p>
         <h1 className={s.title}>Sign in</h1>
         <p className={s.lede}>We’ll email you a link. It works once and expires in 15 minutes.</p>
         <SignInForm initial={{ sent: p.sent === '1', error }} />

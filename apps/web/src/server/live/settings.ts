@@ -66,7 +66,7 @@ async function themeIn(tx: Tx): Promise<Theme | null> {
 }
 
 const NO_THEME: Theme = { theme: { background: '#121212', surface: '#1c1c1c', brand: '#5c1424', primary: '#e8622c', text: '#f2f2f2' }, // lint-allow-hex: platform default theme
-  tenant: { name: 'Break Records', domain: 'app.breakrecords.com', email: 'support@breakrecords.com', dns: 'Not white-labelled', subTenants: [] }, published: null, canPublish: false };
+  tenant: { name: 'Indie SRVCS', domain: 'indiesrvcs.com', email: 'support@indiesrvcs.com', dns: 'Not white-labelled', subTenants: [] }, published: null, canPublish: false };
 
 /** The licensee's theme, read by every label under it. A label with no licensee gets the platform's own. */
 export async function liveTheme(ctx: RequestContext): Promise<Theme> {

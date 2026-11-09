@@ -33,7 +33,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: 'database', maxAge: 30 * DAY, updateAge: DAY },
   providers: [{
     id: 'email', type: 'email', name: 'Email',
-    from: process.env.EMAIL_FROM ?? 'Break Records <no-reply@example.com>',
+    from: process.env.EMAIL_FROM ?? 'Indie SRVCS <no-reply@example.com>',
     maxAge: 15 * 60, // links expire after 15 minutes and work once
     normalizeIdentifier: normalizeEmail,
     sendVerificationRequest: ({ identifier, url }) => sendSignInLink(identifier, url),

@@ -32,7 +32,7 @@ export function LabelHeadPanel({ open, question, approvalIds, onClose }: { open:
     if (known) { setTurns((ts) => [...ts, { q: known.q, a: known.a, basis: known.basis }]); return; }
     const hits = search(keywords(t), 3);
     setTurns((ts) => [...ts, hits.length
-      ? { q: t, a: 'I can only answer from what’s in Break Records, and I don’t have a direct answer to that. These look related:', links: hits.map((h) => ({ label: `${h.label} · ${h.group}`, href: h.href })) }
+      ? { q: t, a: 'I can only answer from what’s in Indie SRVCS, and I don’t have a direct answer to that. These look related:', links: hits.map((h) => ({ label: `${h.label} · ${h.group}`, href: h.href })) }
       : { q: t, a: 'I don’t know yet, and I won’t guess. I’ve noted the question; nothing was changed.' }]);
   };
 

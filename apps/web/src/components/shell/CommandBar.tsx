@@ -54,7 +54,7 @@ export function CommandBar({ open, initialQuery, onClose, onAsk }: { open: boole
     const found = remote?.q === t ? remote.items : search(t);
     const hits: Option[] = found.map((i: SearchItem) => ({ id: i.id, kind: 'item', label: i.label, hint: i.hint, group: i.group, href: i.href }));
     const goal: Option = { id: 'goal', kind: 'goal', label: `Plan this: “${t}”`, hint: 'The Label Head drafts a plan for you to approve', group: 'Start a plan' };
-    const ask: Option = { id: 'ask', kind: 'ask', label: `Ask the Label Head: “${t}”`, hint: 'Answers from what’s in Break Records', group: 'Ask' };
+    const ask: Option = { id: 'ask', kind: 'ask', label: `Ask the Label Head: “${t}”`, hint: 'Answers from what’s in Indie SRVCS', group: 'Ask' };
     return looksLikeGoal(t) ? [goal, ...hits, ask] : [...hits, goal, ask];
   }, [q, remote]);
 

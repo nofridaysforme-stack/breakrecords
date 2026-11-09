@@ -1,7 +1,8 @@
-# Break Records: project rules for Claude Code
+# Indie SRVCS: project rules for Claude Code
 
 Copy this file to the repo root.
 
+- The product is **Indie SRVCS** (indiesrvcs.com). The design files in `/design` still say "Break Records" and a "B" mark: use the name Indie SRVCS and the mark "I" everywhere people see it. Internal names (`@breakrecords/*` packages, `BR_*` settings, database names) stay as they are.
 - The full design spec lives in `/design`. Start every task by reading `design/CLAUDE_CODE_INSTRUCTIONS.md`.
 - Before building or changing a screen, open its PNG in `design/screenshots/` and its frame in `design/design_files/` (search `id="{frameId}"`). Match them.
 - Never edit anything inside `/design`.

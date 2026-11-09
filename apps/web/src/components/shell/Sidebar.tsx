@@ -19,8 +19,8 @@ export function Sidebar({ labelName, tenants = [], approvalIds }: Props) {
   return (
     <aside className={s.sidebar} aria-label="Sidebar">
       <Link href="/" className={s.brand}>
-        <span className={s.mark} aria-hidden="true">B</span>
-        <span className={s.wordmark}>Break Records.</span>
+        <span className={s.mark} aria-hidden="true">I</span>
+        <span className={s.wordmark}>Indie SRVCS.</span>
         <span className="visually-hidden">, home</span>
       </Link>
 

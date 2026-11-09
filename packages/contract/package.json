@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "The API contract between the Break Records UI and any server behind it (mock or live): Zod schemas for every read and write.",
+  "description": "The API contract between the Indie SRVCS UI and any server behind it (mock or live): Zod schemas for every read and write.",
   "exports": {
     ".": "./src/index.ts",
     "./*": "./src/*.ts"

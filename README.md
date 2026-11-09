@@ -1,4 +1,4 @@
-# Break Records
+# Indie SRVCS
 
 An AI-run independent record label platform. The human is the label head; AI agents are staff. Agents prepare the work, and the human approves anything that moves money, signs, files or speaks publicly.
 
