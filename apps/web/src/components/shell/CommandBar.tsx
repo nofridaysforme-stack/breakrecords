@@ -34,14 +34,29 @@ export function CommandBar({ open, initialQuery, onClose, onAsk }: { open: boole
     if (!open && d.open) d.close();
   }, [open, initialQuery]);
 
+  // Results show at once from the built-in index, then the server's (the label's own data) replace them.
+  const [remote, setRemote] = useState<{ q: string; items: SearchItem[] } | null>(null);
+  useEffect(() => {
+    const t = q.trim();
+    if (!t) return;
+    const ctl = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`/api/search?q=${encodeURIComponent(t)}`, { signal: ctl.signal })
+        .then((r) => (r.ok ? r.json() : null)).then((b) => { if (b?.items) setRemote({ q: t, items: b.items }); })
+        .catch(() => { /* keep the built-in results */ });
+    }, 120);
+    return () => { clearTimeout(timer); ctl.abort(); };
+  }, [q]);
+
   const options: Option[] = useMemo(() => {
     const t = q.trim();
     if (!t) return SUGGESTED;
-    const hits: Option[] = search(t).map((i: SearchItem) => ({ id: i.id, kind: 'item', label: i.label, hint: i.hint, group: i.group, href: i.href }));
+    const found = remote?.q === t ? remote.items : search(t);
+    const hits: Option[] = found.map((i: SearchItem) => ({ id: i.id, kind: 'item', label: i.label, hint: i.hint, group: i.group, href: i.href }));
     const goal: Option = { id: 'goal', kind: 'goal', label: `Plan this: “${t}”`, hint: 'The Label Head drafts a plan for you to approve', group: 'Start a plan' };
     const ask: Option = { id: 'ask', kind: 'ask', label: `Ask the Label Head: “${t}”`, hint: 'Answers from what’s in Break Records', group: 'Ask' };
     return looksLikeGoal(t) ? [goal, ...hits, ask] : [...hits, goal, ask];
-  }, [q]);
+  }, [q, remote]);
 
   const choose = (o: Option | undefined) => {
     if (!o) return;

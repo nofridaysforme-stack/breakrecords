@@ -1,4 +1,5 @@
 import 'server-only';
+import { formatMoney } from '@breakrecords/core/money';
 
 // Mock API: the single source the route handlers (/api/*) and server components
 // read from. Replace these functions with real calls; the shapes stay the same.
@@ -6,7 +7,7 @@ import { budgets, glasshouseDeal, payees, payouts, recoupment, royalties, splitT
 import { DEFAULT_PAYEE } from '@/components/portal/payee';
 import type { ThemeColors } from '@/lib/theme';
 import { approvals as allApprovals } from './sample';
-import { approvalDetails, home, homeNumbers, releases, TODAY } from './fixtures';
+import { approvalDetails, home, homeNumberNotes, homeNumbers, releases, TODAY } from './fixtures';
 import type { ApprovalDetail, Release, Scenario } from './types';
 import type { ApprovalSummary } from '@/components/ui/Approval';
 import * as ops from './ops';
@@ -31,10 +32,13 @@ async function approvalItems(): Promise<ApprovalSummary[]> {
 }
 
 export async function getHome(scenario: Scenario = 'default') {
+  const ctx = await liveCtx();
+  const live = ctx ? await (await import('@/server/live/home')).liveHomeNumbers(ctx) : null;
   return {
     scenario,
     home,
-    numbers: homeNumbers,
+    numbers: live?.numbers ?? homeNumbers,
+    numberNotes: live?.notes ?? homeNumberNotes,
     approvals: scenario === 'empty' ? [] : await approvalItems(),
   };
 }
@@ -270,14 +274,16 @@ export async function getActivity(): Promise<ops.ActivityEvent[]> {
   if (!ctx) return ops.activity;
   return (await import('@/server/live/activity')).liveActivity(ctx);
 }
-export type Settings = { nav: typeof ops.settingsNav; routing: typeof ops.routing; config: typeof ops.labelConfig; integrations: typeof ops.integrations; team: typeof ops.team };
+export type Invite = { email: string; role: 'owner' | 'team' | 'payee'; payee: string | null; added: string; joined: boolean };
+export type Settings = { nav: typeof ops.settingsNav; routing: typeof ops.routing; config: typeof ops.labelConfig; integrations: typeof ops.integrations; team: typeof ops.team; invites: Invite[]; canInvite: boolean; payeeOptions: { id: string; name: string }[] };
 /** Settings (5h). Live: the tenant's settings, routing, integrations and team. */
 export async function getSettings(): Promise<Settings> {
   const ctx = await liveCtx('settings');
   if (ctx) return (await import('@/server/live/settings')).liveSettings(ctx);
   const m = await (await import('@/server/mockSettings')).mockSettingsState();
   return { nav: ops.settingsNav, routing: ops.routing, config: ops.labelConfig, team: ops.team,
-    integrations: ops.integrations.map((i) => (m.connected.has(i.id) ? { ...i, state: 'ok' as const, status: 'Connected' } : i)) };
+    integrations: ops.integrations.map((i) => (m.connected.has(i.id) ? { ...i, state: 'ok' as const, status: 'Connected' } : i)),
+    invites: m.invites, canInvite: true, payeeOptions: payouts.taxForms.map((t) => ({ id: t.payeeId, name: t.name })) };
 }
 export type Theme = { theme: ThemeColors; tenant: typeof ops.tenant; published: { at: string; by: string } | null; canPublish: boolean };
 /** White label (5i). Live: the licensee's theme, which its labels read and only its owners publish. */
@@ -292,4 +298,26 @@ export async function getRoster(): Promise<typeof ops.roster> {
   const ctx = await liveCtx('roster');
   if (!ctx) return ops.roster;
   return (await import('@/server/live/roster')).liveRoster(ctx);
+}
+
+/**
+ * ⌘K search. Live: an index built from the same reads the screens use, so results are the
+ * signed-in tenant's own. Mock: the sample index.
+ */
+export async function getSearch(q: string) {
+  const { buildIndex, search } = await import('./search');
+  const ctx = await liveCtx('catalog');
+  if (!ctx) return { items: search(q) };
+  const [items, catalog, roster, statements, payouts, recoup, unclaimed, contracts, funding] = await Promise.all([
+    approvalItems(), getCatalog(), getRoster(), listStatements(), getPayouts(), getRecoupment(), getUnclaimed(), getContracts(), getFunding(),
+  ]);
+  const awaiting = payouts.batches.find((b) => b.status === 'awaiting');
+  const index = buildIndex({
+    approvals: items, recordings: catalog.recordings, songs: catalog.songs,
+    releases: catalog.releases.map((r) => ({ id: r.id, title: r.title, kind: r.kind, artist: r.artist, upc: r.upc, href: r.href })),
+    roster, payees: payouts.taxForms.map((t) => ({ id: t.payeeId, name: t.name })), statements,
+    batch: awaiting ? { label: `${awaiting.name} payout batch`, hint: `${formatMoney(awaiting.total)} to ${awaiting.payees} payees` } : null,
+    recoupment: recoup, unclaimed: unclaimed.total, contracts: contracts.contracts, templates: contracts.templates, funding: funding.items,
+  });
+  return { items: search(q, 12, index) };
 }

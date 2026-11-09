@@ -129,7 +129,12 @@ test.describe('desktop only', () => {
     await page.goto('/settings');
     await expect(page).toHaveURL(/\/settings\/routing$/);
     await page.getByRole('navigation', { name: 'Settings' }).getByRole('link', { name: 'Integrations' }).click();
-    await page.getByRole('button', { name: 'Connect SoundExchange' }).click();
-    await expect(page.getByText('SoundExchange connected.')).toBeVisible();
+    await expect(page).toHaveURL(/\/settings\/integrations$/);
+    await expect(page.getByRole('navigation', { name: 'Settings' }).getByRole('link', { name: 'Integrations' })).toHaveAttribute('aria-current', 'page');
+    // A click before the page is interactive does nothing, so retry until it takes.
+    await expect(async () => {
+      await page.getByRole('button', { name: /^(Connect|Manage) SoundExchange$/ }).click();
+      await expect(page.getByText(/SoundExchange (is )?connected/)).toBeVisible({ timeout: 1000 });
+    }).toPass();
   });
 });

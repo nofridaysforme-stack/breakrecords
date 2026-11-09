@@ -17,8 +17,13 @@ test('onboarding runs start to finish and lands on Home with the goal box', asyn
   await page.getByRole('radio', { name: /Band/ }).check({ force: true });
   await page.getByRole('button', { name: 'Continue as Band' }).click();
   await page.getByLabel('Name').fill('The Low Hours');
-  // name, country, distributor, catalog, PRO
-  for (let i = 0; i < 5; i++) await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  // name, country, distributor, catalog, PRO. Each click waits for the next step, so a fast
+  // click can't land on the step that is leaving.
+  for (let i = 0; i < 5; i++) {
+    const step = await page.getByRole('heading', { level: 1 }).innerText();
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await expect(page.getByRole('heading', { level: 1 })).not.toHaveText(step);
+  }
   await expect(page.getByRole('heading', { name: /Set how much your agents do/ })).toBeVisible();
   await page.getByRole('radio', { name: /Act within limits/ }).check({ force: true });
   await expect(page.getByText(/With "Act within limits"/)).toBeVisible();

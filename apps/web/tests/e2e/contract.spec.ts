@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ApprovalError, ApprovalState, ContractsResponse, DepartmentError, DepartmentsResponse, ENDPOINTS, SettingsError, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, ContractsResponse, OnboardingResponse, DepartmentError, DepartmentsResponse, ENDPOINTS, SettingsError, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
 
 // The API contract over HTTP. Any server behind the UI, mock or live, must pass this file.
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
@@ -254,5 +254,27 @@ test.describe('settings writes', () => {
     const res = await request.post('/api/settings/integrations/soundexchange/connect');
     expect(SettingsResponse.parse(await res.json()).integrations.find((i) => i.id === 'soundexchange')).toMatchObject({ state: 'ok', status: 'Connected' });
     expect((await request.post('/api/settings/integrations/nope/connect')).status()).toBe(404);
+  });
+});
+
+test.describe('onboarding writes', () => {
+  const answers = { profile: 'band', name: 'The Low Hours', country: 'Canada', distributor: null, catalogFile: null, pro: { status: 'not_sure' }, autonomy: 'suggest' };
+  test('answers are saved for the session and survive a reload', async ({ request }) => {
+    expect(OnboardingResponse.parse(await (await request.get('/api/onboarding')).json())).toEqual({ answers: null, completed: false });
+    expect((await request.put('/api/onboarding', { data: { answers } })).status()).toBe(200);
+    expect(OnboardingResponse.parse(await (await request.get('/api/onboarding')).json())).toMatchObject({ answers: { name: 'The Low Hours' }, completed: false });
+    expect(OnboardingResponse.parse(await (await request.put('/api/onboarding', { data: { answers, complete: true } })).json()).completed).toBe(true);
+    expect((await request.put('/api/onboarding', { data: { answers: { ...answers, profile: 'orchestra' } } })).status()).toBe(400);
+  });
+});
+
+test.describe('invitation writes', () => {
+  test('inviting and withdrawing are saved for the session', async ({ request }) => {
+    const res = await request.post('/api/settings/invites', { data: { email: 'Sam@Example.com', role: 'payee', payeeId: 'ari-monroe' } });
+    expect(res.status()).toBe(200);
+    expect(SettingsResponse.parse(await res.json()).invites).toEqual([expect.objectContaining({ email: 'sam@example.com', role: 'payee', payee: 'Ari Monroe', joined: false })]);
+    expect(SettingsResponse.parse(await (await request.delete('/api/settings/invites?email=sam@example.com')).json()).invites).toEqual([]);
+    expect((await request.post('/api/settings/invites', { data: { email: 'sam@example.com', role: 'payee' } })).status()).toBe(400);
+    expect((await request.post('/api/settings/invites', { data: { email: 'not an email', role: 'team' } })).status()).toBe(400);
   });
 });

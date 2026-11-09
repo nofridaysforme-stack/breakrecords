@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, ApprovalError, ApprovalState, CatalogResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { ActivityResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 
@@ -702,6 +702,13 @@ test.describe('settings (live)', () => {
     const after = ThemeResponse.parse(await (await page.request.get('/api/settings/theme')).json());
     expect(after.theme.primary).toBe('#f0c050'); // lint-allow-hex: test data
     expect(after.published?.by).toBe('e2e-licensee');
+    // Once published, everyone in the licensee's labels gets it, payees included.
+    await page.goto('/');
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#f0c050'); // lint-allow-hex: test data
+    const marco = await (await browser.newContext()).newPage();
+    await signIn(marco, USERS.payee);
+    expect(await marco.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#f0c050'); // lint-allow-hex: test data
+    await expect(marco.getByText('Paid by Northline Records')).toBeVisible();
   });
 
   test('payees and other labels', async ({ page, browser }) => {
@@ -713,4 +720,85 @@ test.describe('settings (live)', () => {
     expect(st.config.name).toBe('Harbor Sound');
     expect(st.integrations).toEqual([]);
   });
+});
+
+test('Home’s money row is read from the same tables as the money screens', async ({ page }) => {
+  await signIn(page, USERS.owner);
+  const h = HomeResponse.parse(await (await page.request.get('/api/home')).json());
+  // Oct income (all six sources), the October batch, what October recouped, and unclaimed money.
+  expect(h.numbers).toMatchObject({ income: 1428640, owed: 124018, recouped: 460000, unclaimed: 31240 });
+  // Forecast: the Sep and Oct average for three months, less the Nov 10 and Jan 15 payouts.
+  expect(h.numbers.cash90).toBe(Math.round(((1210712 + 1428640) / 2) * 3) - 124018 - 690415);
+  expect(h.numberNotes).toEqual({ period: 'Oct', income: 'Oct, 6 sources', owed: '6 payees', owedApprovalId: 'apr_payout_oct',
+    recouped: 'Glasshouse fully recouped', cash90: 'Recent average, less payouts due', unclaimed: '2 sources to claim' });
+  await page.goto('/');
+  await expect(page.getByText('Oct, 6 sources').first()).toBeVisible();
+});
+
+test('⌘K searches the signed-in label’s own data', async ({ page, browser }) => {
+  await signIn(page, USERS.owner);
+  const hits = async (p: import('@playwright/test').Page, q: string) => SearchResponse.parse(await (await p.request.get(`/api/search?q=${encodeURIComponent(q)}`)).json()).items;
+  expect((await hits(page, 'glasshouse')).map((i) => i.id)).toEqual(expect.arrayContaining(['r-glasshouse', 'rel-rel_glasshouse', 'st-ST-2026-10-KV']));
+  expect((await hits(page, 'mara')).map((i) => i.label)).not.toContain('Mara Quill');
+  const harbor = await (await browser.newContext()).newPage();
+  await signIn(harbor, USERS.harbor);
+  expect((await hits(harbor, 'tidal')).map((i) => i.label)).toContain('Tidal Lines');
+  expect((await hits(harbor, 'glasshouse')).filter((i) => i.group !== 'Go to')).toEqual([]);
+  await harbor.goto('/');
+  const bar = harbor.getByRole('combobox', { name: 'Search or tell me a goal' });
+  await expect(async () => { await harbor.keyboard.press('Control+k'); await expect(bar).toBeVisible({ timeout: 1000 }); }).toPass(); // the shortcut works once the page is interactive
+  await bar.fill('tidal');
+  await expect(harbor.getByRole('option', { name: /Tidal Lines/ }).first()).toBeVisible();
+});
+
+test('onboarding answers are saved as you go, and finishing sets the label up within each department’s limits', async ({ page }) => {
+  await signIn(page, USERS.owner);
+  const answers = { profile: 'band', name: 'Northline Records', country: 'Canada', distributor: 'TuneCore', catalogFile: null, pro: { status: 'affiliated', org: 'SOCAN' }, autonomy: 'act_within_limits' };
+  expect((await page.request.put('/api/onboarding', { data: { answers } })).status()).toBe(200);
+  expect(OnboardingResponse.parse(await (await page.request.get('/api/onboarding')).json())).toMatchObject({ answers: { distributor: 'TuneCore' }, completed: false });
+  await page.goto('/onboarding/name');
+  await expect(page.getByLabel('Name')).toHaveValue('Northline Records'); // read back from the server
+  expect(OnboardingResponse.parse(await (await page.request.put('/api/onboarding', { data: { answers, complete: true } })).json()).completed).toBe(true);
+  const st = SettingsResponse.parse(await (await page.request.get('/api/settings')).json());
+  expect(st.config).toMatchObject({ profile: 'Band', country: 'CA' });
+  const d = DepartmentsResponse.parse(await (await page.request.get('/api/departments')).json()).departments;
+  expect(d.find((x) => x.id === 'metadata')?.autonomy).toBe('act_within_limits');
+  expect(d.find((x) => x.id === 'legal')?.autonomy).toBe('draft_and_wait'); // signatures always wait for you
+  expect(d.find((x) => x.id === 'marketing')?.autonomy).toBeNull(); // Phase 2 untouched
+});
+
+test('a licensee owner switches into its labels and acts there as an owner', async ({ page }) => {
+  await signIn(page, USERS.licensee);
+  await page.goto('/');
+  const sw = page.getByRole('button', { name: /switch label/ });
+  await expect(async () => { await sw.click(); await expect(page.getByRole('list', { name: 'Switch label' })).toBeVisible({ timeout: 1000 }); }).toPass();
+  await page.getByRole('list', { name: 'Switch label' }).getByRole('button', { name: 'Northline Records' }).click();
+  await expect(page.getByRole('button', { name: /^Label\s*Northline Records/ })).toBeVisible(); // the page reloads in the new label
+  expect((await (await page.request.get('/api/approvals')).json()).items.length).toBeGreaterThan(0);
+  expect((await page.request.post('/api/session/tenant', { data: { tenantId: '00000000-0000-0000-0000-000000000000' } })).status()).toBe(403);
+});
+
+test('an owner invites a payee, who signs in to their own portal; a team member can’t invite', async ({ page, browser }) => {
+  await signIn(page, USERS.owner);
+  await page.goto('/settings/team');
+  await page.getByRole('textbox', { name: 'Email' }).fill('ari@monroe.example');
+  await page.getByRole('combobox', { name: /^Role/ }).selectOption('payee');
+  await page.getByRole('combobox', { name: /^Which payee/ }).selectOption('ari-monroe');
+  await page.getByRole('button', { name: 'Invite', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'ari@monroe.example can now sign in' })).toBeVisible();
+  await expect(page.getByRole('row', { name: /ari@monroe\.example/ })).toContainText('Not signed in yet');
+
+  const ari = await (await browser.newContext()).newPage();
+  await signIn(ari, 'ari@monroe.example');
+  await expect(ari).toHaveURL(/\/portal/);
+  await expect(ari.getByRole('heading', { name: /^Hi Ari\./ })).toBeVisible();
+
+  const st = SettingsResponse.parse(await (await page.request.get('/api/settings')).json());
+  expect(st.invites.find((i) => i.email === 'ari@monroe.example')).toMatchObject({ role: 'payee', payee: 'Ari Monroe', joined: true });
+  expect((await page.request.delete('/api/settings/invites?email=ari@monroe.example')).status()).toBe(409); // already joined
+
+  const priya = await (await browser.newContext()).newPage();
+  await signIn(priya, 'priya@northline.example');
+  expect(SettingsResponse.parse(await (await priya.request.get('/api/settings')).json()).canInvite).toBe(false);
+  expect((await priya.request.post('/api/settings/invites', { data: { email: 'x@y.example', role: 'team' } })).status()).toBe(403);
 });

@@ -18,6 +18,8 @@ async function settingsIn(tx: Tx, ctx: RequestContext): Promise<Settings> {
   const ints = await tx<{ slug: string; name: string; abbr: string; state: 'ok' | 'off' | 'err'; status: string }[]>`
     SELECT slug, name, abbr, state::text AS state, status FROM integrations ORDER BY position, name`;
   const team = await tx<{ user_id: string; name: string | null; email: string; role: string; title: string | null }[]>`SELECT * FROM app_team()`;
+  const invites = await tx<{ email: string; role: 'owner' | 'team' | 'payee'; party_slug: string | null; added_at: Date; joined: boolean }[]>`SELECT * FROM app_invites()`;
+  const payees = await tx<{ slug: string; name: string }[]>`SELECT p.slug, p.name FROM payees y JOIN parties p ON p.id = y.party_id ORDER BY p.name`;
   return {
     nav: settingsNav,
     routing: routes.map((r) => ({ type: r.type, label: r.label, rule: r.rule, who: r.approver, cap: r.cap_cents === null ? 'Always' : `Over ${formatMoney(n(r.cap_cents), { wholeIfRound: true })}` })),
@@ -27,6 +29,9 @@ async function settingsIn(tx: Tx, ctx: RequestContext): Promise<Settings> {
     },
     integrations: ints.map((i) => ({ id: i.slug, name: i.name, abbr: i.abbr, state: i.state, status: i.status })),
     team: team.map((t) => ({ id: t.user_id, name: t.name ?? t.email.split('@')[0], role: t.title ?? (t.role === 'owner' ? 'Owner' : 'Team') })),
+    invites: invites.map((i) => ({ email: i.email, role: i.role, payee: i.party_slug ? payees.find((p) => p.slug === i.party_slug)?.name ?? i.party_slug : null, added: dayMonthYear(i.added_at), joined: i.joined })),
+    canInvite: ctx.role === 'owner',
+    payeeOptions: payees.map((p) => ({ id: p.slug, name: p.name })),
   } as Settings;
 }
 
@@ -83,5 +88,37 @@ export function livePublishTheme(ctx: RequestContext, theme: ThemeColors): Promi
     await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
       VALUES (${ctx.tenantId}, ${'AUD-SET-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'theme.published', ${licensee}, ${tx.json(theme)})`;
     return { ok: true, value: (await themeIn(tx))! } as const;
+  });
+}
+
+export type InviteWrite = { ok: true; value: Settings } | { ok: false; status: number; error: 'forbidden' | 'not_found' | 'invalid'; message: string };
+
+/** Lets someone sign in to this label (owners only). Nothing is emailed; they sign in with this address. Audited. */
+export function liveInvite(ctx: RequestContext, c: { email: string; role: 'team' | 'payee'; payeeId?: string }): Promise<InviteWrite> {
+  return withTenant(sql, ctx, async (tx) => {
+    if (ctx.role !== 'owner') return { ok: false, status: 403, error: 'forbidden', message: 'Only the label’s owners invite people.' } as const;
+    if (c.role === 'payee') {
+      const [p] = await tx`SELECT 1 FROM payees y JOIN parties p ON p.id = y.party_id WHERE p.slug = ${c.payeeId ?? ''}`;
+      if (!p) return { ok: false, status: 404, error: 'not_found', message: 'No such payee.' } as const;
+    }
+    await tx`INSERT INTO allowlist (email, tenant_id, role, party_slug, added_by) VALUES (${c.email}, ${ctx.tenantId}, ${c.role}, ${c.role === 'payee' ? c.payeeId! : null}, ${ctx.userId})
+      ON CONFLICT (email, tenant_id) DO UPDATE SET role = EXCLUDED.role, party_slug = EXCLUDED.party_slug, added_by = EXCLUDED.added_by`;
+    await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
+      VALUES (${ctx.tenantId}, ${'AUD-INV-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'invite.created', ${c.email}, ${tx.json({ role: c.role, payee: c.payeeId ?? null })})`;
+    return { ok: true, value: await settingsIn(tx, ctx) } as const;
+  });
+}
+
+/** Withdraws an invitation nobody has used yet. Someone who already joined is removed elsewhere. */
+export function liveUninvite(ctx: RequestContext, email: string): Promise<InviteWrite> {
+  return withTenant(sql, ctx, async (tx) => {
+    if (ctx.role !== 'owner') return { ok: false, status: 403, error: 'forbidden', message: 'Only the label’s owners manage invitations.' } as const;
+    const [i] = await tx<{ joined: boolean }[]>`SELECT joined FROM app_invites() WHERE email = ${email}`;
+    if (!i) return { ok: false, status: 404, error: 'not_found', message: 'No such invitation.' } as const;
+    if (i.joined) return { ok: false, status: 409, error: 'invalid', message: 'They’ve already joined, so there’s no invitation to withdraw.' } as const;
+    await tx`DELETE FROM allowlist WHERE email = ${email} AND tenant_id = ${ctx.tenantId}`;
+    await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
+      VALUES (${ctx.tenantId}, ${'AUD-INV-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'invite.withdrawn', ${email}, '{}')`;
+    return { ok: true, value: await settingsIn(tx, ctx) } as const;
   });
 }

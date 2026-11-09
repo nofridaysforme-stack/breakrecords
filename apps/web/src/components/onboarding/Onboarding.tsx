@@ -33,9 +33,10 @@ function summary(a: Answers): [string, string][] {
 
 export function Onboarding({ step }: { step: StepId }) {
   const router = useRouter();
-  const { answers, set } = useOnboarding();
+  const { answers, set, complete } = useOnboarding();
   const i = stepIndex(step);
-  const go = (to: number) => {
+  const go = async (to: number) => {
+    if (to >= STEPS.length) await complete(); // finishing sets the label up from the answers
     try { sessionStorage.setItem(FOCUS_KEY, '1'); } catch { /* ignore */ }
     router.push(to >= STEPS.length ? '/?state=empty' : `/onboarding/${STEPS[Math.max(0, to)].id}`);
   };

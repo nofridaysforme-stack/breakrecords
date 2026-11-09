@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Autonomy } from '@/components/ui/AutonomyDial';
 import type { ProfileId } from './steps';
 
@@ -21,17 +21,32 @@ const DEFAULTS: Answers = {
 };
 const KEY = 'br.onboarding.v1';
 
+/** Saves the answers on the server as you go (and in this tab, so a slow network loses nothing). */
 export function useOnboarding() {
   const [answers, setAnswers] = useState<Answers>(DEFAULTS);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // This tab's copy is the newest; the server's fills in on a new device or browser.
   useEffect(() => {
-    try { const raw = sessionStorage.getItem(KEY); if (raw) setAnswers({ ...DEFAULTS, ...JSON.parse(raw) }); } catch { /* ignore */ }
+    let local: string | null = null;
+    try { local = sessionStorage.getItem(KEY); if (local) setAnswers({ ...DEFAULTS, ...JSON.parse(local) }); } catch { /* ignore */ }
+    if (local) return;
+    fetch('/api/onboarding').then((r) => (r.ok ? r.json() : null)).then((b) => { if (b?.answers) setAnswers({ ...DEFAULTS, ...b.answers }); }).catch(() => { /* keep the defaults */ });
+  }, []);
+  const save = useCallback((next: Answers, complete = false) => {
+    try { sessionStorage.setItem(KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    return fetch('/api/onboarding', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ answers: next, ...(complete ? { complete: true } : {}) }), keepalive: true })
+      .then((r) => r.ok).catch(() => false);
   }, []);
   const set = useCallback(<K extends keyof Answers>(key: K, value: Answers[K]) => {
     setAnswers((a) => {
       const next = { ...a, [key]: value };
       try { sessionStorage.setItem(KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => { void save(next); }, 300);
       return next;
     });
-  }, []);
-  return { answers, set };
+  }, [save]);
+  /** Sets the label up from the answers. */
+  const complete = useCallback(() => { if (timer.current) clearTimeout(timer.current); return save(answers, true); }, [answers, save]);
+  return { answers, set, complete };
 }

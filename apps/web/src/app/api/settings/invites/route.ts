@@ -1,0 +1,31 @@
+import { NextResponse, type NextRequest } from 'next/server';
+import { InviteCommand } from '@breakrecords/contract';
+import { getSettings } from '@/data/api';
+import { mockInvite, mockUninvite } from '@/server/mockSettings';
+import { liveInvite, liveUninvite } from '@/server/live/settings';
+import { payoutErr as err, teamWriter } from '@/server/teamRoute';
+
+/** Invite someone to sign in to this label (owners). Nothing is emailed. Audited. */
+export async function POST(req: Request) {
+  const body = InviteCommand.safeParse(await req.json().catch(() => null));
+  if (!body.success) return err(400, 'invalid', body.error.issues[0]?.message ?? 'Send an email address and a role.');
+  const who = await teamWriter('settings', 'invitations');
+  if ('refused' in who) return who.refused;
+  if (who.ctx) { const out = await liveInvite(who.ctx, body.data); return out.ok ? NextResponse.json(out.value) : err(out.status, out.error, out.message); }
+  const s = await getSettings();
+  const payee = body.data.role === 'payee' ? s.payeeOptions.find((p) => p.id === body.data.payeeId)?.name ?? null : null;
+  if (body.data.role === 'payee' && !payee) return err(404, 'not_found', 'No such payee.');
+  await mockInvite(body.data.email, body.data.role, payee);
+  return NextResponse.json(await getSettings());
+}
+
+/** Withdraw an invitation nobody has used yet. DELETE /api/settings/invites?email=… */
+export async function DELETE(req: NextRequest) {
+  const email = (req.nextUrl.searchParams.get('email') ?? '').toLowerCase();
+  if (!email) return err(400, 'invalid', 'Say which invitation.');
+  const who = await teamWriter('settings', 'invitations');
+  if ('refused' in who) return who.refused;
+  if (who.ctx) { const out = await liveUninvite(who.ctx, email); return out.ok ? NextResponse.json(out.value) : err(out.status, out.error, out.message); }
+  await mockUninvite(email);
+  return NextResponse.json(await getSettings());
+}
