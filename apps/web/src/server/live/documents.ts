@@ -6,7 +6,7 @@ import type { DocReview, DocumentsResponse } from '@breakrecords/contract';
 import { sql } from '../db';
 import type { RequestContext } from '../context';
 import { renderPdf } from '../documents/render';
-import { documentStore } from '../documents/storage';
+import { documentStore, StorageNotConfigured, StorageRefused } from '../documents/storage';
 import { aiState, documentsView, type DocRow, type SubjectRef } from '../documents/view';
 
 const BRAND = 'Indie SRVCS';
@@ -114,10 +114,14 @@ export function livePrepareDocument(ctx: RequestContext, c: { kind: DocKind; sub
     const [{ next }] = await tx<{ next: number }[]>`SELECT coalesce(max(version), 0) + 1 AS next FROM documents WHERE kind = ${c.kind} AND subject_id = ${ref.id}`;
     const pdf = await renderPdf(doc, { brand: BRAND, version: next });
     const base = `${ctx.tenantId}/${c.kind}/${ref.id}/v${next}`;
-    let store;
-    try { store = documentStore(true); } catch (e) { return { ok: false, status: 503, error: 'storage', message: (e as Error).message } as const; }
-    await store.put(`${base}.pdf`, pdf, 'application/pdf');
-    if (doc.csv) await store.put(`${base}.csv`, new TextEncoder().encode(toCsv(doc.csv.rows)), 'text/csv');
+    try {
+      const store = documentStore(true);
+      await store.put(`${base}.pdf`, pdf, 'application/pdf');
+      if (doc.csv) await store.put(`${base}.csv`, new TextEncoder().encode(toCsv(doc.csv.rows)), 'text/csv');
+    } catch (e) {
+      if (e instanceof StorageNotConfigured || e instanceof StorageRefused) return { ok: false, status: 503, error: 'storage', message: e.message } as const;
+      throw e;
+    }
     const [row] = await tx<{ id: string }[]>`
       INSERT INTO documents (tenant_id, kind, subject, subject_id, version, title, pdf_key, csv_key, sha256, gaps, created_by)
       VALUES (${ctx.tenantId}, ${c.kind}, ${c.subject}, ${ref.id}, ${next}, ${doc.title}, ${`${base}.pdf`}, ${doc.csv ? `${base}.csv` : null},

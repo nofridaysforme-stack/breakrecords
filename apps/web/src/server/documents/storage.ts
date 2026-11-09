@@ -21,6 +21,23 @@ export interface DocumentStore {
   get(key: string): Promise<Uint8Array | null>;
 }
 
+/** Storage answered with an error. The message says which setting to check; no secrets in it. */
+export class StorageRefused extends Error {}
+
+const S3_HINT: Record<string, string> = {
+  NoSuchBucket: 'the bucket in DOCUMENTS_S3_BUCKET doesn’t exist',
+  InvalidAccessKeyId: 'the access key ID isn’t recognized',
+  SignatureDoesNotMatch: 'the secret access key or the region doesn’t match',
+  AccessDenied: 'the keys aren’t allowed to write to that bucket',
+  AuthorizationHeaderMalformed: 'the region in DOCUMENTS_S3_REGION doesn’t match the project',
+};
+async function refused(res: Response, what: string): Promise<StorageRefused> {
+  const body = await res.text().catch(() => '');
+  const code = /<Code>([^<]+)<\/Code>/.exec(body)?.[1] ?? /"(?:code|error)"\s*:\s*"([^"]+)"/.exec(body)?.[1] ?? '';
+  console.error(`Document storage refused the ${what}: HTTP ${res.status} ${code}`);
+  return new StorageRefused(`Document storage refused the ${what} (${code || `HTTP ${res.status}`}${S3_HINT[code] ? `: ${S3_HINT[code]}` : ''}). Check the DOCUMENTS_S3_ settings in Vercel.`);
+}
+
 export class StorageNotConfigured extends Error {
   constructor() { super('Document storage isn’t set up yet. Add the DOCUMENTS_S3_* settings (docs/STAGING.md).'); }
 }
@@ -33,13 +50,15 @@ function s3(): DocumentStore | null {
   return {
     kind: 's3',
     async put(key, body, contentType) {
-      const res = await aws.fetch(url(key), { method: 'PUT', body: body as BodyInit, headers: { 'content-type': contentType } });
-      if (!res.ok) throw new Error(`Storage refused the file (${res.status}).`);
+      let res: Response;
+      try { res = await aws.fetch(url(key), { method: 'PUT', body: body as BodyInit, headers: { 'content-type': contentType } }); }
+      catch (e) { console.error('Document storage unreachable', (e as Error).message); throw new StorageRefused('Couldn’t reach document storage. Check DOCUMENTS_S3_ENDPOINT in Vercel.'); }
+      if (!res.ok) throw await refused(res, 'file');
     },
     async get(key) {
       const res = await aws.fetch(url(key));
       if (res.status === 404) return null;
-      if (!res.ok) throw new Error(`Storage refused the read (${res.status}).`);
+      if (!res.ok) throw await refused(res, 'read');
       return new Uint8Array(await res.arrayBuffer());
     },
   };
