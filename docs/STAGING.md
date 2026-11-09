@@ -45,30 +45,101 @@ GitHub only offers **Run workflow** for workflows that are on `main`. Merge the 
 
 ## Step 2. GitHub staging environment (you)
 
-github.com/nofridaysforme-stack/breakrecords → **Settings → Environments → New environment** → name it exactly `staging`.
+**What this is.** GitHub needs three facts to set up the staging database for you: how to log in to it, a password for the app's own login, and your email address. You type them into a locked box in GitHub's settings called an *environment*, named `staging`. Two of them are *secrets*: once saved, nobody can read them back, not even you (you can only replace them). The third is a *variable*, which stays visible because it isn't secret.
 
-1. Make the `br_app` password with the hex command. Save it; Vercel needs it in step 5.
-2. Under **Environment secrets**, add:
+You need three things open: GitHub in your browser, your Supabase project in another tab, and your password manager.
 
-| Name | Value |
-| --- | --- |
-| `STAGING_OWNER_DATABASE_URL` | The Session pooler string from step 1.5, with your database password in place of `[YOUR-PASSWORD]`, and `?sslmode=require` at the end. It looks like `postgresql://postgres.<ref>:<password>@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require` |
-| `STAGING_APP_DB_PASSWORD` | The `br_app` password |
+### 2a. Make the app's password
 
-3. Under **Environment variables**, add:
+1. Open Terminal. On a Mac: press **Cmd + Space**, type `Terminal`, press **Return**. (Windows: open **PowerShell 7** and use the Windows command from the table at the top.)
+2. Type this and press **Return**:
 
-| Name | Value |
-| --- | --- |
-| `STAGING_OWNER_EMAILS` | Your real email address (comma-separated if more than one). These people become owners of the sample label, Northline Records. Use the same address your Resend account is opened with (step 4) |
-| `STAGING_URL` | Leave for now; you'll add it in step 6 |
+   ```bash
+   openssl rand -hex 24
+   ```
 
-Tell Claude Code when this is done.
+3. It prints one line of 48 letters and numbers. That line is the **`br_app` password**. Select it, copy it, and save it in your password manager as "Break Records staging: br_app password". You'll paste it twice: once below, once in Vercel (step 5).
 
-## Step 3. Migrate and seed (Claude Code, or you)
+### 2b. Build the database address
 
-**Actions → Staging → Run workflow** → choose `migrate`, run it, then run it again with `seed`.
+This is one long line of text that tells GitHub where the database is and how to log in.
 
-- `migrate` applies every migration as the owner, then gives `br_app` its password. Expect a list of "Applied" lines and no errors.
+1. In Supabase, open the `breakrecords-staging` project.
+2. Press the **Connect** button at the top of the page. A panel opens.
+3. Find the connection strings. If there's a choice labelled **Method**, **Type** or **Mode**, pick **Session pooler**. (Not "Direct connection", not "Transaction pooler".)
+4. Press the copy icon next to the string.
+5. Paste it into a plain text editor (Mac: TextEdit, then **Format → Make Plain Text**; Windows: Notepad). It looks like this:
+
+   `postgresql://postgres.abcdefghijklmnop:[YOUR-PASSWORD]@aws-0-us-east-1.pooler.supabase.com:5432/postgres`
+
+6. Delete `[YOUR-PASSWORD]`, **brackets included**, and paste your Supabase database password (the one you made in step 1) in its place.
+7. Go to the very end of the line and type `?sslmode=require`.
+8. Check it:
+   - It starts with `postgresql://postgres.` (with a dot and your project ref right after `postgres`).
+   - It contains `:5432/`.
+   - There are no `[` or `]` characters and no spaces anywhere.
+   - It ends with `/postgres?sslmode=require`.
+
+   Finished, it looks like: `postgresql://postgres.abcdefghijklmnop:3f9a…e21c@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require`
+
+If you no longer have the database password, or it has symbols in it: Supabase → **Project Settings** (gear, bottom left) → **Database** → **Reset database password**, paste a new hex one from `openssl rand -hex 24`, save it in your password manager, then redo this part.
+
+### 2c. Create the `staging` environment in GitHub
+
+1. Go to https://github.com/nofridaysforme-stack/breakrecords
+2. Click **Settings** in the row of tabs near the top (gear icon, far right). If you don't see it, click the **…** at the end of the tab row.
+3. In the left-hand list, under **Code and automation**, click **Environments**.
+4. Click **New environment**.
+5. In the **Name** box type `staging` (all lowercase, nothing else), then click **Configure environment**.
+
+You're now on the page for the `staging` environment. Leave everything at the top (reviewers, wait timer, branches) as it is.
+
+### 2d. Add the two secrets
+
+Scroll down to **Environment secrets**.
+
+1. Click **Add environment secret**.
+   - **Name**: `STAGING_OWNER_DATABASE_URL`
+   - **Value**: the whole line from 2b.
+   - Click **Add secret**.
+2. Click **Add environment secret** again.
+   - **Name**: `STAGING_APP_DB_PASSWORD`
+   - **Value**: the `br_app` password from 2a.
+   - Click **Add secret**.
+
+Copy the names from here rather than typing them: one wrong letter and the workflow can't find the secret.
+
+### 2e. Add the variable
+
+Scroll to **Environment variables**.
+
+1. Click **Add environment variable**.
+   - **Name**: `STAGING_OWNER_EMAILS`
+   - **Value**: your email address, typed carefully. Use the same address you'll open Resend with in step 4. More than one person? Separate them with commas, no spaces: `you@example.com,partner@example.com`.
+   - Click **Add variable**.
+
+Don't add `STAGING_URL` yet; that comes in step 6.
+
+### 2f. Check
+
+The `staging` page should now list **2 secrets** (`STAGING_APP_DB_PASSWORD`, `STAGING_OWNER_DATABASE_URL`) and **1 variable** (`STAGING_OWNER_EMAILS`). Close the text editor from 2b without saving.
+
+## Step 3. Migrate and seed (you click, Claude Code reads the logs)
+
+*Migrate* builds the empty tables in the staging database. *Seed* fills them with the sample label, Northline Records, and lets your email address sign in. Claude Code can't press this button for you (GitHub doesn't let its app start workflows), but it can read the results.
+
+1. Go to https://github.com/nofridaysforme-stack/breakrecords/actions/workflows/staging.yml (or: the **Actions** tab at the top of the repository, then **Staging** in the left-hand list).
+2. On the right, above the list of runs, click the **Run workflow** button. A small box drops down.
+3. **Use workflow from**: leave it on `main`.
+4. **What to do**: choose `migrate`.
+5. Click the green **Run workflow** button inside the box.
+6. Wait a few seconds and refresh the page. A new row appears at the top of the list. A yellow dot means running; a green tick means done; a red cross means it failed.
+7. When it's a green tick, do 2 to 6 again, choosing `seed` this time.
+8. Tell Claude Code "migrate and seed are done". It reads both logs and confirms, or fixes what failed.
+
+How to tell you're in the right place: each row you start says **Manually run by** and your GitHub name underneath. A run that says it was triggered by a push is an automatic one, not yours.
+
+- `migrate` applies every migration as the owner, then gives `br_app` its password. The log lists "Applied" lines and no errors.
 - `seed` loads the Northline sample world, the Harbor Sound second label for cross-tenant checks, and the allowlist, including your address.
 
 From now on, a merge to `main` that adds a migration runs `migrate` on staging by itself.
