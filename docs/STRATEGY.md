@@ -54,6 +54,7 @@ Stage 3 is the point of no return: attorney sign-off, insurance and a staging re
 - **Published themes apply to everyone.** Once a licensee publishes its theme, every page of its labels' app and their payees' portal is served with it (the variables are written on the server from validated colors). The portal says which label pays you.
 - **Onboarding answers are saved on the server** as you go (`GET`/`PUT /api/onboarding`), so they survive reloads and other devices. Finishing sets the label up from them: its profile and country, and every active department's autonomy, never past what the department allows. The tab's own copy wins over the server's while you're answering.
 - **Switching labels and inviting people.** The sidebar's label button switches between the labels you work in; a licensee's owners act as owners in its labels (the database grants it, as it already granted access). Owners invite people from Settings › Team and roles: as team, or as a payee linked to their party so they see only their own statements and splits. An invitation is an allowlist entry; nothing is emailed, they sign in with that address. Invitations nobody has used can be withdrawn; both are audited.
+- **CI.** `.github/workflows/ci.yml` runs on every pull request and push to `main`: lint (types and copy rules), unit and row-level security tests against Postgres 16, the browser suite on sample data (screens uploaded for side-by-side review), and the browser suite with every module live. `.github/scripts/test-db.sh` builds the test database the same way as below.
 
 ### Left in Stage 0
 
@@ -66,7 +67,7 @@ Stage 3 is the point of no return: attorney sign-off, insurance and a staging re
 | Asset uploads (R2 or S3 with signed URLs); `assets.storage_key` is ready for them | Upload assets only queues names today |
 | Updating a registration's status and reference when a filing is submitted or confirmed (Publishing and Rights agents, Stage 4; until then a person records it) | The matrix only changes through the seed today |
 | Splits: starting a new version from the one in effect, deal types beyond net profit (royalty, license, distribution), split trees for songs, and e-signature through Dropbox Sign (Stage 2) | The editor edits one open draft today; signing is a button press until Dropbox Sign |
-| Staging on Supabase and Vercel; CI running lint, unit, contract, RLS, mock e2e, live e2e and visual checks on every pull request | "Nothing merged without tests" |
+| Staging on Supabase and Vercel (needs the accounts); then make the CI checks required on `main` in GitHub's branch protection | The Stage 0 gate runs against staging |
 | Screenshot baselines (`toHaveScreenshot`) for the 37 frames | Visual tests become a merge check |
 | Replace v1 `Display` strings with structured fields as each module goes live | Live servers send data, not formatted text |
 

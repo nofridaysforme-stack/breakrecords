@@ -1,0 +1,90 @@
+# Every pull request and every push to main runs the whole test suite: types and copy rules,
+# unit and row-level security tests, the API contract and screens on sample data, and every
+# module live against Postgres with sign-in. "Nothing merged without tests."
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  TEST_DATABASE_URL: postgres://br_owner:br_owner_ci@localhost:5432/breakrecords_test?sslmode=disable
+  TEST_APP_DATABASE_URL: postgres://br_app:br_app_ci@localhost:5432/breakrecords_test?sslmode=disable
+
+jobs:
+  checks:
+    name: Lint, unit and database tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Create the test database and roles
+        run: ./.github/scripts/test-db.sh
+      - run: pnpm lint
+      - run: pnpm test
+
+  e2e-sample:
+    name: Browser tests on sample data
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @breakrecords/web exec playwright install --with-deps chromium
+      - run: pnpm build
+      - run: pnpm --filter @breakrecords/web exec playwright test --trace retain-on-failure
+      - name: Screens for side-by-side review with the design
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: screens, path: apps/web/artifacts/screens, if-no-files-found: ignore }
+      - name: Failure traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: e2e-sample-results, path: apps/web/test-results }
+
+  e2e-live:
+    name: Browser tests, every module live
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @breakrecords/web exec playwright install --with-deps chromium
+      - name: Create the test database and roles
+        run: ./.github/scripts/test-db.sh
+      - run: pnpm build
+      - run: pnpm --filter @breakrecords/web exec playwright test -c playwright.live.config.ts --trace retain-on-failure
+      - name: Failure traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: e2e-live-results, path: apps/web/test-results }
