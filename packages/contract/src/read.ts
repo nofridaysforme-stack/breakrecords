@@ -337,6 +337,20 @@ export const SettingsError = z.object({ error: z.enum(['invalid', 'unauthorized'
 export const SearchResponse = z.object({
   items: z.array(z.object({ id: Id, group: z.enum(['Go to', 'Approvals', 'Catalog', 'People', 'Money', 'Contracts', 'Funding']), label: z.string(), hint: z.string(), href: Link, keywords: z.string().optional() })),
 });
+// ---------- Onboarding (2a, 2b and the undrawn steps) ----------
+export const OnboardingAnswers = z.object({
+  profile: z.enum(['solo', 'band', 'small_label', 'growing_label', 'services']),
+  name: z.string().trim().max(120),
+  country: z.enum(['United States', 'Canada', 'United Kingdom', 'Ireland', 'Australia', 'New Zealand', 'Another country']),
+  distributor: z.string().max(60).nullable(),
+  catalogFile: z.string().max(200).nullable(),
+  pro: z.object({ status: z.enum(['affiliated', 'not_yet', 'not_sure']), org: z.string().max(40).optional() }),
+  autonomy: Autonomy,
+});
+/** GET /api/onboarding: the answers so far, saved as the person goes. */
+export const OnboardingResponse = z.object({ answers: OnboardingAnswers.nullable(), completed: z.boolean() });
+/** PUT /api/onboarding: save the answers; `complete` sets the label up from them (profile, country, how much agents do). */
+export const SaveOnboardingCommand = z.object({ answers: OnboardingAnswers, complete: z.boolean().optional() }).strict();
 export const RosterResponse = z.array(z.object({
   id: Id, name: z.string(), type: z.string(), genre: z.string(), releases: z.number().int(), contract: z.string(), income: Cents, open: z.string(), href: Link,
 }));

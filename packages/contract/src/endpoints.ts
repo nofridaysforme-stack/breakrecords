@@ -44,4 +44,5 @@ export const ENDPOINTS: Endpoint[] = [
   { path: '/api/settings/theme', schema: R.ThemeResponse, module: 'settings' },
   { path: '/api/roster', schema: R.RosterResponse, module: 'roster' },
   { path: '/api/search?q=glass', schema: R.SearchResponse, module: 'catalog' },
+  { path: '/api/onboarding', schema: R.OnboardingResponse, module: 'settings' },
 ];

@@ -52,12 +52,13 @@ Stage 3 is the point of no return: attorney sign-off, insurance and a staging re
 - **Every module now has a live backend.** With all twelve in `BR_LIVE_MODULES`, every endpoint in the contract is served from Postgres for the signed-in tenant, and the live end-to-end suite runs with all of them on. What stands between this and the Stage 0 gate is staging (accounts) and CI.
 - **Home and ⌘K on live data.** Home's money row is read from the same tables as the money screens: the latest period's income, what's owed in batches waiting on you, what the period recouped, unclaimed money, and a plain forecast (the recent monthly average for 90 days, less payouts due), each with a note saying what it covers. ⌘K searches through `GET /api/search`, whose index is built from the same reads the screens use, so live it finds the label's own data and nothing of another label's; the bar shows built-in results at once and swaps in the server's.
 - **Published themes apply to everyone.** Once a licensee publishes its theme, every page of its labels' app and their payees' portal is served with it (the variables are written on the server from validated colors). The portal says which label pays you.
+- **Onboarding answers are saved on the server** as you go (`GET`/`PUT /api/onboarding`), so they survive reloads and other devices. Finishing sets the label up from them: its profile and country, and every active department's autonomy, never past what the department allows. The tab's own copy wins over the server's while you're answering.
 
 ### Left in Stage 0
 
 | Item | Why |
 | --- | --- |
-| Move the remaining browser-only business data to the server: onboarding answers. The portal's bank form waits on Trolley | Survives reloads, shared with the team |
+| The portal's bank details form keeps only the last four digits in the browser; real bank details go to Trolley (Stage 3) | Payees change where they're paid |
 | Statement import: parsers for each source's file (Railway workers), and payee statements calculated from matched lines through the split in effect (Stage 1). Until then income and payee statements arrive through the seed | Stage 1 gate: 3 pilots' last 12 months reconcile to the cent |
 | Payouts through Trolley: sending an approved batch, payee bank details (the portal's form only shows the last four digits today), tax form collection, daily reconciliation (Stage 3) | Real payouts to 3+ payees |
 | Runbook writes: tasks are changed by the agents that own them (Stage 4); until then the runbook only changes through the seed and approved date plans. LabelGrid delivery is Stage 5 | Stage 5 gate: a pilot single delivered from the platform |

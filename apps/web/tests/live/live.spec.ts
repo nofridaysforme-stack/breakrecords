@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { ActivityResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 
@@ -749,4 +749,20 @@ test('⌘K searches the signed-in label’s own data', async ({ page, browser })
   await expect(async () => { await harbor.keyboard.press('Control+k'); await expect(bar).toBeVisible({ timeout: 1000 }); }).toPass(); // the shortcut works once the page is interactive
   await bar.fill('tidal');
   await expect(harbor.getByRole('option', { name: /Tidal Lines/ }).first()).toBeVisible();
+});
+
+test('onboarding answers are saved as you go, and finishing sets the label up within each department’s limits', async ({ page }) => {
+  await signIn(page, USERS.owner);
+  const answers = { profile: 'band', name: 'Northline Records', country: 'Canada', distributor: 'TuneCore', catalogFile: null, pro: { status: 'affiliated', org: 'SOCAN' }, autonomy: 'act_within_limits' };
+  expect((await page.request.put('/api/onboarding', { data: { answers } })).status()).toBe(200);
+  expect(OnboardingResponse.parse(await (await page.request.get('/api/onboarding')).json())).toMatchObject({ answers: { distributor: 'TuneCore' }, completed: false });
+  await page.goto('/onboarding/name');
+  await expect(page.getByLabel('Name')).toHaveValue('Northline Records'); // read back from the server
+  expect(OnboardingResponse.parse(await (await page.request.put('/api/onboarding', { data: { answers, complete: true } })).json()).completed).toBe(true);
+  const st = SettingsResponse.parse(await (await page.request.get('/api/settings')).json());
+  expect(st.config).toMatchObject({ profile: 'Band', country: 'CA' });
+  const d = DepartmentsResponse.parse(await (await page.request.get('/api/departments')).json()).departments;
+  expect(d.find((x) => x.id === 'metadata')?.autonomy).toBe('act_within_limits');
+  expect(d.find((x) => x.id === 'legal')?.autonomy).toBe('draft_and_wait'); // signatures always wait for you
+  expect(d.find((x) => x.id === 'marketing')?.autonomy).toBeNull(); // Phase 2 untouched
 });
