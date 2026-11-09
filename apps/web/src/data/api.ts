@@ -4,13 +4,14 @@ import 'server-only';
 // read from. Replace these functions with real calls; the shapes stay the same.
 import { budgets, glasshouseDeal, payees, payouts, recoupment, royalties, splitTree, statements, type Payee, type Statement } from './money';
 import { DEFAULT_PAYEE } from '@/components/portal/payee';
+import type { ThemeColors } from '@/lib/theme';
 import { approvals as allApprovals } from './sample';
 import { approvalDetails, home, homeNumbers, releases, TODAY } from './fixtures';
 import type { ApprovalDetail, Release, Scenario } from './types';
 import type { ApprovalSummary } from '@/components/ui/Approval';
 import * as ops from './ops';
 import type { Module, SplitNodeResponse, SplitTreeNode } from '@breakrecords/contract';
-import { advance, baselineIncome, sale, type OfferAssumptions } from '@breakrecords/core/offers';
+import { advance, baselineIncome, sale, type AdvanceOffer, type OfferAssumptions, type SaleOffer } from '@breakrecords/core/offers';
 
 export { TODAY };
 
@@ -226,20 +227,66 @@ export async function getProfileClaims(): Promise<ReturnType<typeof mockProfileC
   if (!(await mockClaimsPrepared())) return base;
   return { ...base, rows: base.rows.map((r) => ({ ...r, cells: r.cells.map((c) => (c.status === 'notStarted' ? { status: 'prepared' as const } : c)) })) };
 }
-export const getFunding = () => ({ counts: ops.fundingCounts, items: ops.funding, applications: ops.applications });
-/** Offer comparison. Pass other assumptions to recompute every number. */
-export function getOffers(assumptions: OfferAssumptions = ops.offerAssumptions) {
+export type Funding = { counts: typeof ops.fundingCounts; items: ops.FundingItem[]; applications: typeof ops.applications };
+/** Funding (5d). Live: the tenant's grants and offers, minus the ones dismissed, with cards worked out from their terms. */
+export async function getFunding(): Promise<Funding> {
+  const ctx = await liveCtx('funding');
+  if (ctx) return (await import('@/server/live/funding')).liveFunding(ctx);
+  const m = await (await import('@/server/mockFunding')).mockFundingState();
+  const items = ops.funding.filter((f) => !m.dismissed.has(f.id));
+  return { counts: { opportunities: items.length, applications: ops.applications.length, offers: items.filter((f) => f.kind !== 'grant').length }, items, applications: ops.applications };
+}
+
+/** The comparison (5e) from offers and assumptions; numbers come from the offer math. */
+export function compareOffers(ids: { advance: string; sale: string }, assumptions: OfferAssumptions, adv: AdvanceOffer, sal: SaleOffer, terms: typeof ops.offerTerms, extra: { declined: boolean; questions: { id: string; text: string; asked: string }[] }) {
   return {
     assumptions,
     baseline: baselineIncome(assumptions),
-    advance: { ...advance(assumptions, ops.advanceOffer), offer: ops.advanceOffer, terms: ops.offerTerms.advance },
-    sale: { ...sale(assumptions, ops.saleOffer), offer: ops.saleOffer, terms: ops.offerTerms.sale },
+    advance: { id: ids.advance, ...advance(assumptions, adv), offer: adv, terms: terms.advance },
+    sale: { id: ids.sale, ...sale(assumptions, sal), offer: sal, terms: terms.sale },
+    ...extra,
   };
 }
-export const getDepartments = () => ({ departments: ops.departments, team: ops.team });
-export const getActivity = () => ops.activity;
-export const getSettings = () => ({ nav: ops.settingsNav, routing: ops.routing, config: ops.labelConfig, integrations: ops.integrations, team: ops.team });
-export const getTheme = () => ({ theme: ops.harborTheme, tenant: ops.tenant });
+export type Offers = ReturnType<typeof compareOffers>;
+
+/** Offer comparison. Override assumptions to recompute every number. Null when there aren't two offers to compare. */
+export async function getOffers(overrides: Partial<OfferAssumptions> = {}): Promise<Offers | null> {
+  const ctx = await liveCtx('funding');
+  if (ctx) return (await import('@/server/live/funding')).liveOffers(ctx, overrides);
+  const m = await (await import('@/server/mockFunding')).mockFundingState();
+  return compareOffers({ advance: 'fund_advance', sale: 'fund_sale' }, { ...ops.offerAssumptions, ...overrides }, ops.advanceOffer, ops.saleOffer, ops.offerTerms, { declined: m.declined, questions: m.questions });
+}
+export type Departments = { departments: ops.Department[]; team: typeof ops.team };
+/** Departments (5f). Live: the tenant's departments and team. Mock: the sample, plus this session's changes. */
+export async function getDepartments(): Promise<Departments> {
+  const ctx = await liveCtx('activity');
+  if (ctx) return (await import('@/server/live/activity')).liveDepartments(ctx);
+  const changes = await (await import('@/server/mockActivity')).mockDepartmentChanges();
+  return { departments: ops.departments.map((d) => ({ ...d, ...changes[d.id] })), team: ops.team };
+}
+/** The activity log (5g). Live: what agents reported plus the audit log of what people did, newest first. */
+export async function getActivity(): Promise<ops.ActivityEvent[]> {
+  const ctx = await liveCtx('activity');
+  if (!ctx) return ops.activity;
+  return (await import('@/server/live/activity')).liveActivity(ctx);
+}
+export type Settings = { nav: typeof ops.settingsNav; routing: typeof ops.routing; config: typeof ops.labelConfig; integrations: typeof ops.integrations; team: typeof ops.team };
+/** Settings (5h). Live: the tenant's settings, routing, integrations and team. */
+export async function getSettings(): Promise<Settings> {
+  const ctx = await liveCtx('settings');
+  if (ctx) return (await import('@/server/live/settings')).liveSettings(ctx);
+  const m = await (await import('@/server/mockSettings')).mockSettingsState();
+  return { nav: ops.settingsNav, routing: ops.routing, config: ops.labelConfig, team: ops.team,
+    integrations: ops.integrations.map((i) => (m.connected.has(i.id) ? { ...i, state: 'ok' as const, status: 'Connected' } : i)) };
+}
+export type Theme = { theme: ThemeColors; tenant: typeof ops.tenant; published: { at: string; by: string } | null; canPublish: boolean };
+/** White label (5i). Live: the licensee's theme, which its labels read and only its owners publish. */
+export async function getTheme(): Promise<Theme> {
+  const ctx = await liveCtx('settings');
+  if (ctx) return (await import('@/server/live/settings')).liveTheme(ctx);
+  const m = await (await import('@/server/mockSettings')).mockSettingsState();
+  return { theme: m.theme ?? ops.harborTheme, tenant: ops.tenant, published: m.theme ? { at: 'Just now', by: 'You' } : null, canPublish: true };
+}
 /** Roster. Live: worked out from the catalog, contracts, statements, payouts and releases. */
 export async function getRoster(): Promise<typeof ops.roster> {
   const ctx = await liveCtx('roster');

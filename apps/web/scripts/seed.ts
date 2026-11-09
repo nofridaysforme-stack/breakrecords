@@ -6,7 +6,7 @@ import { approvals as items } from '../src/data/sample';
 import { approvalDetails, releases as runbooks } from '../src/data/fixtures';
 import { budgets, glasshouseDeal, statements as payeeStatements } from '../src/data/money';
 import { daysBetween } from '@breakrecords/core/dates';
-import { catalogAssets, catalogReleases, contracts, profileClaims, recordings, regColumns, registrations, songs, templates, unclaimed } from '../src/data/ops';
+import { activity, advanceOffer, catalogAssets, departments, catalogReleases, contracts, funding, harborTheme, integrations, labelConfig, routing, tenant, offerAssumptions, offerTerms, profileClaims, saleOffer, recordings, regColumns, registrations, songs, templates, unclaimed } from '../src/data/ops';
 import { aiUseFromLabel } from '@breakrecords/core/metadata';
 import { checkStatement } from '@breakrecords/core/statements';
 import type { Tx } from '@breakrecords/db/client';
@@ -18,7 +18,7 @@ if (!url || process.env.BR_ALLOW_SEED !== '1') {
 }
 
 // Who can sign in to the sample world. E2E addresses receive links in the test mailbox.
-const PEOPLE = (process.env.SEED_EMAILS ?? 'jana@northline.example:northline:owner,e2e-owner@northline.example:northline:owner,e2e-harbor@harbor.example:harbor-sound:owner,e2e-payee@northline.example:northline:payee:marco-dela')
+const PEOPLE = (process.env.SEED_EMAILS ?? 'jana@northline.example:northline:owner,e2e-owner@northline.example:northline:owner,e2e-harbor@harbor.example:harbor-sound:owner,e2e-payee@northline.example:northline:payee:marco-dela,e2e-licensee@harbor.example:harbor-sound-licensee:owner')
   .split(',').map((s) => { const [email, tenant, role, party] = s.split(':'); return { email: email.toLowerCase(), tenant, role, party: party ?? null }; });
 
 const DUE: Record<string, string> = { apr_payout_oct: '2026-11-10', apr_producer: '2026-11-09', apr_mlc: '2026-11-12', apr_grant: '2026-11-15' };
@@ -34,6 +34,7 @@ async function main() {
     // 5i: Harbor Sound licenses the platform; Northline Records is one of its sub-tenants.
     const licensee = await tenant('harbor-sound-licensee', 'Harbor Sound', 'licensee', null);
     const ids: Record<string, string> = {
+      'harbor-sound-licensee': licensee,
       northline: await tenant('northline', 'Northline Records', 'label', licensee),
       'harbor-sound': await tenant('harbor-sound', 'Harbor Sound', 'label', licensee),
     };
@@ -45,7 +46,7 @@ async function main() {
 
     // Payouts and statements point at parties, recordings and split versions, and batches at approvals, so they go first.
     for (const t of [ids.northline, ids['harbor-sound']]) {
-      for (const table of ['payout_batches', 'payee_requests', 'payees', 'recoupment_accounts', 'payout_policies', 'agreements', 'contract_templates', 'contract_reviews']) {
+      for (const table of ['payout_batches', 'payee_requests', 'payees', 'recoupment_accounts', 'payout_policies', 'agreements', 'contract_templates', 'contract_reviews', 'funding_opportunities', 'funding_questions', 'funding_assumptions']) {
         await tx.unsafe(`DELETE FROM ${table} WHERE tenant_id = $1`, [t]);
       }
       await tx`DELETE FROM payee_statements WHERE tenant_id = ${t}`;
@@ -74,6 +75,9 @@ async function main() {
     await seedRunbooks(tx, ids.northline);
     await seedContracts(tx, ids.northline);
     await seedRoster(tx, ids.northline);
+    await seedFunding(tx, ids.northline);
+    await seedActivity(tx, ids.northline);
+    await seedSettings(tx, ids.northline, ids['harbor-sound'], licensee);
     await seedHarborPayouts(tx, ids['harbor-sound']);
   });
   console.log(`Seeded Northline and Harbor Sound; ${PEOPLE.length} people allowlisted.`);
@@ -540,6 +544,74 @@ async function seedRoster(tx: Tx, tenant: string) {
     const [p] = await tx`SELECT id FROM parties WHERE tenant_id = ${tenant} AND slug = ${slug}`;
     await tx`INSERT INTO roster_members (tenant_id, party_id, role, position, joined_on) VALUES (${tenant}, ${p.id}, ${role}, ${i}, ${joined})`;
   }
+}
+
+// ---------- Funding (5d, 5e) ----------
+// The grant and the two offers with their real terms; cards and the comparison are worked out
+// from these. ASSUMED: who made the offers (5d doesn't say).
+async function seedFunding(tx: Tx, tenant: string) {
+  const a = offerAssumptions;
+  await tx`INSERT INTO funding_assumptions (tenant_id, annual_income_cents, growth_bp, album_annual_income_cents, years, updated_on)
+    VALUES (${tenant}, ${a.annualIncome}, ${a.growthBp}, ${a.albumAnnualIncome}, ${a.years}, '2026-11-04')`;
+  const [velvet] = await tx`SELECT id FROM releases WHERE tenant_id = ${tenant} AND slug = 'rel_velvet'`;
+  const grant = funding.find((f) => f.kind === 'grant')!;
+  await tx`INSERT INTO funding_opportunities (tenant_id, slug, kind, title, cash_cents, up_to, deadline, fit_bp, draft_pct, approval_id, verified_on)
+    VALUES (${tenant}, ${grant.id}, 'grant', ${grant.title}, 500000, true, '2026-11-15', 8600, 80, 'apr_grant', '2026-11-03')`;
+  await tx`INSERT INTO funding_opportunities (tenant_id, slug, kind, cash_cents, repay_total_cents, share_bp, offerer, received_on, deadline, buy_back, fit_bp, verified_on)
+    VALUES (${tenant}, 'fund_advance', 'advance', ${advanceOffer.cash}, ${advanceOffer.repayTotal}, ${advanceOffer.shareBp}, 'Streamline Advances', '2026-11-02', '2026-12-01',
+            ${offerTerms.advance.buyBack}, 7100, '2026-11-02')`;
+  await tx`INSERT INTO funding_opportunities (tenant_id, slug, kind, cash_cents, share_bp, album_release_id, offerer, received_on, deadline, fit_bp, verified_on)
+    VALUES (${tenant}, 'fund_sale', 'sale', ${saleOffer.cash}, ${saleOffer.shareBp}, ${velvet.id}, 'Catalog Partners', '2026-11-04', '2026-11-30', 3800, '2026-11-04')`;
+}
+
+// ---------- Departments, team and activity (5f, 5g) ----------
+// The 5f departments, the 5g history, and the team: Jana and Priya Shah, the Rights lead (5h).
+async function seedActivity(tx: Tx, tenant: string) {
+  await tx`DELETE FROM departments WHERE tenant_id = ${tenant}`;
+  await tx`DELETE FROM agent_events WHERE tenant_id = ${tenant}`;
+  for (const [i, d] of departments.entries()) {
+    await tx`INSERT INTO departments (tenant_id, slug, name, agent, phase, autonomy, can_act, act_note, spend_cap_cents, state, tasks_this_week, position)
+      VALUES (${tenant}, ${d.id}, ${d.name}, ${d.phase === 2 ? null : d.agent}, ${d.phase}, ${d.autonomy}, ${d.canAct}, ${d.actNote}, ${d.spendCap}, ${d.state}, ${d.tasks}, ${i})`;
+  }
+  for (const e of activity) {
+    const at = new Date(`${e.when.replace(/, (\d+:\d+)$/, ', 2026 $1')} UTC`);
+    await tx`INSERT INTO agent_events (tenant_id, id, occurred_at, kind, text, who, dept, inputs, reasoning, output)
+      VALUES (${tenant}, ${e.id}, ${at}, ${e.kind}, ${e.text}, ${e.who}, ${e.dept}, ${e.inputs}, ${e.reasoning}, ${e.output})`;
+  }
+  // Team members: the user row and membership the allowlist would create, with a name and title.
+  for (const [email, name, role, title] of [['jana@northline.example', 'Jana', 'owner', 'Owner'], ['priya@northline.example', 'Priya Shah', 'team', 'Rights lead']] as const) {
+    const [u] = await tx`INSERT INTO users (email, name) VALUES (${email}, ${name}) ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id`;
+    await tx`INSERT INTO allowlist (email, tenant_id, role) VALUES (${email}, ${tenant}, ${role}) ON CONFLICT (email, tenant_id) DO UPDATE SET role = EXCLUDED.role`;
+    await tx`INSERT INTO memberships (user_id, tenant_id, role, title) VALUES (${u.id}, ${tenant}, ${role}, ${title})
+      ON CONFLICT (user_id, tenant_id) DO UPDATE SET role = EXCLUDED.role, title = EXCLUDED.title`;
+  }
+}
+
+// ---------- Settings and white label (5h, 5i) ----------
+// When each integration's real connection arrives (it needs the partner's account).
+const ARRIVES: Record<string, string> = {
+  distributor: 'Stage 1', pro: 'Stage 1', soundexchange: 'Stage 1', payouts: 'Stage 3 (Trolley)', esign: 'Stage 2 (Dropbox Sign)', accounting: 'a later stage',
+};
+const CAPS: Record<string, number | null> = { money: 0, signature: null, filing: null, public: null, plan: 25000 };
+
+async function seedSettings(tx: Tx, northline: string, harbor: string, licensee: string) {
+  for (const t of [northline, harbor, licensee]) {
+    for (const table of ['label_settings', 'approval_routes', 'integrations', 'white_label']) await tx.unsafe(`DELETE FROM ${table} WHERE tenant_id = $1`, [t]);
+  }
+  const c = labelConfig;
+  await tx`INSERT INTO label_settings (tenant_id, country, profile, statement_period, spend_cap_cents) VALUES (${northline}, ${c.country}, ${c.profile}, ${c.statementPeriod}, ${c.spendCap})`;
+  await tx`INSERT INTO label_settings (tenant_id, country, profile, statement_period, spend_cap_cents) VALUES (${harbor}, 'US', 'Small label', 'Quarterly', 20000)`;
+  for (const [i, r] of routing.entries()) {
+    await tx`INSERT INTO approval_routes (tenant_id, type, label, rule, approver, cap_cents, position) VALUES (${northline}, ${r.type}, ${r.label}, ${r.rule}, ${r.who}, ${CAPS[r.type]}, ${i})`;
+  }
+  for (const [i, x] of integrations.entries()) {
+    await tx`INSERT INTO integrations (tenant_id, slug, name, abbr, state, status, arrives_with, position) VALUES (${northline}, ${x.id}, ${x.name}, ${x.abbr}, ${x.state}, ${x.status}, ${ARRIVES[x.id] ?? null}, ${i})`;
+  }
+  await tx`INSERT INTO white_label (tenant_id, domain, email, dns_status, theme) VALUES (${licensee}, ${tenant.domain}, ${tenant.email}, ${tenant.dns}, ${tx.json(harborTheme)})`;
+  // Harbor Sound's own roster, so the licensee's sub-label list counts real artists.
+  await tx`DELETE FROM roster_members WHERE tenant_id = ${harbor}`;
+  const [mara] = await tx`SELECT id FROM parties WHERE tenant_id = ${harbor} AND slug = 'mara-quill'`;
+  await tx`INSERT INTO roster_members (tenant_id, party_id, role) VALUES (${harbor}, ${mara.id}, 'Solo artist')`;
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

@@ -8,6 +8,7 @@ export const USERS = {
   jana: 'jana@northline.example',
   harbor: 'e2e-harbor@harbor.example',
   payee: 'e2e-payee@northline.example',
+  licensee: 'e2e-licensee@harbor.example',
 };
 
 /** Requests a link, opens it from the test mailbox, presses Sign in (the real flow). */

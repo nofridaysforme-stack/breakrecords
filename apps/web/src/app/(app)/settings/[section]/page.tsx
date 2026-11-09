@@ -30,18 +30,18 @@ export default async function SettingsPage({ params, searchParams }: Props) {
 
   // 5i has its own three columns and no settings sub-nav, as drawn.
   if (section === 'white-label') {
-    if (scenario === 'default') return <Page bare><ThemeEditor data={getTheme()} /></Page>;
-    return <Page><ScreenState scenario={scenario} copy={OPS_STATES.theme} heading="Theme for Harbor Sound"><ThemeEditor data={getTheme()} /></ScreenState></Page>;
+    if (scenario === 'default') return <Page bare><ThemeEditor data={await getTheme()} /></Page>;
+    return <Page><ScreenState scenario={scenario} copy={OPS_STATES.theme} heading="Theme for Harbor Sound"><ThemeEditor data={await getTheme()} /></ScreenState></Page>;
   }
 
-  const data = getSettings();
+  const data = await getSettings();
   return (
     <Page bare>
       <div className={s.layout}>
         <SettingsNav nav={data.nav} current={section as SettingsSection} />
         <div className={s.main}>
           <ScreenState scenario={scenario} copy={OPS_STATES.settings} heading={nav.label}>
-            <SettingsSectionView data={data} section={section as SettingsSection} depts={getDepartments().departments} />
+            <SettingsSectionView data={data} section={section as SettingsSection} depts={(await getDepartments()).departments} />
           </ScreenState>
         </div>
       </div>

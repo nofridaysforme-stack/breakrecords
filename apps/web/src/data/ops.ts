@@ -227,10 +227,11 @@ export type Department = {
   autonomy: Autonomy | null; tasks: number | null; spendCap: Cents | null; phase: 1 | 2;
   /** What "Act within limits" lets it do alone, or why it's off. */
   canAct: boolean; actNote: string;
+  personId: string | null;
 };
 
 const d = (id: string, name: string, agent: string, state: Department['state'], stateLabel: string, autonomy: Autonomy | null, tasks: number | null, cap: number | null, canAct: boolean, actNote: string, phase: 1 | 2 = 1): Department =>
-  ({ id, name, agent, state, stateLabel, autonomy, tasks, spendCap: cap === null ? null : toCents(cap), phase, canAct, actNote });
+  ({ id, name, agent, state, stateLabel, autonomy, tasks, spendCap: cap === null ? null : toCents(cap), phase, canAct, actNote, personId: null });
 
 // ASSUMED: spend caps other than Royalties ($50, from 5f) and every actNote except Royalties.
 // The caps add up to $290, under the $300 label cap in 5h.

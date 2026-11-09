@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ApprovalError, ApprovalState, ContractsResponse, ENDPOINTS, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
+import { ApprovalError, ApprovalState, ContractsResponse, DepartmentError, DepartmentsResponse, ENDPOINTS, SettingsError, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
 
 // The API contract over HTTP. Any server behind the UI, mock or live, must pass this file.
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
@@ -201,5 +201,58 @@ test.describe('contract writes', () => {
   test('only PDF and Word files', async ({ request }) => {
     expect((await request.post('/api/contracts/reviews', { data: { fileName: 'deal.exe' } })).status()).toBe(400);
     expect((await request.post('/api/contracts/reviews', { data: {} })).status()).toBe(400);
+  });
+});
+
+test.describe('funding writes', () => {
+  test('dismissing a card hides it for the session, and undo brings it back', async ({ request }) => {
+    const res = await request.post('/api/funding/fund_sale/dismiss');
+    expect(res.status()).toBe(200);
+    const f = FundingResponse.parse(await res.json());
+    expect(f.items.map((i) => i.id)).toEqual(['fund_grant', 'fund_advance']);
+    expect(f.counts).toMatchObject({ opportunities: 2, offers: 1 });
+    expect(FundingResponse.parse(await (await request.delete('/api/funding/fund_sale/dismiss')).json()).items).toHaveLength(3);
+    expect((await request.post('/api/funding/nope/dismiss')).status()).toBe(404);
+  });
+  test('declining the sale and asking a question are saved; grants can’t be declined', async ({ request }) => {
+    expect(OffersResponse.parse(await (await request.post('/api/funding/fund_sale/decline')).json()).declined).toBe(true);
+    expect(OffersResponse.parse(await (await request.get('/api/funding/offers')).json()).declined).toBe(true);
+    expect(OffersResponse.parse(await (await request.delete('/api/funding/fund_sale/decline')).json()).declined).toBe(false);
+    expect((await request.post('/api/funding/fund_grant/decline')).status()).toBe(409);
+    const asked = OffersResponse.parse(await (await request.post('/api/funding/questions', { data: { question: 'Can the sale include a buy-back?' } })).json());
+    expect(asked.questions[0].text).toBe('Can the sale include a buy-back?');
+    expect((await request.post('/api/funding/questions', { data: { question: ' ' } })).status()).toBe(400);
+  });
+});
+
+test.describe('department writes', () => {
+  test('autonomy and hand-offs are saved for the session; act within limits is refused where it isn’t allowed', async ({ request }) => {
+    const res = await request.patch('/api/departments/royalties', { data: { autonomy: 'suggest', personId: 'u_priya' } });
+    expect(res.status()).toBe(200);
+    expect(DepartmentsResponse.parse(await res.json()).departments.find((d) => d.id === 'royalties')).toMatchObject({ autonomy: 'suggest', personId: 'u_priya' });
+    const refused = await request.patch('/api/departments/legal', { data: { autonomy: 'act_within_limits' } });
+    expect(refused.status()).toBe(409);
+    expect(DepartmentError.parse(await refused.json()).error).toBe('not_allowed');
+    expect((await request.patch('/api/departments/marketing', { data: { autonomy: 'suggest' } })).status()).toBe(409);
+    expect((await request.patch('/api/departments/royalties', { data: { personId: 'u_nobody' } })).status()).toBe(409);
+    expect((await request.patch('/api/departments/royalties', { data: {} })).status()).toBe(400);
+  });
+});
+
+test.describe('settings writes', () => {
+  const theme = { background: '#0f1a1c', surface: '#13221f', brand: '#1d4a4f', primary: '#e2b33c', text: '#e8f0ef' }; // lint-allow-hex: tenant data from 5i
+  test('publishing the theme is saved for the session; a failing pair is refused', async ({ request }) => {
+    const res = await request.post('/api/settings/theme', { data: { theme: { ...theme, primary: '#F0C050' } } }); // lint-allow-hex: test data
+    expect(res.status()).toBe(200);
+    expect(ThemeResponse.parse(await res.json())).toMatchObject({ theme: { primary: '#f0c050' }, published: { by: 'You' } }); // lint-allow-hex: test data
+    const bad = await request.post('/api/settings/theme', { data: { theme: { ...theme, text: '#1a1a1a' } } }); // lint-allow-hex: test data
+    expect(bad.status()).toBe(409);
+    expect(SettingsError.parse(await bad.json()).error).toBe('fails_contrast');
+    expect((await request.post('/api/settings/theme', { data: { theme: { ...theme, text: 'white' } } })).status()).toBe(400);
+  });
+  test('connecting an integration (sample data)', async ({ request }) => {
+    const res = await request.post('/api/settings/integrations/soundexchange/connect');
+    expect(SettingsResponse.parse(await res.json()).integrations.find((i) => i.id === 'soundexchange')).toMatchObject({ state: 'ok', status: 'Connected' });
+    expect((await request.post('/api/settings/integrations/nope/connect')).status()).toBe(404);
   });
 });

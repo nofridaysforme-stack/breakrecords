@@ -12,5 +12,5 @@ type Props = { searchParams: Promise<{ state?: string; dept?: string }> };
 
 export default async function DepartmentsPage({ searchParams }: Props) {
   const q = await searchParams;
-  return <Page><ScreenState scenario={toScenario(q.state)} copy={OPS_STATES.departments} heading="Departments"><DepartmentsView data={getDepartments()} initialId={q.dept} /></ScreenState></Page>;
+  return <Page><ScreenState scenario={toScenario(q.state)} copy={OPS_STATES.departments} heading="Departments"><DepartmentsView data={await getDepartments()} initialId={q.dept} /></ScreenState></Page>;
 }

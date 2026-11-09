@@ -15,6 +15,9 @@ type Props = {
   advanceOffer: AdvanceOffer;
   saleOffer: SaleOffer;
   terms: { advance: { received: string; open: string; buyBack: string }; sale: { received: string; open: string; buyBack: string } };
+  /** The sale offer's id, and whether it was already declined (both saved on the server). */
+  saleId: string;
+  declined: boolean;
 };
 
 /** Projections are estimates, so they show whole dollars. */
@@ -25,15 +28,27 @@ const pct = (bp: number) => `${Math.round(bp / 100)}%`;
 const ACCEPT_ID = 'offer_advance_accept';
 
 /** 5e (desktop) and 5j (phone). Every figure is worked out from the assumptions, which you can change. */
-export function OfferCompare({ assumptions: initial, advanceOffer, saleOffer, terms }: Props) {
+export function OfferCompare({ assumptions: initial, advanceOffer, saleOffer, terms, saleId, declined: wasDeclined }: Props) {
   const [a, setA] = useState(initial);
   const [form, setForm] = useState({ income: String(initial.annualIncome / 100), growth: String(initial.growthBp / 100) });
   const r = useMemo(() => ({ base: baselineIncome(a), adv: advance(a, advanceOffer), sale: sale(a, saleOffer) }), [a, advanceOffer, saleOffer]);
   const { propose, proposals, decisions } = useDecisions();
   const accepted = proposals.some((p) => p.id === ACCEPT_ID);
   const decision = decisions[ACCEPT_ID]?.status;
-  const [declined, setDeclined] = useState(false);
+  const [declined, setDeclinedState] = useState(wasDeclined);
   const [asked, setAsked] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Declining and questions are saved for the label; Finance Agent drafts the emails.
+  async function save(path: string, method: 'POST' | 'DELETE', body?: object): Promise<boolean> {
+    setError(null);
+    try {
+      const res = await fetch(path, { method, headers: { 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
+      if (res.ok) return true;
+      setError((await res.json().catch(() => ({}))).message ?? 'That didn’t save.');
+    } catch { setError('Couldn’t reach the server. Nothing changed.'); }
+    return false;
+  }
+  const setDeclined = async (on: boolean) => { if (await save(`/api/funding/${saleId}/decline`, on ? 'POST' : 'DELETE')) setDeclinedState(on); };
   const ask = useRef<HTMLDialogElement>(null);
   const [question, setQuestion] = useState('');
   const years = a.years;
@@ -76,6 +91,7 @@ export function OfferCompare({ assumptions: initial, advanceOffer, saleOffer, te
           <button type="button" className={o.linkInline} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 'var(--tap-min)' }} onClick={() => setDeclined(false)}><Undo2 size={14} aria-hidden="true" />Undo</button>
         </p>
       )}
+      {error && <p className={s.done} role="alert" style={{ color: 'var(--critical)' }}><CircleAlert size={16} aria-hidden="true" />Not saved. {error}</p>}
       {asked && <p className={s.done} role="status"><Check size={16} className={o.good} aria-hidden="true" />Saved. Finance Agent drafts the email to each offerer and shows it to you before anything is sent.</p>}
     </>
   );
@@ -148,7 +164,7 @@ export function OfferCompare({ assumptions: initial, advanceOffer, saleOffer, te
 
       <dialog ref={ask} className={o.drawer} aria-labelledby="ask-h" onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close(); }}>
         <div className={o.drawerHead}><h2 id="ask-h" className={o.drawerTitle}>Ask about the offers</h2><button type="button" className={o.iconBtn} aria-label="Close" onClick={() => ask.current?.close()}><X size={16} aria-hidden="true" /></button></div>
-        <form className={o.form} onSubmit={(e) => { e.preventDefault(); if (question.trim()) { setAsked(true); setQuestion(''); ask.current?.close(); } }}>
+        <form className={o.form} onSubmit={async (e) => { e.preventDefault(); if (question.trim() && await save('/api/funding/questions', 'POST', { question: question.trim() })) { setAsked(true); setQuestion(''); ask.current?.close(); } }}>
           <label className={o.field}>Your question
             <textarea className={s.textarea} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="For example, can the sale include a buy-back after 5 years?" />
           </label>

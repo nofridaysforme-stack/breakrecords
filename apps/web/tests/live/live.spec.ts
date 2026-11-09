@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ApprovalError, ApprovalState, CatalogResponse, ContractsResponse, ENDPOINTS, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { ActivityResponse, ApprovalError, ApprovalState, CatalogResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 
@@ -559,6 +559,158 @@ test.describe('roster (live)', () => {
     expect((await page.request.get('/api/roster')).status()).toBe(403);
     const harbor = await (await browser.newContext()).newPage();
     await signIn(harbor, USERS.harbor);
-    expect(await roster(harbor)).toEqual([]);
+    expect((await roster(harbor)).map((a) => a.name)).toEqual(['Mara Quill']); // only its own artist
+  });
+});
+
+test.describe('funding (live)', () => {
+  test('cards and the comparison are worked out from the offers’ terms', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    const f = FundingResponse.parse(await (await page.request.get('/api/funding')).json());
+    expect(f.items.map((i) => [i.id, i.title, i.cost, i.permanent])).toEqual([
+      ['fund_grant', 'State arts council project grant', 'Nothing to repay', false],
+      ['fund_advance', '$8,000 for 60% of streaming until repaid', 'About $960, 14 months', false],
+      ['fund_sale', '$15,000 for 50% of one album, forever', 'About $12,000 over 5 yrs', true],
+    ]);
+    expect(f.applications).toEqual([expect.objectContaining({ id: 'apr_grant', status: 'Draft 80% done', due: 'Nov 15' })]);
+    const o = OffersResponse.parse(await (await page.request.get('/api/funding/offers?income=26400')).json());
+    expect(o.advance).toMatchObject({ months: 7, cost: 96000 });
+    expect(o.sale.offer.album).toBe('Velvet Hours');
+    await page.goto('/funding/offers/compare');
+    await expect(page.getByText('About 14 months')).toBeVisible();
+  });
+
+  test('dismissing, declining and questions are saved for the label and audited', async ({ page, browser }) => {
+    await signIn(page, USERS.owner);
+    await page.goto('/funding');
+    await page.getByRole('button', { name: 'Dismiss $15,000 for 50% of one album, forever' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'suggest it again' })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('heading', { name: '$15,000 for 50% of one album, forever' })).toHaveCount(0); // still gone after a reload
+    await page.getByRole('button', { name: 'Dismiss State arts council project grant' }).click();
+    await page.getByRole('button', { name: 'Undo' }).click();
+    await expect(page.getByRole('heading', { name: 'State arts council project grant' })).toBeVisible();
+    await page.request.delete('/api/funding/fund_sale/dismiss'); // bring the sale back to compare
+    await page.goto('/funding/offers/compare');
+    await page.getByRole('button', { name: 'Decline the sale' }).first().click();
+    await expect(page.getByText('Sale declined. Finance Agent will draft a short reply for you to send.').first()).toBeVisible();
+    await page.getByRole('button', { name: 'Request more info' }).click();
+    await page.getByLabel('Your question').fill('Can the sale include a buy-back after 5 years?');
+    await page.getByRole('button', { name: 'Save question' }).click();
+    await expect(page.getByText('Saved. Finance Agent drafts the email').first()).toBeVisible();
+
+    const jana = await (await browser.newContext()).newPage();
+    await signIn(jana, USERS.jana);
+    const o = OffersResponse.parse(await (await jana.request.get('/api/funding/offers')).json());
+    expect(o.declined).toBe(true);
+    expect(o.questions.map((q) => q.text)).toEqual(['Can the sale include a buy-back after 5 years?']);
+    await jana.goto('/funding/offers/compare');
+    await expect(jana.getByRole('button', { name: 'Decline the sale' }).first()).toBeDisabled();
+    const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+    const audit = await db`SELECT kind, ref FROM audit_events WHERE kind LIKE 'funding.%' ORDER BY id`;
+    await db.end();
+    expect(audit.map((r) => [r.kind, r.ref])).toEqual([['funding.dismissed', 'fund_sale'], ['funding.dismissed', 'fund_grant'], ['funding.restored', 'fund_grant'], ['funding.restored', 'fund_sale'], ['funding.declined', 'fund_sale'], ['funding.question', 'offers']]);
+  });
+
+  test('payees and other labels see no funding', async ({ page, browser }) => {
+    await signIn(page, USERS.payee);
+    for (const path of ['/api/funding', '/api/funding/offers']) expect((await page.request.get(path)).status()).toBe(403);
+    expect((await page.request.post('/api/funding/fund_grant/dismiss')).status()).toBe(403);
+    const harbor = await (await browser.newContext()).newPage();
+    await signIn(harbor, USERS.harbor);
+    expect(FundingResponse.parse(await (await harbor.request.get('/api/funding')).json()).items).toEqual([]);
+    expect((await harbor.request.get('/api/funding/offers')).status()).toBe(404);
+    expect((await harbor.request.post('/api/funding/fund_sale/dismiss')).status()).toBe(404);
+  });
+});
+
+test.describe('activity (live)', () => {
+  const depts = async (page: import('@playwright/test').Page) => DepartmentsResponse.parse(await (await page.request.get('/api/departments')).json());
+
+  test('departments, the team and agent history come from the database', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    const d = await depts(page);
+    expect(d.departments).toHaveLength(14);
+    expect(d.departments.find((x) => x.id === 'royalties')).toMatchObject({ agent: 'Royalties Agent', autonomy: 'draft_and_wait', spendCap: 5000, stateLabel: 'working', personId: null });
+    expect(d.departments.find((x) => x.id === 'marketing')).toMatchObject({ agent: 'Not active', autonomy: null, phase: 2 });
+    expect(d.team.map((t) => [t.name, t.role])).toEqual(expect.arrayContaining([['Jana', 'Owner'], ['Priya Shah', 'Rights lead']]));
+    const a = ActivityResponse.parse(await (await page.request.get('/api/activity')).json());
+    expect(a.find((e) => e.id === 'RUN-88119')).toMatchObject({ kind: 'Flag', when: 'Nov 6, 8:40', who: 'Audit Agent' });
+  });
+
+  test('a change is saved for the label, refused where the work must wait, and shows in the activity log', async ({ page, browser }) => {
+    await signIn(page, USERS.owner);
+    const priya = (await depts(page)).team.find((t) => t.name === 'Priya Shah')!;
+    expect((await page.request.patch('/api/departments/legal', { data: { autonomy: 'act_within_limits' } })).status()).toBe(409);
+    expect((await page.request.patch('/api/departments/rights', { data: { personId: priya.id } })).status()).toBe(200);
+    await page.goto('/departments');
+    await page.getByRole('button', { name: /^Royalties/ }).click();
+    await page.getByRole('radio', { name: 'Suggest' }).check();
+    await expect(page.getByRole('status').filter({ hasText: 'Royalties is now set to Suggest.' })).toBeVisible();
+
+    const jana = await (await browser.newContext()).newPage();
+    await signIn(jana, USERS.jana);
+    const d = await depts(jana);
+    expect(d.departments.find((x) => x.id === 'royalties')?.autonomy).toBe('suggest');
+    expect(d.departments.find((x) => x.id === 'rights')?.personId).toBe(priya.id);
+    const log = ActivityResponse.parse(await (await jana.request.get('/api/activity')).json());
+    expect(log.slice(0, 2).map((e) => [e.kind, e.text, e.dept])).toEqual([['Edit', 'Set Royalties to Suggest', 'Royalties'], ['Edit', 'Handed Rights to Priya Shah', 'Rights']]);
+    await jana.goto('/activity');
+    await expect(jana.getByText('Set Royalties to Suggest')).toBeVisible();
+  });
+
+  test('payees and other labels see no departments or activity', async ({ page, browser }) => {
+    await signIn(page, USERS.payee);
+    for (const path of ['/api/departments', '/api/activity']) expect((await page.request.get(path)).status()).toBe(403);
+    expect((await page.request.patch('/api/departments/royalties', { data: { autonomy: 'suggest' } })).status()).toBe(403);
+    const harbor = await (await browser.newContext()).newPage();
+    await signIn(harbor, USERS.harbor);
+    expect((await depts(harbor)).departments).toEqual([]);
+    const log = ActivityResponse.parse(await (await harbor.request.get('/api/activity')).json());
+    expect(log.every((e) => !e.text.includes('Royalties') && !e.id.startsWith('RUN-'))).toBe(true);
+    expect((await harbor.request.patch('/api/departments/royalties', { data: { autonomy: 'suggest' } })).status()).toBe(404);
+  });
+});
+
+test.describe('settings (live)', () => {
+  const theme = { background: '#0f1a1c', surface: '#13221f', brand: '#1d4a4f', primary: '#e2b33c', text: '#e8f0ef' }; // lint-allow-hex: tenant data from 5i
+
+  test('settings, routing and integrations come from the database; the minimum payout from payouts', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    const st = SettingsResponse.parse(await (await page.request.get('/api/settings')).json());
+    expect(st.config).toEqual({ name: 'Northline Records', country: 'US', profile: 'Small label', statementPeriod: 'Monthly, artists quarterly', minimumPayout: 2500, spendCap: 30000 });
+    expect(st.routing.map((r) => [r.type, r.cap])).toEqual([['money', 'Over $0'], ['signature', 'Always'], ['filing', 'Always'], ['public', 'Always'], ['plan', 'Over $250']]);
+    expect(st.integrations.find((i) => i.id === 'accounting')).toMatchObject({ state: 'err', status: 'Token expired' });
+    const res = await page.request.post('/api/settings/integrations/soundexchange/connect');
+    expect(res.status()).toBe(409);
+    expect((await res.json()).message).toBe('Connecting SoundExchange needs its account set up first. It arrives with Stage 1.');
+  });
+
+  test('a label reads its licensee’s theme but can’t publish it; the licensee’s owner can, checked for contrast', async ({ page, browser }) => {
+    await signIn(page, USERS.owner);
+    const t = ThemeResponse.parse(await (await page.request.get('/api/settings/theme')).json());
+    expect(t).toMatchObject({ theme, canPublish: false, published: null, tenant: { name: 'Harbor Sound', subTenants: [{ name: 'Harbor Sound', artists: 1 }, { name: 'Northline Records', artists: 3 }] } });
+    expect((await page.request.post('/api/settings/theme', { data: { theme } })).status()).toBe(403);
+
+    const lic = await (await browser.newContext()).newPage();
+    await signIn(lic, USERS.licensee);
+    expect((await lic.request.post('/api/settings/theme', { data: { theme: { ...theme, text: '#1a1a1a' } } })).status()).toBe(409); // lint-allow-hex: test data
+    await lic.goto('/settings/white-label');
+    await lic.getByLabel('Primary action', { exact: true }).fill('#f0c050'); // lint-allow-hex: test data
+    await lic.getByRole('button', { name: 'Publish theme' }).click();
+    await expect(lic.getByRole('status').filter({ hasText: 'Published for Harbor Sound' })).toBeVisible();
+    const after = ThemeResponse.parse(await (await page.request.get('/api/settings/theme')).json());
+    expect(after.theme.primary).toBe('#f0c050'); // lint-allow-hex: test data
+    expect(after.published?.by).toBe('e2e-licensee');
+  });
+
+  test('payees and other labels', async ({ page, browser }) => {
+    await signIn(page, USERS.payee);
+    for (const path of ['/api/settings', '/api/settings/theme']) expect((await page.request.get(path)).status()).toBe(403);
+    const harbor = await (await browser.newContext()).newPage();
+    await signIn(harbor, USERS.harbor);
+    const st = SettingsResponse.parse(await (await harbor.request.get('/api/settings')).json());
+    expect(st.config.name).toBe('Harbor Sound');
+    expect(st.integrations).toEqual([]);
   });
 });
