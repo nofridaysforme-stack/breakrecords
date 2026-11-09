@@ -37,5 +37,6 @@ export async function sendSignInLink(email: string, url: string): Promise<void> 
     subject: 'Your sign-in link for Break Records',
     text: `Sign in to Break Records:\n\n${link}\n\nThis link works once and expires in 15 minutes. If you didn't ask for it, ignore this email.`,
   });
-  if (error) throw new Error(`Resend rejected the email: ${error.name}`);
+  // The reason (never the link) goes to the server log, so a rejected key or sender is easy to spot.
+  if (error) throw new Error(`Resend rejected the email: ${error.name}: ${error.message}`);
 }
