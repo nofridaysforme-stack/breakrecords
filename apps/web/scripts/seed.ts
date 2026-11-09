@@ -19,7 +19,10 @@ if (!url || process.env.BR_ALLOW_SEED !== '1') {
 
 // Who can sign in to the sample world. E2E addresses receive links in the test mailbox.
 const PEOPLE = (process.env.SEED_EMAILS ?? 'jana@northline.example:northline:owner,e2e-owner@northline.example:northline:owner,e2e-harbor@harbor.example:harbor-sound:owner,e2e-payee@northline.example:northline:payee:marco-dela,e2e-licensee@harbor.example:harbor-sound-licensee:owner')
-  .split(',').map((s) => { const [email, tenant, role, party] = s.split(':'); return { email: email.toLowerCase(), tenant, role, party: party ?? null }; });
+  .split(',').map((s) => { const [email, tenant, role, party] = s.split(':'); return { email: email.toLowerCase(), tenant, role, party: (party ?? null) as string | null }; })
+  // Real people who should own the sample label on staging (comma-separated addresses).
+  .concat((process.env.SEED_OWNER_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean)
+    .map((email) => ({ email, tenant: 'northline', role: 'owner', party: null })));
 
 const DUE: Record<string, string> = { apr_payout_oct: '2026-11-10', apr_producer: '2026-11-09', apr_mlc: '2026-11-12', apr_grant: '2026-11-15' };
 

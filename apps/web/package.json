@@ -11,7 +11,8 @@
     "lint:copy": "node scripts/lint-copy.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "tsx scripts/seed.ts",
+    "gate": "tsx scripts/stage0-gate.ts"
   },
   "dependencies": {
     "lucide-react": "0.511.0",
