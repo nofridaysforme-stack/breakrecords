@@ -62,8 +62,22 @@ jobs:
         run: |
           test -n "$APP_DB_PASSWORD" || { echo "Add the STAGING_APP_DB_PASSWORD secret to the staging environment."; exit 1; }
           pnpm --filter @breakrecords/db migrate
-          # The app role owns nothing; it gets a password here, never in a migration.
-          echo "ALTER ROLE br_app LOGIN PASSWORD :'pw';" | psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -v pw="$APP_DB_PASSWORD"
+          # The app role owns nothing; it gets a password here, never in a migration. Re-setting
+          # an unchanged password makes Supabase's pooler drop the app's open connections, so it's
+          # set only when signing in with it fails (first run, or after the secret is changed).
+          APP_URL=$(python3 - <<'PY'
+          import os, urllib.parse as u
+          p = u.urlsplit(os.environ["MIGRATION_DATABASE_URL"])
+          user = "br_app" + ("." + p.username.split(".", 1)[1] if "." in (p.username or "") else "")
+          pw = u.quote(os.environ["APP_DB_PASSWORD"], safe="")
+          print(u.urlunsplit(p._replace(netloc=user + ":" + pw + "@" + p.hostname + ":" + str(p.port or 5432))))
+          PY
+          )
+          if psql "$APP_URL" -tAc 'SELECT 1' >/dev/null 2>&1; then
+            echo "br_app already signs in with STAGING_APP_DB_PASSWORD; password unchanged."
+          else
+            echo "ALTER ROLE br_app LOGIN PASSWORD :'pw';" | psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -v pw="$APP_DB_PASSWORD"
+          fi
 
       - name: Seed the sample world
         if: env.SKIP != '1' && (env.ACTION == 'seed' || env.ACTION == 'migrate-seed-gate')

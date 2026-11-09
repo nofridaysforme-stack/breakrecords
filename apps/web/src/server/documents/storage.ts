@@ -43,7 +43,10 @@ export class StorageNotConfigured extends Error {
 }
 
 function s3(): DocumentStore | null {
-  const { DOCUMENTS_S3_ENDPOINT: endpoint, DOCUMENTS_S3_REGION: region, DOCUMENTS_S3_BUCKET: bucket, DOCUMENTS_S3_ACCESS_KEY_ID: id, DOCUMENTS_S3_SECRET_ACCESS_KEY: secret } = process.env;
+  // Settings pasted into a dashboard often carry a stray space, line break or quotes; any of
+  // those makes the signed request invalid, so they're stripped.
+  const env = (k: string) => (process.env[k] ?? '').trim().replace(/^["']|["']$/g, '').trim();
+  const [endpoint, region, bucket, id, secret] = ['DOCUMENTS_S3_ENDPOINT', 'DOCUMENTS_S3_REGION', 'DOCUMENTS_S3_BUCKET', 'DOCUMENTS_S3_ACCESS_KEY_ID', 'DOCUMENTS_S3_SECRET_ACCESS_KEY'].map(env);
   if (!endpoint || !bucket || !id || !secret) return null;
   const aws = new AwsClient({ accessKeyId: id, secretAccessKey: secret, region: region || 'us-east-1', service: 's3' });
   const url = (key: string) => `${endpoint.replace(/\/$/, '')}/${encodeURIComponent(bucket)}/${key.split('/').map(encodeURIComponent).join('/')}`;
@@ -52,7 +55,7 @@ function s3(): DocumentStore | null {
     async put(key, body, contentType) {
       let res: Response;
       try { res = await aws.fetch(url(key), { method: 'PUT', body: body as BodyInit, headers: { 'content-type': contentType } }); }
-      catch (e) { console.error('Document storage unreachable', (e as Error).message); throw new StorageRefused('Couldn’t reach document storage. Check DOCUMENTS_S3_ENDPOINT in Vercel.'); }
+      catch (e) { console.error('Document storage request failed', (e as Error).name); throw new StorageRefused('Couldn’t reach document storage. Check the DOCUMENTS_S3_ settings in Vercel for typos.'); }
       if (!res.ok) throw await refused(res, 'file');
     },
     async get(key) {
