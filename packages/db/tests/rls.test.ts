@@ -539,7 +539,7 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
     let admin = '';
     beforeAll(async () => {
       [{ id: admin }] = await owner`INSERT INTO users (email) VALUES ('staff@indie.test') RETURNING id`;
-      await owner`INSERT INTO platform_admins (email) VALUES ('staff@indie.test')`;
+      await owner`INSERT INTO platform_admins (email) VALUES ('staff@indie.test') ON CONFLICT DO NOTHING`;
     });
 
     it('only staff make, list and revoke codes; the app role can’t read the tables', async () => {
