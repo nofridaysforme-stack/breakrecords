@@ -28,6 +28,8 @@ Copy each value straight into the setting it's for, then close the window.
 
 GitHub only offers **Run workflow** for workflows that are on `main`. Merge the pull request that adds `.github/workflows/staging.yml` before step 3. (Until staging is set up, the workflow skips itself, so merging it changes nothing.)
 
+Check the default branch is `main`: **Settings → General → Default branch**. If it shows anything else, click the two-arrows button beside it, choose `main`, **Update**, then confirm. Without this the **Run workflow** button doesn't appear.
+
 ## Step 1. Supabase project (you)
 
 1. supabase.com → your organization (Pro) → **New project**.
@@ -88,7 +90,7 @@ If you no longer have the database password, or it has symbols in it: Supabase �
 
 1. Go to https://github.com/nofridaysforme-stack/breakrecords
 2. Click **Settings** in the row of tabs near the top (gear icon, far right). If you don't see it, click the **…** at the end of the tab row.
-3. In the left-hand list, under **Code and automation**, click **Environments**.
+3. In the left-hand list, under **Code, planning, and automation**, click **Environments** (between Planning and Codespaces).
 4. Click **New environment**.
 5. In the **Name** box type `staging` (all lowercase, nothing else), then click **Configure environment**.
 
