@@ -44,3 +44,14 @@ export const SAMPLE_MASTER_OWNER = 'Northline Records';
 export const SAMPLE_P_YEAR: Record<string, number> = {
   glasshouse: 2027, 'night-bus': 2025, 'night-bus-demo': 2025, 'static-hymn': 2025, 'velvet-hours': 2024, 'paper-moons': 2024,
 };
+
+// Shared with the seed: which songs have lyrics on file, whose writer shares are signed (5b:
+// Night Bus signed; Glasshouse 1 of 2, Kesi has, Marco hasn't), and each release's tracks.
+export const SAMPLE_LYRICS = new Set(['glasshouse', 'night-bus', 'velvet-hours']);
+export const SAMPLE_SIGNED = new Set(['night-bus', 'velvet-hours', 'paper-moons']);
+export const SAMPLE_SIGNED_BY = new Map([['glasshouse', 'Kesi Vale']]);
+export const SAMPLE_RELEASE_TRACKS: Record<string, { kind: 'single' | 'ep' | 'album'; date: string; tracks: string[] }> = {
+  rel_glasshouse: { kind: 'single', date: '2027-03-05', tracks: ['glasshouse'] },
+  rel_nightbus: { kind: 'ep', date: '2025-06-13', tracks: ['night-bus', 'static-hymn'] },
+  rel_velvet: { kind: 'album', date: '2024-09-20', tracks: ['velvet-hours', 'paper-moons'] },
+};

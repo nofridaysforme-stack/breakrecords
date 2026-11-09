@@ -1,7 +1,7 @@
 // Loads the Northline sample world into a database for local development, previews and
 // staging. Never production: it refuses unless BR_ALLOW_SEED=1, and it only ever writes the
 // sample tenants. Run with the owner connection: SEED_DATABASE_URL=... pnpm db:seed
-import { SAMPLE_MASTER_OWNER, SAMPLE_PEOPLE, SAMPLE_P_YEAR, SAMPLE_SONGS } from '../src/data/rightsDetails';
+import { SAMPLE_LYRICS, SAMPLE_MASTER_OWNER, SAMPLE_PEOPLE, SAMPLE_P_YEAR, SAMPLE_RELEASE_TRACKS, SAMPLE_SIGNED, SAMPLE_SIGNED_BY, SAMPLE_SONGS } from '../src/data/rightsDetails';
 import { connect } from '@breakrecords/db/client';
 import { approvals as items } from '../src/data/sample';
 import { approvalDetails, releases as runbooks } from '../src/data/fixtures';
@@ -99,16 +99,11 @@ const AGENT_NOTES: Record<string, string> = {
   'night-bus-demo': 'Demos often stay off stores.',
 };
 // Which songs have lyrics on file, and whose writer shares are signed (5b: Night Bus split sheet signed; Glasshouse 1 of 2).
-const LYRICS = new Set(['glasshouse', 'night-bus', 'velvet-hours']);
-const SIGNED = new Set(['night-bus', 'velvet-hours', 'paper-moons']);
-// The Glasshouse split sheet is 1 of 2 signed (5b): Kesi has, Marco hasn't.
-const SIGNED_BY = new Map([['glasshouse', 'Kesi Vale']]);
+const LYRICS = SAMPLE_LYRICS;
+const SIGNED = SAMPLE_SIGNED;
+const SIGNED_BY = SAMPLE_SIGNED_BY;
 const ARTIST_TYPE: Record<string, 'person' | 'group'> = { 'The Low Hours': 'group' };
-const RELEASE_TRACKS: Record<string, { kind: 'single' | 'ep' | 'album'; date: string; tracks: string[] }> = {
-  rel_glasshouse: { kind: 'single', date: '2027-03-05', tracks: ['glasshouse'] },
-  rel_nightbus: { kind: 'ep', date: '2025-06-13', tracks: ['night-bus', 'static-hymn'] },
-  rel_velvet: { kind: 'album', date: '2024-09-20', tracks: ['velvet-hours', 'paper-moons'] },
-};
+const RELEASE_TRACKS = SAMPLE_RELEASE_TRACKS;
 const ASSET_KIND = (name: string, kind: string) =>
   /cover/i.test(name) ? 'cover_art' : /press photo/i.test(name) ? 'press_photo' : /stems/i.test(name) ? 'stems'
   : /instrumental/i.test(name) ? 'instrumental' : /lyrics/i.test(name) ? 'lyrics' : /audio|wav/i.test(kind + name) ? 'master_audio' : 'document';

@@ -7,7 +7,7 @@ import * as R from './read';
 export type Endpoint = { path: string; schema: z.ZodType; module: Module };
 
 /** The API areas that flip from mock to live one at a time (strategy: "Flip modules with a flag"). */
-export const MODULES = ['approvals', 'catalog', 'contracts', 'roster', 'splits', 'statements', 'payouts', 'registrations', 'releases', 'funding', 'activity', 'settings'] as const;
+export const MODULES = ['approvals', 'catalog', 'contracts', 'roster', 'splits', 'statements', 'payouts', 'registrations', 'releases', 'funding', 'activity', 'settings', 'documents'] as const;
 export type Module = (typeof MODULES)[number];
 
 export const ENDPOINTS: Endpoint[] = [
@@ -36,6 +36,7 @@ export const ENDPOINTS: Endpoint[] = [
   { path: '/api/rights/registrations', schema: R.RegistrationsResponse, module: 'registrations' },
   { path: '/api/rights/unclaimed', schema: R.UnclaimedResponse, module: 'registrations' },
   { path: '/api/rights/claims', schema: R.ProfileClaimsResponse, module: 'registrations' },
+  { path: '/api/rights/documents', schema: R.DocumentsResponse, module: 'documents' },
   { path: '/api/funding', schema: R.FundingResponse, module: 'funding' },
   { path: '/api/funding/offers', schema: R.OffersResponse, module: 'funding' },
   { path: '/api/departments', schema: R.DepartmentsResponse, module: 'activity' },
