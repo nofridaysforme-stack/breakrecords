@@ -25,6 +25,9 @@ const PEOPLE = (process.env.SEED_EMAILS ?? 'jana@northline.example:northline:own
   .concat((process.env.SEED_OWNER_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean)
     .map((email) => ({ email, tenant: 'northline', role: 'owner', party: null })));
 
+// Indie SRVCS staff, who make invite codes: the sample owner and every real staging owner.
+const STAFF = ['jana@northline.example', ...(process.env.SEED_OWNER_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean)];
+
 const DUE: Record<string, string> = { apr_payout_oct: '2026-11-10', apr_producer: '2026-11-09', apr_mlc: '2026-11-12', apr_grant: '2026-11-15' };
 
 async function main() {
@@ -47,6 +50,7 @@ async function main() {
       await tx`INSERT INTO allowlist (email, tenant_id, role, party_slug) VALUES (${p.email}, ${ids[p.tenant]}, ${p.role}, ${p.party})
         ON CONFLICT (email, tenant_id) DO UPDATE SET role = EXCLUDED.role, party_slug = EXCLUDED.party_slug`;
     }
+    for (const email of STAFF) await tx`INSERT INTO platform_admins (email) VALUES (${email}) ON CONFLICT DO NOTHING`;
 
     // Payouts and statements point at parties, recordings and split versions, and batches at approvals, so they go first.
     for (const t of [ids.northline, ids['harbor-sound']]) {
@@ -84,7 +88,7 @@ async function main() {
     await seedSettings(tx, ids.northline, ids['harbor-sound'], licensee);
     await seedHarborPayouts(tx, ids['harbor-sound']);
   });
-  console.log(`Seeded Northline and Harbor Sound; ${PEOPLE.length} people allowlisted.`);
+  console.log(`Seeded Northline and Harbor Sound; ${PEOPLE.length} people allowlisted; ${STAFF.length} staff.`);
   await sql.end();
 }
 

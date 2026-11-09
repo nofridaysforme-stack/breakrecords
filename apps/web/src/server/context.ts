@@ -21,7 +21,7 @@ export function authRequired(): boolean {
   return on;
 }
 
-export type RequestContext = { userId: string; email: string; tenantId: string; tenantName: string; role: Membership['role']; tenants: Membership[] };
+export type RequestContext = { userId: string; email: string; tenantId: string; tenantName: string; tenantKind: Membership['kind']; role: Membership['role']; tenants: Membership[] };
 
 const TENANT_COOKIE = 'br_tenant';
 
@@ -35,7 +35,7 @@ export const getContext = cache(async (): Promise<RequestContext | null> => {
   if (!tenants.length) return null;
   const wanted = (await cookies()).get(TENANT_COOKIE)?.value;
   const t = tenants.find((m) => m.tenantId === wanted) ?? tenants[0];
-  return { userId, email, tenantId: t.tenantId, tenantName: t.name, role: t.role, tenants };
+  return { userId, email, tenantId: t.tenantId, tenantName: t.name, tenantKind: t.kind, role: t.role, tenants };
 });
 
 /** For pages: the context, or a redirect to sign in. */

@@ -3,18 +3,20 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, CircleAlert, MessageSquare } from 'lucide-react';
+import { ChevronDown, CircleAlert, KeyRound, MessageSquare } from 'lucide-react';
 import { footerNav, isActive, primaryNav } from './nav';
 import { useShellUI } from './ShellUI';
+import { useWorkspace } from './Workspace';
 import { useDecisions } from '@/data/decisions';
 import s from './Sidebar.module.css';
 
-type Props = { labelName: string; tenants?: { id: string; name: string; current: boolean }[]; approvalIds: string[] };
+type Props = { labelName: string; staff?: boolean; tenants?: { id: string; name: string; current: boolean }[]; approvalIds: string[] };
 
-export function Sidebar({ labelName, tenants = [], approvalIds }: Props) {
+export function Sidebar({ labelName, staff = false, tenants = [], approvalIds }: Props) {
   const pathname = usePathname() ?? '/';
   const approvalsCount = useDecisions().openCount(approvalIds);
   const { openPanel } = useShellUI();
+  const { isArtist } = useWorkspace();
 
   return (
     <aside className={s.sidebar} aria-label="Sidebar">
@@ -27,7 +29,7 @@ export function Sidebar({ labelName, tenants = [], approvalIds }: Props) {
       <LabelSwitcher labelName={labelName} tenants={tenants} />
 
       <nav aria-label="Primary" className={s.nav}>
-        {primaryNav.map((item) => {
+        {primaryNav.filter((item) => !(isArtist && item.label === 'Roster')).map((item) => {
           const Icon = item.icon;
           if (item.locked) {
             return (
@@ -66,7 +68,7 @@ export function Sidebar({ labelName, tenants = [], approvalIds }: Props) {
           <MessageSquare className={s.icon} size={18} aria-hidden="true" />
           <span className={s.label}>Ask the Label Head</span>
         </button>
-        {footerNav.map((item) => {
+        {[...footerNav, ...(staff ? [{ label: 'Invite codes', href: '/admin/invite-codes', match: '/admin', icon: KeyRound }] : [])].map((item) => {
           const Icon = item.icon;
           return (
             <Link
@@ -91,6 +93,7 @@ function LabelSwitcher({ labelName, tenants }: { labelName: string; tenants: { i
   const [open, setOpen] = useState(false);
   const [error, setError] = useState('');
   const others = tenants.filter((t) => !t.current);
+  const { words } = useWorkspace();
   const choose = async (id: string) => {
     setError('');
     const res = await fetch('/api/session/tenant', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tenantId: id }) }).catch(() => null);
@@ -102,7 +105,7 @@ function LabelSwitcher({ labelName, tenants }: { labelName: string; tenants: { i
       <button type="button" className={s.switcher} aria-expanded={others.length ? open : undefined} aria-controls={others.length ? 'label-list' : undefined}
         onClick={() => others.length && setOpen((o) => !o)}>
         <span>
-          <span className={s.switcherKicker}>Label</span>
+          <span className={s.switcherKicker}>{words.kicker}</span>
           <span className={s.switcherName}>{labelName}</span>
           <span className="visually-hidden">{others.length ? ', switch label' : ''}</span>
           <span className={s.switcherInitial} aria-hidden="true">{labelName.charAt(0)}</span>

@@ -389,3 +389,19 @@ export const SetAiAssistCommand = z.object({ on: z.boolean() }).strict();
 export type DocumentsResponse = z.infer<typeof DocumentsResponse>;
 export type DocVersion = z.infer<typeof DocVersion>;
 export type DocReview = z.infer<typeof DocReview>;
+
+// ---------- Invite codes (Indie SRVCS staff only; not a label endpoint) ----------
+
+export const InviteCode = z.object({
+  id: z.string(), hint: z.string(), note: z.string(), maxUses: z.number().int().positive(), uses: z.number().int().nonnegative(),
+  expires: z.string().nullable(), status: z.enum(['active', 'used_up', 'expired', 'revoked']), created: z.string(), signedUp: z.array(z.string()),
+});
+export const InviteCodesResponse = z.object({ codes: z.array(InviteCode) });
+export const CreateInviteCodeCommand = z.object({
+  note: z.string().trim().min(1).max(120),
+  maxUses: z.number().int().min(1).max(1000),
+  expiresInDays: z.number().int().min(1).max(365).nullable(),
+}).strict();
+/** The new code is in the response once, and never again. */
+export const CreatedInviteCode = InviteCodesResponse.extend({ code: z.string() });
+export type InviteCodesResponse = z.infer<typeof InviteCodesResponse>;

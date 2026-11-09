@@ -1,7 +1,10 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { test, expect } from '@playwright/test';
 import { ActivityResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
+import { MAILBOX } from '../../playwright.live.config';
 
 // Live mode (Postgres + sign-in + approvals module live). Stage 0 gate: screens run on the
 // live API, and cross-tenant reads fail.
@@ -753,14 +756,14 @@ test('⌘K searches the signed-in label’s own data', async ({ page, browser })
 
 test('onboarding answers are saved as you go, and finishing sets the label up within each department’s limits', async ({ page }) => {
   await signIn(page, USERS.owner);
-  const answers = { profile: 'band', name: 'Northline Records', country: 'Canada', distributor: 'TuneCore', catalogFile: null, pro: { status: 'affiliated', org: 'SOCAN' }, autonomy: 'act_within_limits' };
+  const answers = { profile: 'small_label', name: 'Northline Records', country: 'Canada', distributor: 'TuneCore', catalogFile: null, pro: { status: 'affiliated', org: 'SOCAN' }, autonomy: 'act_within_limits' };
   expect((await page.request.put('/api/onboarding', { data: { answers } })).status()).toBe(200);
   expect(OnboardingResponse.parse(await (await page.request.get('/api/onboarding')).json())).toMatchObject({ answers: { distributor: 'TuneCore' }, completed: false });
   await page.goto('/onboarding/name');
   await expect(page.getByLabel('Name')).toHaveValue('Northline Records'); // read back from the server
   expect(OnboardingResponse.parse(await (await page.request.put('/api/onboarding', { data: { answers, complete: true } })).json()).completed).toBe(true);
   const st = SettingsResponse.parse(await (await page.request.get('/api/settings')).json());
-  expect(st.config).toMatchObject({ profile: 'Band', country: 'CA' });
+  expect(st.config).toMatchObject({ profile: 'Small label', country: 'CA' });
   const d = DepartmentsResponse.parse(await (await page.request.get('/api/departments')).json()).departments;
   expect(d.find((x) => x.id === 'metadata')?.autonomy).toBe('act_within_limits');
   expect(d.find((x) => x.id === 'legal')?.autonomy).toBe('draft_and_wait'); // signatures always wait for you
@@ -830,4 +833,48 @@ test('documents: the label’s team prepares and downloads; other labels and pay
   await signIn(priya, 'priya@northline.example');
   expect((await priya.request.post('/api/rights/documents', { data: { kind: 'label_copy', subject: 'release', id: 'rel_nightbus' } })).status()).toBe(200);
   expect((await priya.request.post('/api/rights/documents/ai', { data: { on: true } })).status()).toBe(403);
+});
+
+test('sign-up: staff make a code; a new artist signs up, is taken through onboarding, and gets their own personal label', async ({ page, browser }) => {
+  await signIn(page, USERS.jana); // Indie SRVCS staff in the sample world
+  const made = await page.request.post('/api/admin/invite-codes', { data: { note: 'E2E solo artist', maxUses: 1, expiresInDays: 7 } });
+  expect(made.status()).toBe(200);
+  const { code } = (await made.json()) as { code: string };
+  expect(code).toMatch(/^INDIE-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+
+  const artist = await (await browser.newContext()).newPage();
+  const email = `e2e-solo-${Date.now()}@artist.example`;
+  await artist.goto(`/sign-up?code=${code}`);
+  await expect(artist.getByLabel('Invite code')).toHaveValue(code);
+  await artist.getByLabel('Email').fill(email);
+  await artist.getByRole('button', { name: 'Create my account' }).click();
+  await expect(artist.getByRole('status')).toContainText('Check your email for a sign-in link');
+  const { url } = JSON.parse(readFileSync(path.join(MAILBOX, `${email}.json`), 'utf8')) as { url: string };
+  await artist.goto(url);
+  await artist.getByRole('button', { name: 'Sign in' }).click();
+  await expect(artist).toHaveURL(/\/onboarding/); // a new workspace is set up first
+  await artist.goto('/approvals');
+  await expect(artist).toHaveURL(/\/onboarding/);
+
+  const answers = { profile: 'solo', name: 'Rue Nova', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_yet' }, autonomy: 'draft_and_wait' };
+  expect((await artist.request.put('/api/onboarding', { data: { answers, complete: true } })).status()).toBe(200);
+  await artist.goto('/');
+  await expect(artist).toHaveURL(/\/$/);
+  const sidebar = artist.getByRole('complementary', { name: 'Sidebar' });
+  await expect(sidebar.getByText('Personal label', { exact: true })).toBeVisible();
+  await expect(sidebar.getByText('Rue Nova', { exact: true })).toBeVisible();
+  await expect(sidebar.getByRole('link', { name: 'Roster' })).toHaveCount(0);
+  await expect(sidebar.getByRole('link', { name: 'Invite codes' })).toHaveCount(0);
+  expect((await (await artist.request.get('/api/approvals')).json()).items).toHaveLength(0); // nothing of anyone else's
+  expect((await artist.request.get('/api/admin/invite-codes')).status()).toBe(403);
+
+  // The code had one use.
+  const late = await (await browser.newContext()).newPage();
+  await late.goto(`/sign-up?code=${code}`);
+  await late.getByLabel('Email').fill('late@artist.example');
+  await late.getByRole('button', { name: 'Create my account' }).click();
+  await expect(late.getByRole('main').getByRole('alert')).toContainText('used up');
+  await page.goto('/admin/invite-codes');
+  await expect(page.getByRole('complementary', { name: 'Sidebar' }).getByRole('link', { name: 'Invite codes' })).toBeVisible(); // staff only
+  await expect(page.getByRole('row', { name: /E2E solo artist/ })).toContainText(email);
 });

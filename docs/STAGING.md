@@ -238,6 +238,17 @@ Also add `documents` to the end of `BR_LIVE_MODULES` if it isn't there.
 
 `BR_AI` is the platform switch: remove it, or set it to anything else, and AI review is off for every label. The review only suggests: it never changes a document or the catalog, and addresses and email addresses aren't sent.
 
+## Step 9. Invite codes: letting new people sign up (you)
+
+Indie SRVCS is invite-only. Anyone listed in `STAGING_OWNER_EMAILS` is Indie SRVCS staff after the next `seed` run, and can make invite codes.
+
+1. Run **Actions → Staging → Run workflow → `seed`** once, so you become staff.
+2. Sign in. In the left-hand menu, near the bottom, click **Invite codes**.
+3. Fill in **Who it’s for** (for example "Rue Nova, solo artist"), how many **Uses**, and when it **Expires**. Click **Make a code**.
+4. Click **Copy sign-up link** and send it to them. The code is shown only once.
+
+They open the link, enter their email, and get a sign-in link. Their first sign-in creates their own workspace and takes them through setup: what kind of artist or label they are, their name, country, PRO and how much the agents may do. Solo artists and bands get a "personal label"; labels get a label.
+
 ## Later
 
 - After merging a migration: the Staging workflow migrates staging by itself; Vercel deploys the same push.

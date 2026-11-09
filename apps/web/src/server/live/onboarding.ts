@@ -32,6 +32,8 @@ export function liveSaveOnboarding(ctx: RequestContext, answers: Answers, comple
         ON CONFLICT (tenant_id) DO UPDATE SET profile = EXCLUDED.profile${country ? tx`, country = EXCLUDED.country` : tx``}`;
       await tx`UPDATE departments SET autonomy = CASE WHEN ${answers.autonomy}::autonomy_level = 'act_within_limits' AND NOT can_act THEN 'draft_and_wait' ELSE ${answers.autonomy}::autonomy_level END
         WHERE phase = 1`;
+      // Owners name the workspace and set what kind it is (artist or label) from the profile.
+      if (ctx.role === 'owner') await tx`SELECT app_apply_onboarding(${answers.name}, ${answers.profile})`;
       await tx`UPDATE onboarding SET completed_at = now(), completed_by = ${ctx.userId} WHERE tenant_id = ${ctx.tenantId}`;
       await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
         VALUES (${ctx.tenantId}, ${'AUD-ONB-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'onboarding.completed', ${answers.profile}, ${tx.json({ autonomy: answers.autonomy, country: answers.country })})`;
@@ -39,4 +41,9 @@ export function liveSaveOnboarding(ctx: RequestContext, answers: Answers, comple
     const [r] = await tx<{ completed_at: Date | null }[]>`SELECT completed_at FROM onboarding`;
     return { answers, completed: !!r?.completed_at };
   });
+}
+
+/** A workspace made by sign-up goes through onboarding before anything else. */
+export function liveNeedsOnboarding(ctx: RequestContext): Promise<boolean> {
+  return withTenant(sql, ctx, async (tx) => (await tx<{ n: boolean }[]>`SELECT app_needs_onboarding() AS n`)[0].n);
 }

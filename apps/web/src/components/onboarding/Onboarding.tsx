@@ -142,7 +142,7 @@ export function Onboarding({ step }: { step: StepId }) {
       });
     case 'name':
       return shell({
-        title: answers.profile === 'solo' ? 'What name do you release under?' : 'What’s your label called?',
+        title: answers.profile === 'solo' ? 'What name do you release under?' : answers.profile === 'band' ? 'What’s your band called?' : 'What’s your label called?',
         lede: 'This shows on statements, contracts and anything I send for you.',
         body: (
           <div className={s.form}>

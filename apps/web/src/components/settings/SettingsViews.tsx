@@ -9,6 +9,7 @@ import { formatMoney } from '@breakrecords/core/money';
 import type { getDepartments, getSettings } from '@/data/api';
 import type { IntegrationState, SettingsSection } from '@/data/ops';
 import { useShellUI, type Density } from '@/components/shell/ShellUI';
+import { useWorkspace } from '@/components/shell/Workspace';
 import o from '@/components/ops/Ops.module.css';
 import s from './Settings.module.css';
 
@@ -71,6 +72,7 @@ function Integrations({ items }: { items: Data['integrations'] }) {
 /** 5h and the undrawn Settings sections, built from the same parts. */
 export function SettingsSectionView({ data, section, depts }: { data: Data; section: SettingsSection; depts: Awaited<ReturnType<typeof getDepartments>>['departments'] }) {
   const c = data.config;
+  const { words } = useWorkspace();
   switch (section) {
     case 'routing':
       return (
@@ -141,7 +143,7 @@ export function SettingsSectionView({ data, section, depts }: { data: Data; sect
         <section className={o.section} aria-labelledby="pf-h">
           <h1 id="pf-h" className={o.sectionTitleLg}>Profile</h1>
           <dl className={`${o.kv} ${o.card}`} style={{ display: 'grid', padding: '18px 20px', gridTemplateColumns: '160px minmax(0, 1fr)' }}>
-            <dt>Label</dt><dd>{c.name}</dd>
+            <dt>{words.kicker}</dt><dd>{c.name}</dd>
             <dt>Country</dt><dd>{c.country}</dd>
             <dt>Profile</dt><dd>{c.profile}</dd>
             <dt>Default autonomy</dt><dd>Draft and wait</dd>
@@ -200,6 +202,7 @@ function DensityControl() {
 
 /** Owners let people sign in. Nothing is emailed: the person signs in with the address you add. */
 function Invites({ initial, payees }: { initial: Data['invites']; payees: Data['payeeOptions'] }) {
+  const { words } = useWorkspace();
   const [list, setList] = useState(initial);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'team' | 'payee'>('team');
@@ -226,7 +229,7 @@ function Invites({ initial, payees }: { initial: Data['invites']; payees: Data['
         <label className={o.field}>Email<input className={o.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" required /></label>
         <label className={o.field}>Role
           <select className={o.input} value={role} onChange={(e) => setRole(e.target.value as 'team' | 'payee')}>
-            <option value="team">Team: works in the label</option>
+            <option value="team">Team: {words.member}</option>
             <option value="payee">Payee: sees their own statements and splits</option>
           </select>
         </label>

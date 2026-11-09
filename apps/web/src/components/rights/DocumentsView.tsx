@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { StatusPill } from '@/components/ui/Status';
 import o from '@/components/ops/Ops.module.css';
 import s from './Documents.module.css';
+import { useWorkspace } from '@/components/shell/Workspace';
 
 type Subject = DocumentsResponse['subjects'][number];
 type Slot = Subject['docs'][number];
@@ -28,6 +29,7 @@ function DocStatus({ slot }: { slot: Slot }) {
 
 /** Rights → Documents: prepare, download and review the paperwork for every artist on the label. */
 export function DocumentsView({ data }: { data: DocumentsResponse }) {
+  const { words } = useWorkspace();
   const [view, setView] = useState(data);
   const [artist, setArtist] = useState('all');
   const [open, setOpen] = useState<string | null>(null);
@@ -59,7 +61,7 @@ export function DocumentsView({ data }: { data: DocumentsResponse }) {
       <div className={o.head}>
         <div>
           <PageTitle>Documents</PageTitle>
-          <p className={o.sub}>Split sheets, registration packets, copyright worksheets and label copy for every artist on the label, prepared from your catalog. You review and submit them.</p>
+          <p className={o.sub}>Split sheets, registration packets, copyright worksheets and label copy for {words.catalogOf}, prepared from your catalog. You review and submit them.</p>
         </div>
         <label className={s.filter}>
           <span className={s.filterLabel}>Artist</span>
