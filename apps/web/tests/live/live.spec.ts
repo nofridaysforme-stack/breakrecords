@@ -702,6 +702,13 @@ test.describe('settings (live)', () => {
     const after = ThemeResponse.parse(await (await page.request.get('/api/settings/theme')).json());
     expect(after.theme.primary).toBe('#f0c050'); // lint-allow-hex: test data
     expect(after.published?.by).toBe('e2e-licensee');
+    // Once published, everyone in the licensee's labels gets it, payees included.
+    await page.goto('/');
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#f0c050'); // lint-allow-hex: test data
+    const marco = await (await browser.newContext()).newPage();
+    await signIn(marco, USERS.payee);
+    expect(await marco.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#f0c050'); // lint-allow-hex: test data
+    await expect(marco.getByText('Paid by Northline Records')).toBeVisible();
   });
 
   test('payees and other labels', async ({ page, browser }) => {
@@ -738,7 +745,8 @@ test('⌘K searches the signed-in label’s own data', async ({ page, browser })
   expect((await hits(harbor, 'tidal')).map((i) => i.label)).toContain('Tidal Lines');
   expect((await hits(harbor, 'glasshouse')).filter((i) => i.group !== 'Go to')).toEqual([]);
   await harbor.goto('/');
-  await harbor.keyboard.press('Control+k');
-  await harbor.getByRole('combobox', { name: 'Search or tell me a goal' }).fill('tidal');
+  const bar = harbor.getByRole('combobox', { name: 'Search or tell me a goal' });
+  await expect(async () => { await harbor.keyboard.press('Control+k'); await expect(bar).toBeVisible({ timeout: 1000 }); }).toPass(); // the shortcut works once the page is interactive
+  await bar.fill('tidal');
   await expect(harbor.getByRole('option', { name: /Tidal Lines/ }).first()).toBeVisible();
 });

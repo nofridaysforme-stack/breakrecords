@@ -3,6 +3,7 @@ import { AppShell } from '@/components/shell/AppShell';
 import { label } from '@/data/sample';
 import { approvalIds } from '@/data/api';
 import { authRequired, requireContext } from '@/server/context';
+import { PublishedTheme } from '@/server/publishedTheme';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   let labelName = label.name;
@@ -13,8 +14,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     labelName = ctx.tenantName;
   }
   return (
-    <AppShell labelName={labelName} approvalIds={await approvalIds()}>
-      {children}
-    </AppShell>
+    <>
+      <PublishedTheme />
+      <AppShell labelName={labelName} approvalIds={await approvalIds()}>
+        {children}
+      </AppShell>
+    </>
   );
 }
