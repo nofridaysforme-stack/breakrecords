@@ -7,8 +7,14 @@ export type Sql = postgres.Sql;
 export type Tx = postgres.TransactionSql;
 export type Ctx = { userId: string; tenantId: string };
 
+/**
+ * A connection pool. Through a transaction-mode pooler (Supabase's on port 6543) prepared
+ * statements don't survive between transactions, so they're off there. Every query that
+ * depends on the tenant setting runs inside one transaction (withTenant), so pooling is safe.
+ */
 export function connect(url: string, opts: postgres.Options<Record<string, postgres.PostgresType>> = {}): Sql {
-  return postgres(url, { max: 5, onnotice: () => {}, ...opts });
+  const pooled = /:6543(\/|$)/.test(url);
+  return postgres(url, { max: 5, onnotice: () => {}, ...(pooled ? { prepare: false } : {}), ...opts });
 }
 
 /** Runs `fn` as this user in this tenant. Rows from other tenants are invisible and unwritable. */

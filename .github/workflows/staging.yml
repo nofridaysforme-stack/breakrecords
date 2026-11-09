@@ -1,0 +1,80 @@
+# Staging, run by hand from the Actions tab (Run workflow). Never production: this workflow
+# only reads secrets from the "staging" environment, and the seed and gate scripts refuse to
+# run unless told they're on staging.
+#   migrate: apply the SQL migrations as the owner role, then set the app role's password.
+#   seed:    load the Northline sample world (replaces the sample tenants' rows).
+#   gate:    the Stage 0 gate: every contract endpoint live, cross-tenant reads refused, and
+#            nothing in the database reachable except through the app role.
+name: Staging
+
+on:
+  # A merge to main that adds a migration migrates staging straight away (Vercel deploys the
+  # same push; there is no pre-deploy step on Vercel, so this keeps the schema in step).
+  push:
+    branches: [main]
+    paths: ['packages/db/migrations/**']
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do
+        type: choice
+        options: [migrate, seed, gate, migrate-seed-gate]
+        default: gate
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 15
+    env:
+      STAGING_OWNER_DATABASE_URL: ${{ secrets.STAGING_OWNER_DATABASE_URL }}
+      STAGING_URL: ${{ vars.STAGING_URL }}
+      # On a push (a merged migration) the action is migrate.
+      ACTION: ${{ github.event_name == 'push' && 'migrate' || inputs.action }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Check the staging settings are there
+        run: |
+          if [ -z "$STAGING_OWNER_DATABASE_URL" ] && [ "${{ github.event_name }}" = push ]; then
+            echo "::notice::Staging isn't set up yet (no STAGING_OWNER_DATABASE_URL), so nothing to migrate."; echo "SKIP=1" >> "$GITHUB_ENV"; exit 0
+          fi
+          test -n "$STAGING_OWNER_DATABASE_URL" || { echo "Add the STAGING_OWNER_DATABASE_URL secret to the staging environment."; exit 1; }
+          if [ "$ACTION" = gate ] || [ "$ACTION" = migrate-seed-gate ]; then
+            test -n "$STAGING_URL" || { echo "Add the STAGING_URL variable to the staging environment."; exit 1; }
+          fi
+
+      - name: Migrate
+        if: env.SKIP != '1' && (env.ACTION == 'migrate' || env.ACTION == 'migrate-seed-gate')
+        env:
+          MIGRATION_DATABASE_URL: ${{ secrets.STAGING_OWNER_DATABASE_URL }}
+          APP_DB_PASSWORD: ${{ secrets.STAGING_APP_DB_PASSWORD }}
+        run: |
+          test -n "$APP_DB_PASSWORD" || { echo "Add the STAGING_APP_DB_PASSWORD secret to the staging environment."; exit 1; }
+          pnpm --filter @breakrecords/db migrate
+          # The app role owns nothing; it gets a password here, never in a migration.
+          echo "ALTER ROLE br_app LOGIN PASSWORD :'pw';" | psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -v pw="$APP_DB_PASSWORD"
+
+      - name: Seed the sample world
+        if: env.SKIP != '1' && (env.ACTION == 'seed' || env.ACTION == 'migrate-seed-gate')
+        env:
+          SEED_DATABASE_URL: ${{ secrets.STAGING_OWNER_DATABASE_URL }}
+          SEED_OWNER_EMAILS: ${{ vars.STAGING_OWNER_EMAILS }}
+          BR_ALLOW_SEED: '1'
+        run: pnpm --filter @breakrecords/web db:seed
+
+      - name: Stage 0 gate
+        if: env.SKIP != '1' && (env.ACTION == 'gate' || env.ACTION == 'migrate-seed-gate')
+        env:
+          BR_ALLOW_GATE: '1'
+        run: pnpm --filter @breakrecords/web gate
