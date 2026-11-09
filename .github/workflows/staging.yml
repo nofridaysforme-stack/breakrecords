@@ -8,6 +8,11 @@
 name: Staging
 
 on:
+  # A merge to main that adds a migration migrates staging straight away (Vercel deploys the
+  # same push; there is no pre-deploy step on Vercel, so this keeps the schema in step).
+  push:
+    branches: [main]
+    paths: ['packages/db/migrations/**']
   workflow_dispatch:
     inputs:
       action:
@@ -31,6 +36,8 @@ jobs:
     env:
       STAGING_OWNER_DATABASE_URL: ${{ secrets.STAGING_OWNER_DATABASE_URL }}
       STAGING_URL: ${{ vars.STAGING_URL }}
+      # On a push (a merged migration) the action is migrate.
+      ACTION: ${{ github.event_name == 'push' && 'migrate' || inputs.action }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -39,11 +46,16 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Check the staging settings are there
         run: |
+          if [ -z "$STAGING_OWNER_DATABASE_URL" ] && [ "${{ github.event_name }}" = push ]; then
+            echo "::notice::Staging isn't set up yet (no STAGING_OWNER_DATABASE_URL), so nothing to migrate."; echo "SKIP=1" >> "$GITHUB_ENV"; exit 0
+          fi
           test -n "$STAGING_OWNER_DATABASE_URL" || { echo "Add the STAGING_OWNER_DATABASE_URL secret to the staging environment."; exit 1; }
-          test -n "$STAGING_URL" || { echo "Add the STAGING_URL variable to the staging environment."; exit 1; }
+          if [ "$ACTION" = gate ] || [ "$ACTION" = migrate-seed-gate ]; then
+            test -n "$STAGING_URL" || { echo "Add the STAGING_URL variable to the staging environment."; exit 1; }
+          fi
 
       - name: Migrate
-        if: inputs.action == 'migrate' || inputs.action == 'migrate-seed-gate'
+        if: env.SKIP != '1' && (env.ACTION == 'migrate' || env.ACTION == 'migrate-seed-gate')
         env:
           MIGRATION_DATABASE_URL: ${{ secrets.STAGING_OWNER_DATABASE_URL }}
           APP_DB_PASSWORD: ${{ secrets.STAGING_APP_DB_PASSWORD }}
@@ -54,7 +66,7 @@ jobs:
           echo "ALTER ROLE br_app LOGIN PASSWORD :'pw';" | psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -v pw="$APP_DB_PASSWORD"
 
       - name: Seed the sample world
-        if: inputs.action == 'seed' || inputs.action == 'migrate-seed-gate'
+        if: env.SKIP != '1' && (env.ACTION == 'seed' || env.ACTION == 'migrate-seed-gate')
         env:
           SEED_DATABASE_URL: ${{ secrets.STAGING_OWNER_DATABASE_URL }}
           SEED_OWNER_EMAILS: ${{ vars.STAGING_OWNER_EMAILS }}
@@ -62,7 +74,7 @@ jobs:
         run: pnpm --filter @breakrecords/web db:seed
 
       - name: Stage 0 gate
-        if: inputs.action == 'gate' || inputs.action == 'migrate-seed-gate'
+        if: env.SKIP != '1' && (env.ACTION == 'gate' || env.ACTION == 'migrate-seed-gate')
         env:
           BR_ALLOW_GATE: '1'
         run: pnpm --filter @breakrecords/web gate
