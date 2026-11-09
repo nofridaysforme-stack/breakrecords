@@ -1,13 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { CircleAlert, Download, FileText, Sparkles } from 'lucide-react';
+import { CircleAlert, Download, FileText, ListChecks } from 'lucide-react';
 import type { DocumentsResponse } from '@breakrecords/contract';
 import { PageTitle } from '@/components/type/Type';
 import { Button } from '@/components/ui/Button';
 import { StatusPill } from '@/components/ui/Status';
 import o from '@/components/ops/Ops.module.css';
 import s from './Documents.module.css';
+import { useWorkspace } from '@/components/shell/Workspace';
 
 type Subject = DocumentsResponse['subjects'][number];
 type Slot = Subject['docs'][number];
@@ -28,6 +29,7 @@ function DocStatus({ slot }: { slot: Slot }) {
 
 /** Rights → Documents: prepare, download and review the paperwork for every artist on the label. */
 export function DocumentsView({ data }: { data: DocumentsResponse }) {
+  const { words } = useWorkspace();
   const [view, setView] = useState(data);
   const [artist, setArtist] = useState('all');
   const [open, setOpen] = useState<string | null>(null);
@@ -59,7 +61,7 @@ export function DocumentsView({ data }: { data: DocumentsResponse }) {
       <div className={o.head}>
         <div>
           <PageTitle>Documents</PageTitle>
-          <p className={o.sub}>Split sheets, registration packets, copyright worksheets and label copy for every artist on the label, prepared from your catalog. You review and submit them.</p>
+          <p className={o.sub}>Split sheets, registration packets, copyright worksheets and label copy for {words.catalogOf}, prepared from your catalog. You review and submit them.</p>
         </div>
         <label className={s.filter}>
           <span className={s.filterLabel}>Artist</span>
@@ -71,7 +73,7 @@ export function DocumentsView({ data }: { data: DocumentsResponse }) {
       </div>
 
       <section className={s.ai} aria-labelledby="ai-h">
-        <Sparkles size={18} aria-hidden="true" className={s.aiIcon} />
+        <ListChecks size={18} aria-hidden="true" className={s.aiIcon} />
         <div className={s.aiText}>
           <h2 id="ai-h" className={s.aiTitle}>AI review</h2>
           <p className={s.muted}>{view.ai.note}{view.ai.available && ' Names and shares are sent to Anthropic for the review; addresses and emails are not.'}</p>
@@ -148,7 +150,7 @@ export function DocumentsView({ data }: { data: DocumentsResponse }) {
                           )}
                           {d?.review && (
                             <div className={s.review}>
-                              <p className={s.reviewHead}><Sparkles size={14} aria-hidden="true" />AI suggestions, {d.review.at}. A person decides; nothing was changed.</p>
+                              <p className={s.reviewHead}><ListChecks size={14} aria-hidden="true" />AI suggestions, {d.review.at}. A person decides; nothing was changed.</p>
                               {d.review.findings.length ? (
                                 <ul className={s.gaps}>{d.review.findings.map((f, i) => <li key={i}><strong>{f.severity === 'problem' ? 'Likely problem:' : 'Worth checking:'}</strong> {f.message}</li>)}</ul>
                               ) : <p className={s.muted}>No problems found beyond the gaps above.</p>}

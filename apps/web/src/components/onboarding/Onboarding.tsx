@@ -20,25 +20,31 @@ const PANEL: Record<Autonomy, string> = {
   act_within_limits: 'With "Act within limits", I finish routine tasks under the spend caps you set. Money, signatures, filings and anything public still come to you.',
 };
 
-function summary(a: Answers): [string, string][] {
-  return [
+/** A real workspace (live) says what actually happened: nothing is connected or imported yet. */
+function summary(a: Answers, live = false): [string, string][] {
+  const rows: [string, string][] = [
     ['Profile', PROFILES.find((p) => p.id === a.profile)?.name ?? ''],
     ['Name', a.name || 'Not set yet'],
     ['Country', a.country],
-    ['Distributor', a.distributor ? 'Connected' : 'Skipped for now'],
-    ['Catalog', a.catalogFile ? '14 recordings imported' : 'Skipped for now'],
-    ['PRO', a.pro.status === 'affiliated' ? 'Affiliated' : a.pro.status === 'not_yet' ? 'Not yet' : 'Not sure'],
+    ['Distributor', live ? (a.distributor ?? 'Skipped for now') : a.distributor ? 'Connected' : 'Skipped for now'],
+    ['Catalog', live ? 'Later, when import is ready' : a.catalogFile ? '14 recordings imported' : 'Skipped for now'],
+    ['PRO', a.pro.status === 'affiliated' ? `Affiliated${a.pro.org ? `, ${a.pro.org}` : ''}` : a.pro.status === 'not_yet' ? 'Not yet' : 'Not sure'],
   ];
+  if (a.profile === 'band' && a.members?.length) rows.push(['Co-owners', `${a.members.length} invited`]);
+  return rows;
 }
+
+const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export function Onboarding({ step }: { step: StepId }) {
   const router = useRouter();
-  const { answers, set, complete } = useOnboarding();
+  const { answers, set, complete, live } = useOnboarding();
   const i = stepIndex(step);
   const go = async (to: number) => {
     if (to >= STEPS.length) await complete(); // finishing sets the label up from the answers
     try { sessionStorage.setItem(FOCUS_KEY, '1'); } catch { /* ignore */ }
-    router.push(to >= STEPS.length ? '/?state=empty' : `/onboarding/${STEPS[Math.max(0, to)].id}`);
+    const done = live && answers.profile === 'services' ? '/clients' : live ? '/' : '/?state=empty';
+    router.push(to >= STEPS.length ? done : `/onboarding/${STEPS[Math.max(0, to)].id}`);
   };
   const heading = useRef<HTMLHeadingElement>(null);
   // After Back or Continue, move focus to the new step's heading so screen readers
@@ -66,7 +72,7 @@ export function Onboarding({ step }: { step: StepId }) {
           <div className={s.setSoFar}>
             <h2 className={s.setLabel}>You&apos;ve set so far</h2>
             <dl className={s.setGrid}>
-              {summary(answers).map(([k, v]) => <div key={k} style={{ display: 'contents' }}><dt className={s.setKey}>{k}</dt><dd style={{ margin: 0 }}>{v}</dd></div>)}
+              {summary(answers, live).map(([k, v]) => <div key={k} style={{ display: 'contents' }}><dt className={s.setKey}>{k}</dt><dd style={{ margin: 0 }}>{v}</dd></div>)}
             </dl>
           </div>
           <div className={s.panelActions}>
@@ -142,13 +148,21 @@ export function Onboarding({ step }: { step: StepId }) {
       });
     case 'name':
       return shell({
-        title: answers.profile === 'solo' ? 'What name do you release under?' : 'What’s your label called?',
+        title: answers.profile === 'solo' ? 'What name do you release under?' : answers.profile === 'band' ? 'What’s your band called?' : 'What’s your label called?',
         lede: 'This shows on statements, contracts and anything I send for you.',
         body: (
           <div className={s.form}>
             <label className={s.field}>Name
               <input className={s.input} value={answers.name} onChange={(e) => set('name', e.target.value)} autoComplete="organization" />
             </label>
+            {answers.profile === 'band' && (
+              <label className={s.field}>Bandmates’ emails (optional)
+                <textarea className={s.input} style={{ height: 'auto', minHeight: 96, padding: 12 }} rows={3}
+                  defaultValue={(answers.members ?? []).join('\n')} placeholder={'one@example.com\ntwo@example.com'}
+                  onChange={(e) => set('members', e.target.value.split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter((x) => EMAIL.test(x)).slice(0, 10))} />
+                <span className={s.hint}>One per line. They become co-owners and sign in with their own email. {answers.members?.length ? `${answers.members.length} added.` : ''}</span>
+              </label>
+            )}
           </div>
         ),
       });
@@ -169,7 +183,7 @@ export function Onboarding({ step }: { step: StepId }) {
     case 'distributor':
       return shell({
         title: 'Who distributes your music now?',
-        lede: 'Connecting lets me import your statements and catalog. You can skip this and connect later.',
+        lede: live ? 'Tell me which one. Connecting it comes with catalog import, which is on its way; I’ll ask you then.' : 'Connecting lets me import your statements and catalog. You can skip this and connect later.',
         canSkip: () => { set('distributor', null); go(i + 1); },
         body: (
           <fieldset className={s.choices}>
@@ -185,9 +199,9 @@ export function Onboarding({ step }: { step: StepId }) {
     case 'catalog':
       return shell({
         title: 'Bring in your catalog.',
-        lede: 'Upload an export from your distributor (CSV or XLSX). I match recordings, songs and splits and show you anything I couldn’t place.',
-        canSkip: () => { set('catalogFile', null); go(i + 1); },
-        body: (
+        lede: live ? 'Catalog import is on its way. Skip this for now and I’ll ask you when it’s ready.' : 'Upload an export from your distributor (CSV or XLSX). I match recordings, songs and splits and show you anything I couldn’t place.',
+        canSkip: live ? undefined : () => { set('catalogFile', null); go(i + 1); },
+        body: live ? <p className={s.hint}>Nothing to do here yet. Continue.</p> : (
           <div className={s.drop}>
             <label className={s.field} style={{ alignItems: 'center' }}>
               <span>Choose a catalog file</span>
@@ -227,11 +241,14 @@ export function Onboarding({ step }: { step: StepId }) {
     case 'finish':
       return shell({
         title: `${answers.name || 'Your label'} is set up.`,
-        lede: 'Your agents are importing what you connected. Tell me a goal on Home and I’ll come back with a plan.',
+        lede: !live ? 'Your agents are importing what you connected. Tell me a goal on Home and I’ll come back with a plan.'
+          : answers.profile === 'services' ? 'Next, add your first client on the Clients page. Each client gets their own workspace.'
+          : answers.profile === 'band' && answers.members?.length ? 'Your bandmates can sign in with their emails now. Tell me a goal on Home and I’ll come back with a plan.'
+          : 'Tell me a goal on Home and I’ll come back with a plan.',
         next: 'Go to Home',
         body: (
           <dl className={s.summary}>
-            {[...summary(answers), ['Autonomy', ({ observe: 'Observe', suggest: 'Suggest', draft_and_wait: 'Draft and wait', act_within_limits: 'Act within limits' } as const)[answers.autonomy]] as [string, string]].map(([k, v]) => (
+            {[...summary(answers, live), ['Autonomy', ({ observe: 'Observe', suggest: 'Suggest', draft_and_wait: 'Draft and wait', act_within_limits: 'Act within limits' } as const)[answers.autonomy]] as [string, string]].map(([k, v]) => (
               <div key={k} style={{ display: 'contents' }}><dt className={s.summaryKey}>{k}</dt><dd style={{ margin: 0 }}>{v}</dd></div>
             ))}
           </dl>

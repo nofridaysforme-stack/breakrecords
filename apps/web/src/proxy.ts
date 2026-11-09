@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 // With sign-in on (BR_AUTH=required), requests without a session cookie stop here: pages go
 // to /sign-in, API calls get 401. This is a fast first check only; every page and live API
 // route still validates the session itself (src/server/context.ts).
-const OPEN = ['/sign-in', '/api/auth', '/_next', '/favicon'];
+const OPEN = ['/sign-in', '/sign-up', '/api/auth', '/_next', '/favicon'];
 
 export function proxy(req: NextRequest) {
   if (process.env.BR_AUTH !== 'required') return NextResponse.next();

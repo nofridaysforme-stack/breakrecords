@@ -2,7 +2,8 @@
 // TEST_DATABASE_URL (owner, to arrange data) and TEST_APP_DATABASE_URL (br_app).
 // Stage 0 gate: "cross-tenant reads fail".
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { connect, memberships, withTenant, type Sql } from '../src/client';
+import { createHash } from 'node:crypto';
+import { asUser, connect, memberships, withTenant, type Sql } from '../src/client';
 
 const OWNER = process.env.TEST_DATABASE_URL;
 const APP = process.env.TEST_APP_DATABASE_URL;
@@ -531,6 +532,89 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       const [{ id: writer }] = await owner`INSERT INTO parties (tenant_id, slug, name) VALUES (${ids.a}, 'doc-writer', 'Doc Writer') RETURNING id`;
       await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) =>
         tx`INSERT INTO work_writers (tenant_id, work_id, party_id, share_bp, publisher_id) VALUES (${ids.a}, ${work}, ${writer}, 10000, ${theirs})`)).rejects.toThrow(/cross-tenant reference/);
+    });
+  });
+  describe('sign-up with invite codes', () => {
+    const h = (c: string) => createHash('sha256').update(c).digest('hex');
+    let admin = '';
+    beforeAll(async () => {
+      [{ id: admin }] = await owner`INSERT INTO users (email) VALUES ('staff@indie.test') RETURNING id`;
+      await owner`INSERT INTO platform_admins (email) VALUES ('staff@indie.test') ON CONFLICT DO NOTHING`;
+    });
+
+    it('only staff make, list and revoke codes; the app role can’t read the tables', async () => {
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT app_create_invite_code(${h('X')}, 'AAAA', 'n', 1, null)`)).rejects.toThrow(/only Indie SRVCS staff/);
+      const [{ id }] = await asUser(app, admin, (tx) => tx`SELECT app_create_invite_code(${h('CODE-ONE')}, 'E-ONE', 'For Kesi', 2, null) AS id`);
+      expect(id).toBeTruthy();
+      expect((await asUser(app, admin, (tx) => tx`SELECT note, uses FROM app_invite_codes()`)).map((r) => r.note)).toContain('For Kesi');
+      expect(await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT * FROM app_invite_codes()`)).toHaveLength(0);
+      await expect(app`SELECT 1 FROM invite_codes`).rejects.toThrow(/permission denied/);
+      await expect(app`SELECT 1 FROM signups`).rejects.toThrow(/permission denied/);
+    });
+
+    it('a code works up to its uses, once per email; bad, expired and revoked codes fail', async () => {
+      expect((await app`SELECT app_redeem_invite(${h('CODE-ONE')}, 'New.Artist@x.test') AS r`)[0].r).toBe('ok');
+      expect((await app`SELECT app_redeem_invite(${h('CODE-ONE')}, 'new.artist@x.test') AS r`)[0].r).toBe('already');
+      expect((await app`SELECT app_redeem_invite(${h('CODE-ONE')}, 'band@x.test') AS r`)[0].r).toBe('ok');
+      expect((await app`SELECT app_redeem_invite(${h('CODE-ONE')}, 'third@x.test') AS r`)[0].r).toBe('used_up');
+      expect((await app`SELECT app_redeem_invite(${h('NOPE')}, 'x@x.test') AS r`)[0].r).toBe('invalid');
+      const [{ id }] = await asUser(app, admin, (tx) => tx`SELECT app_create_invite_code(${h('OLD')}, 'OLD1', 'old', 5, now() - interval '1 day') AS id`);
+      expect((await app`SELECT app_redeem_invite(${h('OLD')}, 'late@x.test') AS r`)[0].r).toBe('expired');
+      await asUser(app, admin, (tx) => tx`SELECT app_revoke_invite_code(${id})`);
+      expect((await app`SELECT app_redeem_invite(${h('OLD')}, 'late@x.test') AS r`)[0].r).toBe('invalid');
+      expect((await app`SELECT app_may_sign_in('new.artist@x.test') AS ok`)[0].ok).toBe(true);
+      expect((await app`SELECT app_may_sign_in('third@x.test') AS ok`)[0].ok).toBe(false);
+    });
+
+    it('the first sign-in makes their own workspace, once; onboarding names it and sets its kind', async () => {
+      const [{ id: u }] = await app`INSERT INTO users (email) VALUES ('new.artist@x.test') RETURNING id`;
+      const [{ t }] = await app`SELECT app_create_workspace(${u}) AS t`;
+      expect((await app`SELECT app_create_workspace(${u}) AS t`)[0].t).toBe(t);
+      const mine = await memberships(app, u);
+      expect(mine.map((m) => [m.name, m.role, m.kind])).toEqual([['My workspace', 'owner', 'artist']]);
+      expect(await withTenant(app, { userId: u, tenantId: t }, (tx) => tx`SELECT app_needs_onboarding() AS n`)).toEqual([{ n: true }]);
+      expect((await withTenant(app, { userId: u, tenantId: t }, (tx) => tx`SELECT slug FROM departments WHERE phase = 1`)).length).toBe(9);
+      await withTenant(app, { userId: u, tenantId: t }, (tx) => tx`SELECT app_apply_onboarding('Kesi Vale Music', 'small_label')`);
+      expect((await memberships(app, u))[0]).toMatchObject({ name: 'Kesi Vale Music', kind: 'label' });
+      // Nobody else can rename it, and it sees nothing of other labels.
+      await expect(withTenant(app, { userId: ids.ua, tenantId: t }, (tx) => tx`SELECT app_apply_onboarding('Mine now', 'solo')`)).rejects.toThrow(/only the workspace/);
+      expect(await withTenant(app, { userId: u, tenantId: t }, (tx) => tx`SELECT id FROM approvals`)).toHaveLength(0);
+      const [{ none }] = await app`SELECT app_create_workspace(${ids.ua}) AS none`;
+      expect(none).toBeNull(); // no sign-up, no workspace
+    });
+  });
+  describe('label services and their clients', () => {
+    let svcUser = ''; let svc = '';
+    beforeAll(async () => {
+      [{ id: svcUser }] = await owner`INSERT INTO users (email) VALUES ('svc@services.test') RETURNING id`;
+      [{ id: svc }] = await owner`INSERT INTO tenants (slug, name, kind, signup) VALUES ('svc-co', 'Svc Co', 'artist', true) RETURNING id`;
+      await owner`INSERT INTO memberships (user_id, tenant_id, role) VALUES (${svcUser}, ${svc}, 'owner')`;
+    });
+
+    it('finishing onboarding as label services makes the workspace a parent; a client can’t become one', async () => {
+      await withTenant(app, { userId: svcUser, tenantId: svc }, (tx) => tx`SELECT app_apply_onboarding('Svc Co', 'services')`);
+      expect((await owner`SELECT kind FROM tenants WHERE id = ${svc}`)[0].kind).toBe('licensee');
+    });
+
+    it('its owners add clients, each its own workspace, and act as owners inside them', async () => {
+      const [{ id: c1 }] = await withTenant(app, { userId: svcUser, tenantId: svc }, (tx) => tx`SELECT app_create_client('Rue Nova', 'artist') AS id`);
+      await withTenant(app, { userId: svcUser, tenantId: svc }, (tx) => tx`SELECT app_create_client('Tide Records', 'label')`);
+      const list = await withTenant(app, { userId: svcUser, tenantId: svc }, (tx) => tx`SELECT name, kind FROM app_clients()`);
+      expect(list.map((r) => [r.name, r.kind])).toEqual([['Rue Nova', 'artist'], ['Tide Records', 'label']]);
+      expect((await memberships(app, svcUser)).map((m) => m.name)).toEqual(['Svc Co', 'Rue Nova', 'Tide Records']);
+      expect(await withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT app_role() AS r`)).toEqual([{ r: 'owner' }]);
+      expect((await withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT slug FROM departments WHERE phase = 1`)).length).toBe(9);
+      // A client is not a parent: it can't add clients of its own, and stays an artist on setup.
+      await expect(withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT app_create_client('Nested', 'artist')`)).rejects.toThrow(/only the owners of a label services/);
+      await withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT app_apply_onboarding('Rue Nova', 'services')`);
+      expect((await owner`SELECT kind FROM tenants WHERE id = ${c1}`)[0].kind).toBe('artist');
+    });
+
+    it('nobody else adds or lists another workspace’s clients, and the defaults helper isn’t the app’s', async () => {
+      await expect(withTenant(app, { userId: ids.ua, tenantId: svc }, (tx) => tx`SELECT app_create_client('Mine', 'artist')`)).rejects.toThrow(/only the owners/);
+      expect(await withTenant(app, { userId: ids.ua, tenantId: svc }, (tx) => tx`SELECT * FROM app_clients()`)).toHaveLength(0);
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT app_create_client('Mine', 'artist')`)).rejects.toThrow(/only the owners/);
+      await expect(app`SELECT app_workspace_defaults(${ids.a}, 'x')`).rejects.toThrow(/permission denied/);
     });
   });
   describe('licensee owners and invitations', () => {

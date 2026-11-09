@@ -354,9 +354,14 @@ export const OnboardingAnswers = z.object({
   catalogFile: z.string().max(200).nullable(),
   pro: z.object({ status: z.enum(['affiliated', 'not_yet', 'not_sure']), org: z.string().max(40).optional() }),
   autonomy: Autonomy,
+  /** A band's other members, who become co-owners (by email; they sign in with it). */
+  members: z.array(z.email()).max(10).optional(),
 });
-/** GET /api/onboarding: the answers so far, saved as the person goes. */
-export const OnboardingResponse = z.object({ answers: OnboardingAnswers.nullable(), completed: z.boolean() });
+/**
+ * GET /api/onboarding: the answers so far, saved as the person goes. `live` is a real workspace
+ * (sign-in on), whose setup starts blank (`defaults`) rather than from the sample label.
+ */
+export const OnboardingResponse = z.object({ answers: OnboardingAnswers.nullable(), completed: z.boolean(), live: z.boolean().optional(), defaults: OnboardingAnswers.optional() });
 /** PUT /api/onboarding: save the answers; `complete` sets the label up from them (profile, country, how much agents do). */
 export const SaveOnboardingCommand = z.object({ answers: OnboardingAnswers, complete: z.boolean().optional() }).strict();
 export const RosterResponse = z.array(z.object({
@@ -389,3 +394,27 @@ export const SetAiAssistCommand = z.object({ on: z.boolean() }).strict();
 export type DocumentsResponse = z.infer<typeof DocumentsResponse>;
 export type DocVersion = z.infer<typeof DocVersion>;
 export type DocReview = z.infer<typeof DocReview>;
+
+// ---------- Invite codes (Indie SRVCS staff only; not a label endpoint) ----------
+
+export const InviteCode = z.object({
+  id: z.string(), hint: z.string(), note: z.string(), maxUses: z.number().int().positive(), uses: z.number().int().nonnegative(),
+  expires: z.string().nullable(), status: z.enum(['active', 'used_up', 'expired', 'revoked']), created: z.string(), signedUp: z.array(z.string()),
+});
+export const InviteCodesResponse = z.object({ codes: z.array(InviteCode) });
+export const CreateInviteCodeCommand = z.object({
+  note: z.string().trim().min(1).max(120),
+  maxUses: z.number().int().min(1).max(1000),
+  expiresInDays: z.number().int().min(1).max(365).nullable(),
+}).strict();
+/** The new code is in the response once, and never again. */
+export const CreatedInviteCode = InviteCodesResponse.extend({ code: z.string() });
+export type InviteCodesResponse = z.infer<typeof InviteCodesResponse>;
+
+// ---------- Clients (label services workspaces) ----------
+
+export const ClientsResponse = z.object({
+  clients: z.array(z.object({ id: z.string(), name: z.string(), kind: z.enum(['artist', 'label']), added: z.string(), people: z.number().int().nonnegative() })),
+});
+export const CreateClientCommand = z.object({ name: z.string().trim().min(1).max(120), kind: z.enum(['artist', 'label']) }).strict();
+export type ClientsResponse = z.infer<typeof ClientsResponse>;
