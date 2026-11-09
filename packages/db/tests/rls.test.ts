@@ -89,6 +89,14 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
     expect((await memberships(app, ids.ub)).map((m) => m.slug)).toEqual(['b']);
   });
 
+  it('the sign-in tables have RLS on, and br_app can still use them (Supabase turns RLS on by itself)', async () => {
+    const rows = await owner<{ relname: string; on: boolean }[]>`SELECT relname, relrowsecurity AS on FROM pg_class
+      WHERE relname IN ('users', 'accounts', 'sessions', 'verification_tokens') AND relnamespace = 'public'::regnamespace ORDER BY relname`;
+    expect(rows.every((r) => r.on)).toBe(true);
+    await app`INSERT INTO verification_tokens (identifier, token, expires) VALUES ('t@x.test', 'tok', now() + interval '5 minutes')`;
+    expect(await app`DELETE FROM verification_tokens WHERE identifier = 't@x.test' RETURNING token`).toHaveLength(1);
+  });
+
   it('sign-in checks the allowlist and claims invites', async () => {
     await owner`INSERT INTO allowlist (email, tenant_id, role) VALUES ('new@x.test', ${ids.b}, 'team')`;
     expect((await app`SELECT app_may_sign_in('NEW@x.test') AS ok`)[0].ok).toBe(true);
