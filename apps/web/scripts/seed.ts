@@ -1,6 +1,7 @@
 // Loads the Northline sample world into a database for local development, previews and
 // staging. Never production: it refuses unless BR_ALLOW_SEED=1, and it only ever writes the
 // sample tenants. Run with the owner connection: SEED_DATABASE_URL=... pnpm db:seed
+import { SAMPLE_LYRICS, SAMPLE_MASTER_OWNER, SAMPLE_PEOPLE, SAMPLE_P_YEAR, SAMPLE_RELEASE_TRACKS, SAMPLE_SIGNED, SAMPLE_SIGNED_BY, SAMPLE_SONGS } from '../src/data/rightsDetails';
 import { connect } from '@breakrecords/db/client';
 import { approvals as items } from '../src/data/sample';
 import { approvalDetails, releases as runbooks } from '../src/data/fixtures';
@@ -98,19 +99,34 @@ const AGENT_NOTES: Record<string, string> = {
   'night-bus-demo': 'Demos often stay off stores.',
 };
 // Which songs have lyrics on file, and whose writer shares are signed (5b: Night Bus split sheet signed; Glasshouse 1 of 2).
-const LYRICS = new Set(['glasshouse', 'night-bus', 'velvet-hours']);
-const SIGNED = new Set(['night-bus', 'velvet-hours', 'paper-moons']);
-// The Glasshouse split sheet is 1 of 2 signed (5b): Kesi has, Marco hasn't.
-const SIGNED_BY = new Map([['glasshouse', 'Kesi Vale']]);
+const LYRICS = SAMPLE_LYRICS;
+const SIGNED = SAMPLE_SIGNED;
+const SIGNED_BY = SAMPLE_SIGNED_BY;
 const ARTIST_TYPE: Record<string, 'person' | 'group'> = { 'The Low Hours': 'group' };
-const RELEASE_TRACKS: Record<string, { kind: 'single' | 'ep' | 'album'; date: string; tracks: string[] }> = {
-  rel_glasshouse: { kind: 'single', date: '2027-03-05', tracks: ['glasshouse'] },
-  rel_nightbus: { kind: 'ep', date: '2025-06-13', tracks: ['night-bus', 'static-hymn'] },
-  rel_velvet: { kind: 'album', date: '2024-09-20', tracks: ['velvet-hours', 'paper-moons'] },
-};
+const RELEASE_TRACKS = SAMPLE_RELEASE_TRACKS;
 const ASSET_KIND = (name: string, kind: string) =>
   /cover/i.test(name) ? 'cover_art' : /press photo/i.test(name) ? 'press_photo' : /stems/i.test(name) ? 'stems'
   : /instrumental/i.test(name) ? 'instrumental' : /lyrics/i.test(name) ? 'lyrics' : /audio|wav/i.test(kind + name) ? 'master_audio' : 'document';
+
+/** Legal names, PROs, IPIs, writer roles, publishers and master owners for documents (sample, invented). */
+async function seedRightsDetails(tx: Tx, tenant: string, partyId: (name: string) => Promise<string>, work: Map<string, string>, rec: Map<string, string>) {
+  for (const p of SAMPLE_PEOPLE) {
+    const id = await partyId(p.name);
+    await tx`UPDATE parties SET legal_name = ${p.legalName ?? null}, pro = ${p.pro ?? null}, ipi = ${p.ipi ?? null}, email = ${p.email ?? null},
+      address = ${p.address ?? null}, citizenship = ${p.citizenship ?? null}, domicile = ${p.domicile ?? null}, type = ${p.type ?? 'person'} WHERE id = ${id}`;
+  }
+  for (const [slug, s] of Object.entries(SAMPLE_SONGS)) {
+    const w = work.get(slug);
+    if (!w) continue;
+    await tx`UPDATE works SET completion_year = ${s.completed ?? null}, alt_titles = ${s.altTitles ?? []} WHERE id = ${w}`;
+    for (const [writer, d] of Object.entries(s.writers)) {
+      await tx`UPDATE work_writers SET role = ${d.role ?? null}, publisher_id = ${d.publisher ? await partyId(d.publisher) : null}
+        WHERE work_id = ${w} AND party_id = ${await partyId(writer)}`;
+    }
+  }
+  const owner = await partyId(SAMPLE_MASTER_OWNER);
+  for (const [slug, id] of rec) await tx`UPDATE recordings SET owner_id = ${owner}, p_year = ${SAMPLE_P_YEAR[slug] ?? null} WHERE id = ${id}`;
+}
 
 /** The Northline catalog from the 5a, 5b and 5c sample data. Replaces the tenant's catalog rows. */
 async function seedCatalog(tx: Tx, tenant: string) {
@@ -161,6 +177,7 @@ async function seedCatalog(tx: Tx, tenant: string) {
     let pos = 1;
     for (const t of plan.tracks) await tx`INSERT INTO release_tracks (tenant_id, release_id, recording_id, position) VALUES (${tenant}, ${row.id}, ${rec.get(t)!}, ${pos++})`;
   }
+  await seedRightsDetails(tx, tenant, partyId, work, rec);
   // The single's release name is the recording title; the 5a "Glasshouse" release also matches assets by title.
   for (const a of catalogAssets) {
     const detail = a.kind.includes('·') ? a.kind.split('·')[1].trim() : null;

@@ -362,3 +362,30 @@ export const SaveOnboardingCommand = z.object({ answers: OnboardingAnswers, comp
 export const RosterResponse = z.array(z.object({
   id: Id, name: z.string(), type: z.string(), genre: z.string(), releases: z.number().int(), contract: z.string(), income: Cents, open: z.string(), href: Link,
 }));
+
+// ---------- Prepared documents (Rights → Documents) ----------
+
+export const DocKind = z.enum(['split_sheet', 'registration_packet', 'copyright_worksheet', 'label_copy']);
+export const DocSubject = z.enum(['work', 'recording', 'release']);
+export const DocGap = z.object({ severity: z.enum(['blocker', 'warning']), field: z.string(), message: z.string() });
+export const DocReview = z.object({
+  id: z.string(), model: z.string(), at: z.string(),
+  findings: z.array(z.object({ severity: z.enum(['problem', 'check']), message: z.string() })),
+  nextSteps: z.string(),
+});
+export const DocVersion = z.object({
+  id: z.string(), version: z.number().int().positive(), preparedAt: z.string(), preparedBy: z.string(),
+  gaps: z.array(DocGap), summary: z.string(), hasCsv: z.boolean(), review: DocReview.nullable(),
+});
+export const DocSlot = z.object({ kind: DocKind, label: z.string(), latest: DocVersion.nullable(), versions: z.number().int().nonnegative() });
+export const DocSubjectRow = z.object({ subject: DocSubject, id: z.string(), title: z.string(), artist: z.string(), detail: z.string(), docs: z.array(DocSlot) });
+export const DocumentsResponse = z.object({
+  ai: z.object({ available: z.boolean(), on: z.boolean(), canChange: z.boolean(), note: z.string() }),
+  artists: z.array(z.string()),
+  subjects: z.array(DocSubjectRow),
+});
+export const PrepareDocumentCommand = z.object({ kind: DocKind, subject: DocSubject, id: z.string().min(1) }).strict();
+export const SetAiAssistCommand = z.object({ on: z.boolean() }).strict();
+export type DocumentsResponse = z.infer<typeof DocumentsResponse>;
+export type DocVersion = z.infer<typeof DocVersion>;
+export type DocReview = z.infer<typeof DocReview>;

@@ -37,6 +37,9 @@ const READ: Record<string, (ref: string, d: Data, title: string) => [text: strin
   'funding.declined': (r) => [`Declined ${r}`, 'Funding'],
   'funding.undeclined': (r) => [`Undid declining ${r}`, 'Funding'],
   'funding.question': (_r, d) => [`Asked the offerers: "${str(d.question)}"`, 'Funding'],
+  'document.prepared': (_r, d) => [`Prepared ${str(d.title)}, version ${str(d.version)}`, 'Rights'],
+  'document.reviewed': () => ['Asked AI to review a prepared document', 'Rights'],
+  'ai_assist.changed': (_r, d) => [`Turned AI review ${d.on ? 'on' : 'off'} for the label`, 'Settings'],
   'department.updated': (_r, d) => [d.autonomy ? `Set ${str(d.dept)} to ${LEVEL[str(d.autonomy)] ?? str(d.autonomy)}` : `Handed ${str(d.dept)} to ${str(d.person) || 'nobody'}`, str(d.dept) || 'Settings'],
 };
 

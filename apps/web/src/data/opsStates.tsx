@@ -2,7 +2,7 @@
 // affected; blocked states name what is missing and who owns it.
 import type { StateCopy } from '@/components/ui/ScreenState';
 
-type Key = 'catalog' | 'contracts' | 'template' | 'registrations' | 'unclaimed' | 'claims' | 'funding' | 'offers'
+type Key = 'catalog' | 'contracts' | 'template' | 'registrations' | 'unclaimed' | 'claims' | 'documents' | 'funding' | 'offers'
   | 'departments' | 'activity' | 'settings' | 'theme' | 'roster';
 
 export const OPS_STATES: Record<Key, StateCopy> = {
@@ -47,6 +47,13 @@ export const OPS_STATES: Record<Key, StateCopy> = {
     blocked: { title: 'Marco Dela’s Spotify claim is waiting', text: <>Spotify sent a code to Marco&apos;s email. <strong>Owner: Marco Dela.</strong></>, action: { label: 'Open roster', href: '/roster' } },
     error: { title: 'Apple Music didn’t answer', text: <>The claim check timed out. <strong>Nothing was submitted.</strong></>, meta: 'Error PC-120 · Nov 6, 8:14 · Audit AUD-7F3K-2297', retry: 'Retry' },
     partial: { text: <><strong>YouTube isn&apos;t connected.</strong> Its column shows what Rights Agent prepared only.</>, action: 'Connect' },
+  },
+  documents: {
+    empty: { title: 'Nothing to prepare yet', text: 'Add songs and recordings to your catalog and their split sheets, registration packets and copyright worksheets appear here.', action: { label: 'Open catalog', href: '/catalog/recordings' } },
+    working: { agent: 'Rights Agent', task: 'preparing documents', note: 'Each one lists what’s missing before you submit it.' },
+    blocked: { title: 'Document storage isn’t set up', text: <>Documents can&apos;t be saved until storage is connected. <strong>Owner: you, in the staging settings.</strong></>, action: { label: 'See settings', href: '/settings' } },
+    error: { title: 'Documents didn’t load', text: <>The catalog didn&apos;t answer. <strong>Nothing was prepared, filed or changed.</strong></>, meta: 'Error DC-500 · Nov 9, 9:00 · Audit AUD-7F3K-2410', retry: 'Retry' },
+    partial: { text: <><strong>AI review is off.</strong> Documents are prepared from your catalog without it.</>, action: 'Turn on' },
   },
   funding: {
     empty: { title: 'No funding found this week', text: 'Funding Scout checks grants and offers every Monday. I’ll tell you when something fits.', action: { label: 'See applications', href: '/funding/applications' } },

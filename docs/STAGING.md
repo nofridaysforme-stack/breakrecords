@@ -168,7 +168,7 @@ From now on, a merge to `main` that adds a migration runs `migrate` on staging b
 | --- | --- |
 | `DATABASE_URL` | The Transaction pooler string from step 1.5 with **user `br_app.<ref>`** and **password `STAGING_APP_DB_PASSWORD`**, ending `?sslmode=require`. Like `postgresql://br_app.<ref>:<br_app password>@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require` |
 | `BR_AUTH` | `required` |
-| `BR_LIVE_MODULES` | `approvals,catalog,contracts,roster,splits,statements,payouts,registrations,releases,funding,activity,settings` |
+| `BR_LIVE_MODULES` | `approvals,catalog,contracts,roster,splits,statements,payouts,registrations,releases,funding,activity,settings,documents` |
 | `AUTH_SECRET` | Made with the command above. Its own value, used nowhere else |
 | `APP_URL` | `https://breakrecords-staging.vercel.app` (the address Vercel gives the project; no slash at the end) |
 | `RESEND_API_KEY` | From step 4 |
@@ -206,6 +206,37 @@ github.com/nofridaysforme-stack/breakrecords → **Settings → Rules → Rulese
 - Turn on **Require a pull request before merging**.
 - Turn on **Require status checks to pass**, and add `Lint, unit and database tests`, `Browser tests on sample data` and `Browser tests, every module live`. They appear in the search box once they've run at least once, which they have.
 - Leave yourself able to bypass if you want an emergency door; Claude Code never merges without being asked.
+
+## Step 8. Prepared documents: storage and AI review (you)
+
+Rights → Documents prepares split sheets, registration packets, copyright worksheets and label copy. The files are kept in a private Supabase Storage bucket. AI review is optional and stays off until you turn it on.
+
+**8a. A private bucket in Supabase**
+1. Open the Supabase project, then **Storage** in the left-hand menu.
+2. Click **New bucket**. Name: `documents`. Leave **Public bucket** off. Click **Create bucket**.
+3. Open Storage's **Settings** (S3 connection). Copy the **Endpoint** and the **Region** shown there.
+4. Under **S3 access keys**, click **New access key**, name it `breakrecords-staging`, and create it. Copy the **Access key ID** and the **Secret access key** straight into Vercel (8b): the secret is shown once.
+
+These keys reach storage only, not the database. (Supabase's menu names may differ slightly; this couldn't be checked from Claude Code's environment.)
+
+**8b. Vercel**: add these Environment Variables (Production), then redeploy:
+
+| Name | Value |
+| --- | --- |
+| `DOCUMENTS_S3_ENDPOINT` | The Endpoint from 8a, for example `https://<ref>.storage.supabase.co/storage/v1/s3` |
+| `DOCUMENTS_S3_REGION` | The Region from 8a, for example `us-east-1` |
+| `DOCUMENTS_S3_BUCKET` | `documents` |
+| `DOCUMENTS_S3_ACCESS_KEY_ID` | From 8a |
+| `DOCUMENTS_S3_SECRET_ACCESS_KEY` | From 8a (mark it Sensitive) |
+
+Also add `documents` to the end of `BR_LIVE_MODULES` if it isn't there.
+
+**8c. AI review (optional)**
+1. console.anthropic.com, then **API Keys**, then **Create Key**. Name it `indie-srvcs-staging`.
+2. In Vercel add `ANTHROPIC_API_KEY` (the key, marked Sensitive) and `BR_AI` = `on`. Redeploy.
+3. In the app, an owner opens Rights → Documents and presses **Turn on** under AI review.
+
+`BR_AI` is the platform switch: remove it, or set it to anything else, and AI review is off for every label. The review only suggests: it never changes a document or the catalog, and addresses and email addresses aren't sent.
 
 ## Later
 

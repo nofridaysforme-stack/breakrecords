@@ -483,6 +483,56 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT 1 FROM integrations`)).toHaveLength(0);
     });
   });
+  describe('prepared documents', () => {
+    let work = ''; let otherWork = ''; let doc = '';
+    const sha = 'a'.repeat(64);
+    beforeAll(async () => {
+      [{ id: work }] = await owner`INSERT INTO works (tenant_id, slug, title) VALUES (${ids.a}, 'doc-song', 'Doc Song') RETURNING id`;
+      [{ id: otherWork }] = await owner`INSERT INTO works (tenant_id, slug, title) VALUES (${ids.b}, 'their-song', 'Their Song') RETURNING id`;
+      await owner`INSERT INTO label_settings (tenant_id, country, profile, statement_period, spend_cap_cents) VALUES (${ids.a}, 'US', 'Small label', 'Quarterly', 0) ON CONFLICT DO NOTHING`;
+    });
+
+    it('the team adds a version as themselves; nobody changes or deletes one', async () => {
+      [{ id: doc }] = await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) =>
+        tx`INSERT INTO documents (tenant_id, kind, subject, subject_id, version, title, pdf_key, sha256, created_by)
+           VALUES (${ids.a}, 'split_sheet', 'work', ${work}, 1, 'Split sheet', 'k/1.pdf', ${sha}, ${ids.ua}) RETURNING id`);
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) =>
+        tx`INSERT INTO documents (tenant_id, kind, subject, subject_id, version, title, pdf_key, sha256, created_by)
+           VALUES (${ids.a}, 'split_sheet', 'work', ${work}, 2, 'Split sheet', 'k/2.pdf', ${sha}, ${ids.ub})`)).rejects.toThrow(/row-level security/);
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`UPDATE documents SET title = 'x'`)).rejects.toThrow(/permission denied/);
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`DELETE FROM documents`)).rejects.toThrow(/permission denied/);
+    });
+
+    it('other labels and payees see none of them, and none can point at another label’s song', async () => {
+      expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT 1 FROM documents`)).toHaveLength(0);
+      expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT 1 FROM documents`)).toHaveLength(0);
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) =>
+        tx`INSERT INTO documents (tenant_id, kind, subject, subject_id, version, title, pdf_key, sha256, created_by)
+           VALUES (${ids.a}, 'split_sheet', 'work', ${otherWork}, 1, 'Split sheet', 'k/x.pdf', ${sha}, ${ids.ua})`)).rejects.toThrow(/cross-tenant reference/);
+      await expect(withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) =>
+        tx`INSERT INTO document_reviews (tenant_id, document_id, model, findings, next_steps, created_by)
+           VALUES (${ids.b}, ${doc}, 'm', '[]', 'x', ${ids.ub})`)).rejects.toThrow(/cross-tenant reference/);
+    });
+
+    it('a split sheet is about a song; label copy about a release', async () => {
+      await expect(owner`INSERT INTO documents (tenant_id, kind, subject, subject_id, version, title, pdf_key, sha256, created_by)
+        VALUES (${ids.a}, 'label_copy', 'work', ${work}, 1, 'x', 'k', ${sha}, ${ids.ua})`).rejects.toThrow(/check constraint/);
+    });
+
+    it('only an owner turns AI assistance on', async () => {
+      await expect(withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT app_set_ai_assist(true)`)).rejects.toThrow(/only the label/);
+      expect(await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT app_set_ai_assist(true) AS on`)).toEqual([{ on: true }]);
+      expect((await owner`SELECT ai_assist FROM label_settings WHERE tenant_id = ${ids.a}`)[0].ai_assist).toBe(true);
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`UPDATE label_settings SET ai_assist = false`)).rejects.toThrow(/permission denied/);
+    });
+
+    it('a writer’s publisher must be one of the label’s own parties', async () => {
+      const [{ id: theirs }] = await owner`INSERT INTO parties (tenant_id, slug, name, type) VALUES (${ids.b}, 'their-pub', 'Their Publishing', 'company') RETURNING id`;
+      const [{ id: writer }] = await owner`INSERT INTO parties (tenant_id, slug, name) VALUES (${ids.a}, 'doc-writer', 'Doc Writer') RETURNING id`;
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) =>
+        tx`INSERT INTO work_writers (tenant_id, work_id, party_id, share_bp, publisher_id) VALUES (${ids.a}, ${work}, ${writer}, 10000, ${theirs})`)).rejects.toThrow(/cross-tenant reference/);
+    });
+  });
   describe('licensee owners and invitations', () => {
     it('a licensee’s owner acts as an owner in its labels, and in no others', async () => {
       expect(await withTenant(app, { userId: ids.licOwner, tenantId: ids.a }, (tx) => tx`SELECT app_role() AS r`)).toEqual([{ r: 'owner' }]);

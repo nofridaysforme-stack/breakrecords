@@ -21,6 +21,7 @@ export function RightsTabs() {
     { label: 'Registrations', href: '/rights/registrations' },
     { label: 'Unclaimed money', href: '/rights/unclaimed' },
     { label: 'Profile claims', href: '/rights/claims' },
+    { label: 'Documents', href: '/rights/documents' },
   ]} />;
 }
 

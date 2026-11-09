@@ -213,6 +213,13 @@ export async function getRegistrations(): Promise<ReturnType<typeof mockRegistra
   return liveRegistrations(ctx);
 }
 
+/** Rights → Documents: every song, recording and release with its prepared documents. */
+export async function getDocuments(): Promise<import('@breakrecords/contract').DocumentsResponse> {
+  const ctx = await liveCtx('documents');
+  if (ctx) return (await import('@/server/live/documents')).liveDocuments(ctx);
+  return (await import('@/server/mockDocuments')).mockDocuments();
+}
+
 export async function getUnclaimed(): Promise<typeof ops.unclaimed> {
   const ctx = await liveCtx('registrations');
   if (!ctx) return ops.unclaimed;
