@@ -43,6 +43,10 @@ export const homeNumbers = {
   cash90: toCents(7850), // cash90Days_assumed
   unclaimed: toCents(312.4), // unclaimedFound_assumed
 };
+export const homeNumberNotes = {
+  period: 'Oct', income: 'Glasshouse, Oct', owed: '6 payees', owedApprovalId: 'apr_payout_oct' as string | null,
+  recouped: 'Glasshouse fully recouped', cash90: 'Forecast, after payouts', unclaimed: '2 sources to claim',
+};
 
 // ---------- Approval details (2e, 2f; filing and application bodies are undrawn) ----------
 const byId = Object.fromEntries(approvals.map((a) => [a.id, a]));

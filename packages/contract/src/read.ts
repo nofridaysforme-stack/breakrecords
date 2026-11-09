@@ -30,6 +30,10 @@ export const HomeResponse = z.object({
     feed: z.array(z.object({ agent: z.string(), state: AgentState, text: z.string(), when: Display })),
   }),
   numbers: z.object({ income: Cents, owed: Cents, recouped: Cents, cash90: Cents, unclaimed: Cents }),
+  /** What each number covers. `owedApprovalId` is the payout batch waiting on you, if any. */
+  numberNotes: z.object({
+    period: z.string(), income: z.string(), owed: z.string(), owedApprovalId: Id.nullable(), recouped: z.string(), cash90: z.string(), unclaimed: z.string(),
+  }),
   approvals: z.array(ApprovalSummary),
 });
 
@@ -329,6 +333,10 @@ export const ThemeResponse = z.object({
 /** POST /api/settings/theme: publish the five colors. Refused unless every text pair passes WCAG AA. */
 export const PublishThemeCommand = z.object({ theme: ThemeResponse.shape.theme }).strict();
 export const SettingsError = z.object({ error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'fails_contrast', 'not_yet']), message: z.string() });
+/** GET /api/search?q=: the ⌘K results for the signed-in tenant, best first. */
+export const SearchResponse = z.object({
+  items: z.array(z.object({ id: Id, group: z.enum(['Go to', 'Approvals', 'Catalog', 'People', 'Money', 'Contracts', 'Funding']), label: z.string(), hint: z.string(), href: Link, keywords: z.string().optional() })),
+});
 export const RosterResponse = z.array(z.object({
   id: Id, name: z.string(), type: z.string(), genre: z.string(), releases: z.number().int(), contract: z.string(), income: Cents, open: z.string(), href: Link,
 }));

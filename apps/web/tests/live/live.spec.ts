@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, ApprovalError, ApprovalState, CatalogResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { ActivityResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 
@@ -713,4 +713,32 @@ test.describe('settings (live)', () => {
     expect(st.config.name).toBe('Harbor Sound');
     expect(st.integrations).toEqual([]);
   });
+});
+
+test('Home’s money row is read from the same tables as the money screens', async ({ page }) => {
+  await signIn(page, USERS.owner);
+  const h = HomeResponse.parse(await (await page.request.get('/api/home')).json());
+  // Oct income (all six sources), the October batch, what October recouped, and unclaimed money.
+  expect(h.numbers).toMatchObject({ income: 1428640, owed: 124018, recouped: 460000, unclaimed: 31240 });
+  // Forecast: the Sep and Oct average for three months, less the Nov 10 and Jan 15 payouts.
+  expect(h.numbers.cash90).toBe(Math.round(((1210712 + 1428640) / 2) * 3) - 124018 - 690415);
+  expect(h.numberNotes).toEqual({ period: 'Oct', income: 'Oct, 6 sources', owed: '6 payees', owedApprovalId: 'apr_payout_oct',
+    recouped: 'Glasshouse fully recouped', cash90: 'Recent average, less payouts due', unclaimed: '2 sources to claim' });
+  await page.goto('/');
+  await expect(page.getByText('Oct, 6 sources').first()).toBeVisible();
+});
+
+test('⌘K searches the signed-in label’s own data', async ({ page, browser }) => {
+  await signIn(page, USERS.owner);
+  const hits = async (p: import('@playwright/test').Page, q: string) => SearchResponse.parse(await (await p.request.get(`/api/search?q=${encodeURIComponent(q)}`)).json()).items;
+  expect((await hits(page, 'glasshouse')).map((i) => i.id)).toEqual(expect.arrayContaining(['r-glasshouse', 'rel-rel_glasshouse', 'st-ST-2026-10-KV']));
+  expect((await hits(page, 'mara')).map((i) => i.label)).not.toContain('Mara Quill');
+  const harbor = await (await browser.newContext()).newPage();
+  await signIn(harbor, USERS.harbor);
+  expect((await hits(harbor, 'tidal')).map((i) => i.label)).toContain('Tidal Lines');
+  expect((await hits(harbor, 'glasshouse')).filter((i) => i.group !== 'Go to')).toEqual([]);
+  await harbor.goto('/');
+  await harbor.keyboard.press('Control+k');
+  await harbor.getByRole('combobox', { name: 'Search or tell me a goal' }).fill('tidal');
+  await expect(harbor.getByRole('option', { name: /Tidal Lines/ }).first()).toBeVisible();
 });

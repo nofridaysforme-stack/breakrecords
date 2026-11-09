@@ -22,6 +22,7 @@ type Props = {
   scenario: Scenario;
   home: HomeData;
   numbers: { income: Cents; owed: Cents; recouped: Cents; cash90: Cents; unclaimed: Cents };
+  notes: { period: string; income: string; owed: string; owedApprovalId: string | null; recouped: string; cash90: string; unclaimed: string };
   approvals: ApprovalSummary[];
   labelShort: string;
 };
@@ -43,7 +44,7 @@ export function AgentRail({ feed }: { feed: HomeData['feed'] }) {
   );
 }
 
-export function HomeView({ scenario, home, numbers, approvals, labelShort }: Props) {
+export function HomeView({ scenario, home, numbers, notes, approvals, labelShort }: Props) {
   const { pending, approve, undo, proposals, decisions } = useDecisions();
   const { openCommand, openPanel } = useShellUI();
   const router = useRouter();
@@ -116,11 +117,11 @@ export function HomeView({ scenario, home, numbers, approvals, labelShort }: Pro
             { label: 'Unclaimed found', gap: 'Connect your PRO to search' },
           ]
         : [
-            { label: 'Income this period', mobileLabel: 'Income, Oct', value: <Money cents={numbers.income} />, note: 'Glasshouse, Oct' },
-            { label: 'Owed to payees', value: <Money cents={numbers.owed} />, note: `${waiting.some((a) => a.id === 'apr_payout_oct') ? '6 payees, awaiting you' : '6 payees, approved'}` },
-            { label: 'Recoupment', value: <Money cents={numbers.recouped} />, note: 'Glasshouse fully recouped' },
-            { label: 'Cash, next 90 days', value: <Money cents={numbers.cash90} />, note: 'Forecast, after payouts' },
-            { label: 'Unclaimed found', value: <Money cents={numbers.unclaimed} />, note: '2 sources to claim' },
+            { label: 'Income this period', mobileLabel: `Income, ${notes.period}`, value: <Money cents={numbers.income} />, note: notes.income },
+            { label: 'Owed to payees', value: <Money cents={numbers.owed} />, note: notes.owedApprovalId ? `${notes.owed}, ${waiting.some((a) => a.id === notes.owedApprovalId) ? 'awaiting you' : 'approved'}` : notes.owed },
+            { label: 'Recoupment', value: <Money cents={numbers.recouped} />, note: notes.recouped },
+            { label: 'Cash, next 90 days', value: <Money cents={numbers.cash90} />, note: notes.cash90 },
+            { label: 'Unclaimed found', value: <Money cents={numbers.unclaimed} />, note: notes.unclaimed },
           ];
 
   const [first, ...otherGoals] = home.goals;
