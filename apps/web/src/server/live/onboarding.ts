@@ -9,10 +9,15 @@ import type { RequestContext } from '../context';
 type Answers = z.infer<typeof OnboardingAnswers>;
 const COUNTRY: Record<string, string> = { 'United States': 'US', Canada: 'CA', 'United Kingdom': 'GB', Ireland: 'IE', Australia: 'AU', 'New Zealand': 'NZ' };
 
-export function liveOnboarding(ctx: RequestContext): Promise<{ answers: Answers | null; completed: boolean }> {
+/** A real workspace's setup starts blank, never from the sample label. */
+const BLANK: Answers = {
+  profile: 'solo', name: '', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_sure' }, autonomy: 'draft_and_wait', members: [],
+};
+
+export function liveOnboarding(ctx: RequestContext): Promise<{ answers: Answers | null; completed: boolean; live: true; defaults: Answers }> {
   return withTenant(sql, ctx, async (tx) => {
     const [r] = await tx<{ answers: Answers; completed_at: Date | null }[]>`SELECT answers, completed_at FROM onboarding`;
-    return { answers: r?.answers ?? null, completed: !!r?.completed_at };
+    return { answers: r?.answers ?? null, completed: !!r?.completed_at, live: true, defaults: { ...BLANK, name: ctx.tenantName === 'My workspace' ? '' : ctx.tenantName } };
   });
 }
 
@@ -32,14 +37,22 @@ export function liveSaveOnboarding(ctx: RequestContext, answers: Answers, comple
         ON CONFLICT (tenant_id) DO UPDATE SET profile = EXCLUDED.profile${country ? tx`, country = EXCLUDED.country` : tx``}`;
       await tx`UPDATE departments SET autonomy = CASE WHEN ${answers.autonomy}::autonomy_level = 'act_within_limits' AND NOT can_act THEN 'draft_and_wait' ELSE ${answers.autonomy}::autonomy_level END
         WHERE phase = 1`;
-      // Owners name the workspace and set what kind it is (artist or label) from the profile.
+      // Owners name the workspace and set what kind it is (artist, label, or label services).
       if (ctx.role === 'owner') await tx`SELECT app_apply_onboarding(${answers.name}, ${answers.profile})`;
+      // A band's other members become co-owners: they sign in with their email (nothing is sent).
+      if (ctx.role === 'owner' && answers.profile === 'band') {
+        for (const email of new Set((answers.members ?? []).map((e) => e.trim().toLowerCase()).filter((e) => e && e !== ctx.email))) {
+          await tx`INSERT INTO allowlist (email, tenant_id, role, added_by) VALUES (${email}, ${ctx.tenantId}, 'owner', ${ctx.userId}) ON CONFLICT (email, tenant_id) DO NOTHING`;
+          await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
+            VALUES (${ctx.tenantId}, ${'AUD-INV-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'invite.created', ${email}, ${tx.json({ role: 'owner', payee: null })})`;
+        }
+      }
       await tx`UPDATE onboarding SET completed_at = now(), completed_by = ${ctx.userId} WHERE tenant_id = ${ctx.tenantId}`;
       await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
         VALUES (${ctx.tenantId}, ${'AUD-ONB-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'onboarding.completed', ${answers.profile}, ${tx.json({ autonomy: answers.autonomy, country: answers.country })})`;
     }
     const [r] = await tx<{ completed_at: Date | null }[]>`SELECT completed_at FROM onboarding`;
-    return { answers, completed: !!r?.completed_at };
+    return { answers, completed: !!r?.completed_at, live: true as const };
   });
 }
 

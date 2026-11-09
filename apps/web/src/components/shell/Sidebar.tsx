@@ -3,12 +3,16 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, CircleAlert, KeyRound, MessageSquare } from 'lucide-react';
-import { footerNav, isActive, primaryNav } from './nav';
+import { Building2, ChevronDown, CircleAlert, KeyRound, MessageSquare } from 'lucide-react';
+import { footerNav, isActive, primaryNav, type NavItem } from './nav';
 import { useShellUI } from './ShellUI';
 import { useWorkspace } from './Workspace';
 import { useDecisions } from '@/data/decisions';
 import s from './Sidebar.module.css';
+
+// Label services (a licensee) add and open client workspaces from here.
+const CLIENTS: NavItem = { label: 'Clients', href: '/clients', match: '/clients', icon: Building2 };
+const staffClients = (kind: string) => kind === 'licensee';
 
 type Props = { labelName: string; staff?: boolean; tenants?: { id: string; name: string; current: boolean }[]; approvalIds: string[] };
 
@@ -16,7 +20,7 @@ export function Sidebar({ labelName, staff = false, tenants = [], approvalIds }:
   const pathname = usePathname() ?? '/';
   const approvalsCount = useDecisions().openCount(approvalIds);
   const { openPanel } = useShellUI();
-  const { isArtist } = useWorkspace();
+  const { isArtist, kind } = useWorkspace();
 
   return (
     <aside className={s.sidebar} aria-label="Sidebar">
@@ -29,7 +33,7 @@ export function Sidebar({ labelName, staff = false, tenants = [], approvalIds }:
       <LabelSwitcher labelName={labelName} tenants={tenants} />
 
       <nav aria-label="Primary" className={s.nav}>
-        {primaryNav.filter((item) => !(isArtist && item.label === 'Roster')).map((item) => {
+        {[...primaryNav.filter((item) => !(isArtist && item.label === 'Roster')), ...(staffClients(kind) ? [CLIENTS] : [])].map((item) => {
           const Icon = item.icon;
           if (item.locked) {
             return (

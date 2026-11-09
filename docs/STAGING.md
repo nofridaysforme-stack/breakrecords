@@ -247,7 +247,7 @@ Indie SRVCS is invite-only. Anyone listed in `STAGING_OWNER_EMAILS` is Indie SRV
 3. Fill in **Who it’s for** (for example "Rue Nova, solo artist"), how many **Uses**, and when it **Expires**. Click **Make a code**.
 4. Click **Copy sign-up link** and send it to them. The code is shown only once.
 
-They open the link, enter their email, and get a sign-in link. Their first sign-in creates their own workspace and takes them through setup: what kind of artist or label they are, their name, country, PRO and how much the agents may do. Solo artists and bands get a "personal label"; labels get a label.
+They open the link, enter their email, and get a sign-in link. Their first sign-in creates their own workspace and takes them through setup: what kind of artist or label they are, their name, country, PRO and how much the agents may do. Solo artists and bands get a "personal label"; labels get a label. A band can add bandmates' emails during setup, and they become co-owners. Someone who picks **Label services** gets a **Clients** page in the menu, where each client they add gets their own separate workspace.
 
 ## Later
 

@@ -878,3 +878,55 @@ test('sign-up: staff make a code; a new artist signs up, is taken through onboar
   await expect(page.getByRole('complementary', { name: 'Sidebar' }).getByRole('link', { name: 'Invite codes' })).toBeVisible(); // staff only
   await expect(page.getByRole('row', { name: /E2E solo artist/ })).toContainText(email);
 });
+
+/** Signs up with a code in a fresh browser and opens the sign-in link (lands in setup). */
+async function signUp(browser: import('@playwright/test').Browser, code: string, email: string) {
+  const p = await (await browser.newContext()).newPage();
+  await p.goto(`/sign-up?code=${code}`);
+  await p.getByLabel('Email').fill(email);
+  await p.getByRole('button', { name: 'Create my account' }).click();
+  await expect(p.getByRole('status')).toContainText('Check your email for a sign-in link');
+  const { url } = JSON.parse(readFileSync(path.join(MAILBOX, `${email}.json`), 'utf8')) as { url: string };
+  await p.goto(url);
+  await p.getByRole('button', { name: 'Sign in' }).click();
+  await expect(p).toHaveURL(/\/onboarding/);
+  return p;
+}
+
+test('a band signs up and adds a bandmate as co-owner; label services add a client with their own workspace', async ({ page, browser }) => {
+  await signIn(page, USERS.jana);
+  const code = ((await (await page.request.post('/api/admin/invite-codes', { data: { note: 'E2E band and services', maxUses: 2, expiresInDays: 7 } })).json()) as { code: string }).code;
+  const stamp = Date.now();
+
+  // A band: setup starts blank (never the sample label), and a bandmate becomes a co-owner.
+  const band = await signUp(browser, code, `e2e-band-${stamp}@band.example`);
+  const fresh = OnboardingResponse.parse(await (await band.request.get('/api/onboarding')).json());
+  expect(fresh).toMatchObject({ answers: null, live: true, defaults: { name: '', distributor: null, catalogFile: null } });
+  const mate = `e2e-mate-${stamp}@band.example`;
+  const bandAnswers = { profile: 'band', name: 'The Tide Lines', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_sure' }, autonomy: 'draft_and_wait', members: [mate] };
+  expect((await band.request.put('/api/onboarding', { data: { answers: bandAnswers, complete: true } })).status()).toBe(200);
+  const mateP = await (await browser.newContext()).newPage();
+  await signIn(mateP, mate);
+  const mateBar = mateP.getByRole('complementary', { name: 'Sidebar' });
+  await expect(mateBar.getByText('Personal label', { exact: true })).toBeVisible();
+  await expect(mateBar.getByText('The Tide Lines', { exact: true })).toBeVisible();
+  expect(SettingsResponse.parse(await (await mateP.request.get('/api/settings')).json()).canInvite).toBe(true); // a co-owner
+
+  // Label services: become a parent, add a client, work inside it as owner.
+  const svc = await signUp(browser, code, `e2e-svc-${stamp}@services.example`);
+  const svcAnswers = { profile: 'services', name: 'Harbor Light Services', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_sure' }, autonomy: 'draft_and_wait' };
+  expect((await svc.request.put('/api/onboarding', { data: { answers: svcAnswers, complete: true } })).status()).toBe(200);
+  await svc.goto('/clients');
+  await svc.getByLabel('Client name').fill('Rue Nova');
+  await svc.getByRole('button', { name: 'Add client' }).click();
+  await expect(svc.getByRole('status')).toContainText('Rue Nova added');
+  await svc.getByRole('button', { name: 'Open Rue Nova’s workspace' }).click();
+  await expect(svc.getByRole('complementary', { name: 'Sidebar' }).getByText('Rue Nova', { exact: true })).toBeVisible();
+  expect(SettingsResponse.parse(await (await svc.request.get('/api/settings')).json()).canInvite).toBe(true); // services act as owners in the client
+  expect((await (await svc.request.get('/api/approvals')).json()).items).toHaveLength(0);
+
+  // The band can't see or add clients; nobody else sees this one.
+  expect((await band.request.get('/api/clients')).status()).toBe(403);
+  await band.goto('/');
+  await expect(band.getByRole('complementary', { name: 'Sidebar' }).getByRole('link', { name: 'Clients' })).toHaveCount(0);
+});

@@ -583,6 +583,40 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       expect(none).toBeNull(); // no sign-up, no workspace
     });
   });
+  describe('label services and their clients', () => {
+    let svcUser = ''; let svc = '';
+    beforeAll(async () => {
+      [{ id: svcUser }] = await owner`INSERT INTO users (email) VALUES ('svc@services.test') RETURNING id`;
+      [{ id: svc }] = await owner`INSERT INTO tenants (slug, name, kind, signup) VALUES ('svc-co', 'Svc Co', 'artist', true) RETURNING id`;
+      await owner`INSERT INTO memberships (user_id, tenant_id, role) VALUES (${svcUser}, ${svc}, 'owner')`;
+    });
+
+    it('finishing onboarding as label services makes the workspace a parent; a client can’t become one', async () => {
+      await withTenant(app, { userId: svcUser, tenantId: svc }, (tx) => tx`SELECT app_apply_onboarding('Svc Co', 'services')`);
+      expect((await owner`SELECT kind FROM tenants WHERE id = ${svc}`)[0].kind).toBe('licensee');
+    });
+
+    it('its owners add clients, each its own workspace, and act as owners inside them', async () => {
+      const [{ id: c1 }] = await withTenant(app, { userId: svcUser, tenantId: svc }, (tx) => tx`SELECT app_create_client('Rue Nova', 'artist') AS id`);
+      await withTenant(app, { userId: svcUser, tenantId: svc }, (tx) => tx`SELECT app_create_client('Tide Records', 'label')`);
+      const list = await withTenant(app, { userId: svcUser, tenantId: svc }, (tx) => tx`SELECT name, kind FROM app_clients()`);
+      expect(list.map((r) => [r.name, r.kind])).toEqual([['Rue Nova', 'artist'], ['Tide Records', 'label']]);
+      expect((await memberships(app, svcUser)).map((m) => m.name)).toEqual(['Svc Co', 'Rue Nova', 'Tide Records']);
+      expect(await withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT app_role() AS r`)).toEqual([{ r: 'owner' }]);
+      expect((await withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT slug FROM departments WHERE phase = 1`)).length).toBe(9);
+      // A client is not a parent: it can't add clients of its own, and stays an artist on setup.
+      await expect(withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT app_create_client('Nested', 'artist')`)).rejects.toThrow(/only the owners of a label services/);
+      await withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT app_apply_onboarding('Rue Nova', 'services')`);
+      expect((await owner`SELECT kind FROM tenants WHERE id = ${c1}`)[0].kind).toBe('artist');
+    });
+
+    it('nobody else adds or lists another workspace’s clients, and the defaults helper isn’t the app’s', async () => {
+      await expect(withTenant(app, { userId: ids.ua, tenantId: svc }, (tx) => tx`SELECT app_create_client('Mine', 'artist')`)).rejects.toThrow(/only the owners/);
+      expect(await withTenant(app, { userId: ids.ua, tenantId: svc }, (tx) => tx`SELECT * FROM app_clients()`)).toHaveLength(0);
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT app_create_client('Mine', 'artist')`)).rejects.toThrow(/only the owners/);
+      await expect(app`SELECT app_workspace_defaults(${ids.a}, 'x')`).rejects.toThrow(/permission denied/);
+    });
+  });
   describe('licensee owners and invitations', () => {
     it('a licensee’s owner acts as an owner in its labels, and in no others', async () => {
       expect(await withTenant(app, { userId: ids.licOwner, tenantId: ids.a }, (tx) => tx`SELECT app_role() AS r`)).toEqual([{ r: 'owner' }]);

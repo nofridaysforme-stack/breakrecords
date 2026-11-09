@@ -354,9 +354,14 @@ export const OnboardingAnswers = z.object({
   catalogFile: z.string().max(200).nullable(),
   pro: z.object({ status: z.enum(['affiliated', 'not_yet', 'not_sure']), org: z.string().max(40).optional() }),
   autonomy: Autonomy,
+  /** A band's other members, who become co-owners (by email; they sign in with it). */
+  members: z.array(z.email()).max(10).optional(),
 });
-/** GET /api/onboarding: the answers so far, saved as the person goes. */
-export const OnboardingResponse = z.object({ answers: OnboardingAnswers.nullable(), completed: z.boolean() });
+/**
+ * GET /api/onboarding: the answers so far, saved as the person goes. `live` is a real workspace
+ * (sign-in on), whose setup starts blank (`defaults`) rather than from the sample label.
+ */
+export const OnboardingResponse = z.object({ answers: OnboardingAnswers.nullable(), completed: z.boolean(), live: z.boolean().optional(), defaults: OnboardingAnswers.optional() });
 /** PUT /api/onboarding: save the answers; `complete` sets the label up from them (profile, country, how much agents do). */
 export const SaveOnboardingCommand = z.object({ answers: OnboardingAnswers, complete: z.boolean().optional() }).strict();
 export const RosterResponse = z.array(z.object({
@@ -405,3 +410,11 @@ export const CreateInviteCodeCommand = z.object({
 /** The new code is in the response once, and never again. */
 export const CreatedInviteCode = InviteCodesResponse.extend({ code: z.string() });
 export type InviteCodesResponse = z.infer<typeof InviteCodesResponse>;
+
+// ---------- Clients (label services workspaces) ----------
+
+export const ClientsResponse = z.object({
+  clients: z.array(z.object({ id: z.string(), name: z.string(), kind: z.enum(['artist', 'label']), added: z.string(), people: z.number().int().nonnegative() })),
+});
+export const CreateClientCommand = z.object({ name: z.string().trim().min(1).max(120), kind: z.enum(['artist', 'label']) }).strict();
+export type ClientsResponse = z.infer<typeof ClientsResponse>;
