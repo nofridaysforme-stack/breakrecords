@@ -11,7 +11,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
     <div className={s.shell}>
       <PublishedTheme />
       <header className={s.header}>
-        <div className={s.brand}><span className={s.mark} aria-hidden="true">B</span><span className={s.wordmark}>Break Records.</span></div>
+        <div className={s.brand}><span className={s.mark} aria-hidden="true">I</span><span className={s.wordmark}>Indie SRVCS.</span></div>
         <Suspense><PortalNav /></Suspense>
         <p className={s.paidBy}><span className={s.deskOnly}>Paid by {label}</span><span className={s.phoneOnly}>via {label.split(' ')[0]}</span></p>
       </header>

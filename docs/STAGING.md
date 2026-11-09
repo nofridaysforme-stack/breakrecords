@@ -60,7 +60,7 @@ You need three things open: GitHub in your browser, your Supabase project in ano
    openssl rand -hex 24
    ```
 
-3. It prints one line of 48 letters and numbers. That line is the **`br_app` password**. Select it, copy it, and save it in your password manager as "Break Records staging: br_app password". You'll paste it twice: once below, once in Vercel (step 5).
+3. It prints one line of 48 letters and numbers. That line is the **`br_app` password**. Select it, copy it, and save it in your password manager as "Indie SRVCS staging: br_app password". You'll paste it twice: once below, once in Vercel (step 5).
 
 ### 2b. Build the database address
 
@@ -151,7 +151,7 @@ From now on, a merge to `main` that adds a migration runs `migrate` on staging b
 1. resend.com → sign in with the address you put in `STAGING_OWNER_EMAILS`.
 2. **API Keys → Create API key**. Name `breakrecords-staging`, permission **Sending access**. Copy it once, for step 5.
 3. Sending domain, now or later:
-   - **Later** (fastest start): use Resend's test sender, `Break Records <onboarding@resend.dev>`. It only delivers to the Resend account's own address and often lands in spam. That's enough for you to sign in to staging, but nobody else can sign in by email until the domain is verified. This is the exact snag the Trading Platform hit.
+   - **Later** (fastest start): use Resend's test sender, `Indie SRVCS <onboarding@resend.dev>`. It only delivers to the Resend account's own address and often lands in spam. That's enough for you to sign in to staging, but nobody else can sign in by email until the domain is verified. This is the exact snag the Trading Platform hit.
    - **Now**: **Domains → Add domain** → a subdomain such as `staging.<your-domain>`. Resend shows DKIM, SPF (MX and TXT) and optional DMARC records. Add each at your DNS host exactly as shown: no extra quotes or spaces. If your host appends the domain itself (Namecheap does), enter only the part before your domain. Verification usually takes minutes, and can take up to 72 hours. On Cloudflare, use Resend's "Sign in to Cloudflare" button to add them for you.
 
 ## Step 5. Vercel project (you)
@@ -172,7 +172,7 @@ From now on, a merge to `main` that adds a migration runs `migrate` on staging b
 | `AUTH_SECRET` | Made with the command above. Its own value, used nowhere else |
 | `APP_URL` | `https://breakrecords-staging.vercel.app` (the address Vercel gives the project; no slash at the end) |
 | `RESEND_API_KEY` | From step 4 |
-| `EMAIL_FROM` | `Break Records <onboarding@resend.dev>` until your domain is verified, then for example `Break Records <no-reply@staging.<your-domain>>` |
+| `EMAIL_FROM` | `Indie SRVCS <onboarding@resend.dev>` until your domain is verified, then for example `Indie SRVCS <no-reply@staging.<your-domain>>` |
 
 4. **Deploy**. The first build takes a few minutes.
 5. After it finishes:

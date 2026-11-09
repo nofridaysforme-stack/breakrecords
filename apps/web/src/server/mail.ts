@@ -34,8 +34,8 @@ export async function sendSignInLink(email: string, url: string): Promise<void> 
   if (!key || !from) throw new EmailNotConfiguredError('Email is not set up yet');
   const { error } = await new Resend(key).emails.send({
     from, to: email,
-    subject: 'Your sign-in link for Break Records',
-    text: `Sign in to Break Records:\n\n${link}\n\nThis link works once and expires in 15 minutes. If you didn't ask for it, ignore this email.`,
+    subject: 'Your sign-in link for Indie SRVCS',
+    text: `Sign in to Indie SRVCS:\n\n${link}\n\nThis link works once and expires in 15 minutes. If you didn't ask for it, ignore this email.`,
   });
   // The reason (never the link) goes to the server log, so a rejected key or sender is easy to spot.
   if (error) throw new Error(`Resend rejected the email: ${error.name}: ${error.message}`);

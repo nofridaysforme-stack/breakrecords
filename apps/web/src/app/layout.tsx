@@ -5,7 +5,7 @@ import { DecisionsProvider } from '@/data/decisions';
 import '@/styles/globals.css';
 
 export const metadata: Metadata = {
-  title: { default: 'Break Records', template: '%s · Break Records' },
+  title: { default: 'Indie SRVCS', template: '%s · Indie SRVCS' },
   description: 'Your label, run by a team that never sleeps. You approve what matters.',
 };
 

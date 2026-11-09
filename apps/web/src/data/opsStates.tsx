@@ -88,7 +88,7 @@ export const OPS_STATES: Record<Key, StateCopy> = {
     working: { agent: 'Label Head', task: 'applying the theme', note: 'The preview updates as each color loads.' },
     blocked: { title: 'The domain isn’t live yet', text: <>app.harborsound.co waits for its CNAME record. <strong>Owner: Harbor Sound&apos;s DNS admin.</strong></>, action: { label: 'See DNS steps', href: '#dns' } },
     error: { title: 'The logo didn’t upload', text: <>The file was over 2 MB. <strong>The published theme is unchanged.</strong></>, meta: 'Error WL-413 · Nov 6, 8:27 · Audit AUD-7F3K-2302', retry: 'Try again' },
-    partial: { text: <><strong>Email sender isn&apos;t verified.</strong> Emails go from Break Records until it is.</>, action: 'Verify' },
+    partial: { text: <><strong>Email sender isn&apos;t verified.</strong> Emails go from Indie SRVCS until it is.</>, action: 'Verify' },
   },
   roster: {
     empty: { title: 'No artists yet', text: 'Add an artist and I’ll set up their profile, contract and payee details.', action: { label: 'Draft an artist agreement', href: '/contracts/templates/artist' } },

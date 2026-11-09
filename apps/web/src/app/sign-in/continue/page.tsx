@@ -16,14 +16,14 @@ export default async function ContinuePage({ searchParams }: { searchParams: Pro
   return (
     <main id="main" className={s.page}>
       <div className={s.card}>
-        <p className={s.brand}><span className={s.mark} aria-hidden="true">B</span>Break Records.</p>
+        <p className={s.brand}><span className={s.mark} aria-hidden="true">I</span>Indie SRVCS.</p>
         {token && email ? (
           <form method="get" action="/api/auth/callback/email" className={s.form}>
             <input type="hidden" name="token" value={token} />
             <input type="hidden" name="email" value={email} />
             <input type="hidden" name="callbackUrl" value={callbackUrl} />
             <h1 className={s.title}>Sign in as {email}</h1>
-            <p className={s.lede}>This link works once. Press the button to open Break Records.</p>
+            <p className={s.lede}>This link works once. Press the button to open Indie SRVCS.</p>
             <Button type="submit" variant="primary">Sign in</Button>
           </form>
         ) : <p className={s.lede}>This sign-in link is incomplete. Ask for a new one.</p>}

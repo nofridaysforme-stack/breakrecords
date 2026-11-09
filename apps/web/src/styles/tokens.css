@@ -1,4 +1,4 @@
-/* Break Records design tokens. Dark is the default theme. White-label tenants override :root values. */
+/* Indie SRVCS design tokens. Dark is the default theme. White-label tenants override :root values. */
 :root, [data-theme="dark"] {
   /* surfaces */
   --bg: #110c0b;

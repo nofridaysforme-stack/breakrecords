@@ -81,7 +81,7 @@ export function Onboarding({ step }: { step: StepId }) {
   const shell = (opts: { title: string; lede?: string; body: ReactNode; next?: string; canSkip?: () => void }) => (
     <div className={s.page}>
       <header className={s.header}>
-        <div className={s.brand}><span className={s.mark} aria-hidden="true">B</span><span className={s.wordmark}>Break Records.</span></div>
+        <div className={s.brand}><span className={s.mark} aria-hidden="true">I</span><span className={s.wordmark}>Indie SRVCS.</span></div>
         <div className={s.progress} role="progressbar" aria-label="Setup progress" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={i + 1} aria-valuetext={`Step ${i + 1} of ${STEPS.length}: ${STEPS[i].label}`}>
           {STEPS.map((st, k) => <span key={st.id} className={cx(s.bar, k < i && s.barDone, k === i && s.barNow)} aria-hidden="true" />)}
           <span className={s.stepText} aria-hidden="true">{i + 1} / {STEPS.length} · {STEPS[i].label}</span>
