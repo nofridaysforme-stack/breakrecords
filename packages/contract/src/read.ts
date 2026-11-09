@@ -320,7 +320,15 @@ export const SettingsResponse = z.object({
   config: z.object({ name: z.string(), country: z.string().length(2), profile: z.string(), statementPeriod: z.string(), minimumPayout: Cents, spendCap: Cents }),
   integrations: z.array(z.object({ id: Id, name: z.string(), abbr: z.string(), state: z.enum(['ok', 'off', 'err']), status: z.string() })),
   team: z.array(TeamMember),
+  /** Invitations (owners only): who may sign in, and whether they have. */
+  invites: z.array(z.object({ email: z.email(), role: z.enum(['owner', 'team', 'payee']), payee: z.string().nullable(), added: Display, joined: z.boolean() })),
+  canInvite: z.boolean(),
+  /** Payees a payee invitation can be linked to (so they see their own statements and splits). */
+  payeeOptions: z.array(z.object({ id: Id, name: z.string() })),
 });
+/** POST /api/settings/invites: let someone sign in. Nothing is emailed; they sign in with this address. */
+export const InviteCommand = z.object({ email: z.email().transform((e) => e.toLowerCase()), role: z.enum(['team', 'payee']), payeeId: Id.optional() }).strict()
+  .refine((c) => c.role !== 'payee' || !!c.payeeId, 'Pick which payee they are.');
 const Hex = z.string().regex(/^#[0-9a-f]{6}$/i);
 export const ThemeResponse = z.object({
   theme: z.object({ background: Hex, surface: Hex, brand: Hex, primary: Hex, text: Hex }),

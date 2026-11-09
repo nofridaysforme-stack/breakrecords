@@ -766,3 +766,39 @@ test('onboarding answers are saved as you go, and finishing sets the label up wi
   expect(d.find((x) => x.id === 'legal')?.autonomy).toBe('draft_and_wait'); // signatures always wait for you
   expect(d.find((x) => x.id === 'marketing')?.autonomy).toBeNull(); // Phase 2 untouched
 });
+
+test('a licensee owner switches into its labels and acts there as an owner', async ({ page }) => {
+  await signIn(page, USERS.licensee);
+  await page.goto('/');
+  const sw = page.getByRole('button', { name: /switch label/ });
+  await expect(async () => { await sw.click(); await expect(page.getByRole('list', { name: 'Switch label' })).toBeVisible({ timeout: 1000 }); }).toPass();
+  await page.getByRole('list', { name: 'Switch label' }).getByRole('button', { name: 'Northline Records' }).click();
+  await expect(page.getByRole('button', { name: /^Label\s*Northline Records/ })).toBeVisible(); // the page reloads in the new label
+  expect((await (await page.request.get('/api/approvals')).json()).items.length).toBeGreaterThan(0);
+  expect((await page.request.post('/api/session/tenant', { data: { tenantId: '00000000-0000-0000-0000-000000000000' } })).status()).toBe(403);
+});
+
+test('an owner invites a payee, who signs in to their own portal; a team member can’t invite', async ({ page, browser }) => {
+  await signIn(page, USERS.owner);
+  await page.goto('/settings/team');
+  await page.getByRole('textbox', { name: 'Email' }).fill('ari@monroe.example');
+  await page.getByRole('combobox', { name: /^Role/ }).selectOption('payee');
+  await page.getByRole('combobox', { name: /^Which payee/ }).selectOption('ari-monroe');
+  await page.getByRole('button', { name: 'Invite', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'ari@monroe.example can now sign in' })).toBeVisible();
+  await expect(page.getByRole('row', { name: /ari@monroe\.example/ })).toContainText('Not signed in yet');
+
+  const ari = await (await browser.newContext()).newPage();
+  await signIn(ari, 'ari@monroe.example');
+  await expect(ari).toHaveURL(/\/portal/);
+  await expect(ari.getByRole('heading', { name: /^Hi Ari\./ })).toBeVisible();
+
+  const st = SettingsResponse.parse(await (await page.request.get('/api/settings')).json());
+  expect(st.invites.find((i) => i.email === 'ari@monroe.example')).toMatchObject({ role: 'payee', payee: 'Ari Monroe', joined: true });
+  expect((await page.request.delete('/api/settings/invites?email=ari@monroe.example')).status()).toBe(409); // already joined
+
+  const priya = await (await browser.newContext()).newPage();
+  await signIn(priya, 'priya@northline.example');
+  expect(SettingsResponse.parse(await (await priya.request.get('/api/settings')).json()).canInvite).toBe(false);
+  expect((await priya.request.post('/api/settings/invites', { data: { email: 'x@y.example', role: 'team' } })).status()).toBe(403);
+});

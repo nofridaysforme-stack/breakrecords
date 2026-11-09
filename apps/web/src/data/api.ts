@@ -274,14 +274,16 @@ export async function getActivity(): Promise<ops.ActivityEvent[]> {
   if (!ctx) return ops.activity;
   return (await import('@/server/live/activity')).liveActivity(ctx);
 }
-export type Settings = { nav: typeof ops.settingsNav; routing: typeof ops.routing; config: typeof ops.labelConfig; integrations: typeof ops.integrations; team: typeof ops.team };
+export type Invite = { email: string; role: 'owner' | 'team' | 'payee'; payee: string | null; added: string; joined: boolean };
+export type Settings = { nav: typeof ops.settingsNav; routing: typeof ops.routing; config: typeof ops.labelConfig; integrations: typeof ops.integrations; team: typeof ops.team; invites: Invite[]; canInvite: boolean; payeeOptions: { id: string; name: string }[] };
 /** Settings (5h). Live: the tenant's settings, routing, integrations and team. */
 export async function getSettings(): Promise<Settings> {
   const ctx = await liveCtx('settings');
   if (ctx) return (await import('@/server/live/settings')).liveSettings(ctx);
   const m = await (await import('@/server/mockSettings')).mockSettingsState();
   return { nav: ops.settingsNav, routing: ops.routing, config: ops.labelConfig, team: ops.team,
-    integrations: ops.integrations.map((i) => (m.connected.has(i.id) ? { ...i, state: 'ok' as const, status: 'Connected' } : i)) };
+    integrations: ops.integrations.map((i) => (m.connected.has(i.id) ? { ...i, state: 'ok' as const, status: 'Connected' } : i)),
+    invites: m.invites, canInvite: true, payeeOptions: payouts.taxForms.map((t) => ({ id: t.payeeId, name: t.name })) };
 }
 export type Theme = { theme: ThemeColors; tenant: typeof ops.tenant; published: { at: string; by: string } | null; canPublish: boolean };
 /** White label (5i). Live: the licensee's theme, which its labels read and only its owners publish. */

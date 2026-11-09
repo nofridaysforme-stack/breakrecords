@@ -115,3 +115,10 @@ a.item:hover { background: var(--surface-raised); color: var(--text); }
 @media (max-width: 767px) {
   .sidebar { display: none; }
 }
+
+/* Label switcher list (more than one label). */
+.switcherWrap { position: relative; }
+.switcherList { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 20; background: var(--surface-raised); border: 1px solid var(--line-control); border-radius: var(--r-control); padding: 4px; display: flex; flex-direction: column; }
+.switcherItem { width: 100%; text-align: left; min-height: var(--tap-min); padding: 0 10px; border-radius: var(--r-control); font-size: var(--fs-body); color: var(--text); }
+.switcherItem:hover, .switcherItem:focus-visible { background: var(--track); }
+.switcherError { display: flex; gap: 6px; align-items: center; font-size: var(--fs-meta); color: var(--critical); margin-top: 4px; }

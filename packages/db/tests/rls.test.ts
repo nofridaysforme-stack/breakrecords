@@ -475,4 +475,20 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT 1 FROM integrations`)).toHaveLength(0);
     });
   });
+  describe('licensee owners and invitations', () => {
+    it('a licensee’s owner acts as an owner in its labels, and in no others', async () => {
+      expect(await withTenant(app, { userId: ids.licOwner, tenantId: ids.a }, (tx) => tx`SELECT app_role() AS r`)).toEqual([{ r: 'owner' }]);
+      expect((await withTenant(app, { userId: ids.licOwner, tenantId: ids.a }, (tx) => tx`SELECT slug FROM recordings`)).length).toBeGreaterThan(0);
+      expect(await withTenant(app, { userId: ids.licOwner, tenantId: ids.b }, (tx) => tx`SELECT app_role() AS r`)).toEqual([{ r: null }]);
+      const labels = await memberships(app, ids.licOwner);
+      expect(labels.map((m) => [m.slug, m.role])).toEqual([['lic', 'owner'], ['a', 'owner']]);
+    });
+
+    it('only owners see and add invitations', async () => {
+      await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`INSERT INTO allowlist (email, tenant_id, role) VALUES ('new@x.test', ${ids.a}, 'team')`);
+      expect((await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT email, joined FROM app_invites()`)).map((r) => r.email)).toContain('new@x.test');
+      expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT * FROM app_invites()`)).toHaveLength(0);
+      await expect(withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`INSERT INTO allowlist (email, tenant_id, role) VALUES ('x@x.test', ${ids.a}, 'owner')`)).rejects.toThrow(/row-level security/);
+    });
+  });
 });

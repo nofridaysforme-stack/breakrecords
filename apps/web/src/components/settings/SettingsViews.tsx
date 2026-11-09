@@ -160,6 +160,7 @@ export function SettingsSectionView({ data, section, depts }: { data: Data; sect
               <tbody>{data.team.map((t) => <tr key={t.id}><th scope="row" className={o.rowName}>{t.name}</th><td className={o.text2}>{t.role}</td><td className={o.text2}>{t.role === 'Owner' ? 'Everything' : 'Filings'}</td></tr>)}</tbody>
             </table>
           </div>
+          {data.canInvite && <Invites initial={data.invites} payees={data.payeeOptions} />}
         </section>
       );
     case 'billing':
@@ -194,5 +195,66 @@ function DensityControl() {
         ))}
       </div>
     </fieldset>
+  );
+}
+
+/** Owners let people sign in. Nothing is emailed: the person signs in with the address you add. */
+function Invites({ initial, payees }: { initial: Data['invites']; payees: Data['payeeOptions'] }) {
+  const [list, setList] = useState(initial);
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<'team' | 'payee'>('team');
+  const [payeeId, setPayeeId] = useState(payees[0]?.id ?? '');
+  const [msg, setMsg] = useState('');
+  const [error, setError] = useState('');
+  const send = async (method: 'POST' | 'DELETE', target?: string) => {
+    setMsg(''); setError('');
+    try {
+      const res = method === 'POST'
+        ? await fetch('/api/settings/invites', { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: email.trim(), role, ...(role === 'payee' ? { payeeId } : {}) }) })
+        : await fetch(`/api/settings/invites?email=${encodeURIComponent(target!)}`, { method });
+      const body = await res.json();
+      if (!res.ok) { setError(body.message ?? 'That didn’t save.'); return; }
+      setList(body.invites);
+      setMsg(method === 'POST' ? `${email.trim()} can now sign in. Tell them to use this address; nothing is emailed from here.` : `Invitation for ${target} withdrawn.`);
+      if (method === 'POST') setEmail('');
+    } catch { setError('Couldn’t reach the server. Nothing changed.'); }
+  };
+  return (
+    <section className={o.section} aria-labelledby="inv-h">
+      <h2 id="inv-h" className={o.sectionTitle}>Invite someone</h2>
+      <form className={o.form} onSubmit={(e) => { e.preventDefault(); if (email.trim()) void send('POST'); }}>
+        <label className={o.field}>Email<input className={o.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" required /></label>
+        <label className={o.field}>Role
+          <select className={o.input} value={role} onChange={(e) => setRole(e.target.value as 'team' | 'payee')}>
+            <option value="team">Team: works in the label</option>
+            <option value="payee">Payee: sees their own statements and splits</option>
+          </select>
+        </label>
+        {role === 'payee' && (
+          <label className={o.field}>Which payee
+            <select className={o.input} value={payeeId} onChange={(e) => setPayeeId(e.target.value)}>{payees.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+          </label>
+        )}
+        <div className={o.formActions}><Button variant="primary" type="submit" disabled={!email.trim()} disabledReason="Add an email address first.">Invite</Button></div>
+      </form>
+      {msg && <p className={o.toast} role="status"><Check size={16} className={o.good} aria-hidden="true" />{msg}</p>}
+      {error && <p className={o.small} role="alert" style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--critical)' }}><CircleAlert size={14} aria-hidden="true" />{error}</p>}
+      {list.length > 0 && (
+        <div className={o.tableWrap} role="region" aria-label="Invitations" tabIndex={0}>
+          <table className={o.table}>
+            <thead><tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Added</th><th scope="col">Status</th><th scope="col"><span className="visually-hidden">Action</span></th></tr></thead>
+            <tbody>{list.map((i) => (
+              <tr key={i.email}>
+                <th scope="row" className={o.rowName}>{i.email}</th>
+                <td className={o.text2}>{i.role === 'payee' ? `Payee${i.payee ? `, ${i.payee}` : ''}` : i.role === 'owner' ? 'Owner' : 'Team'}</td>
+                <td className={o.dateMono}>{i.added}</td>
+                <td className={o.text2}>{i.joined ? 'Joined' : 'Not signed in yet'}</td>
+                <td>{!i.joined && <Button size="sm" onClick={() => send('DELETE', i.email)} aria-label={`Withdraw invitation for ${i.email}`}>Withdraw</Button>}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }

@@ -53,6 +53,7 @@ Stage 3 is the point of no return: attorney sign-off, insurance and a staging re
 - **Home and ⌘K on live data.** Home's money row is read from the same tables as the money screens: the latest period's income, what's owed in batches waiting on you, what the period recouped, unclaimed money, and a plain forecast (the recent monthly average for 90 days, less payouts due), each with a note saying what it covers. ⌘K searches through `GET /api/search`, whose index is built from the same reads the screens use, so live it finds the label's own data and nothing of another label's; the bar shows built-in results at once and swaps in the server's.
 - **Published themes apply to everyone.** Once a licensee publishes its theme, every page of its labels' app and their payees' portal is served with it (the variables are written on the server from validated colors). The portal says which label pays you.
 - **Onboarding answers are saved on the server** as you go (`GET`/`PUT /api/onboarding`), so they survive reloads and other devices. Finishing sets the label up from them: its profile and country, and every active department's autonomy, never past what the department allows. The tab's own copy wins over the server's while you're answering.
+- **Switching labels and inviting people.** The sidebar's label button switches between the labels you work in; a licensee's owners act as owners in its labels (the database grants it, as it already granted access). Owners invite people from Settings › Team and roles: as team, or as a payee linked to their party so they see only their own statements and splits. An invitation is an allowlist entry; nothing is emailed, they sign in with that address. Invitations nobody has used can be withdrawn; both are audited.
 
 ### Left in Stage 0
 
@@ -65,8 +66,6 @@ Stage 3 is the point of no return: attorney sign-off, insurance and a staging re
 | Asset uploads (R2 or S3 with signed URLs); `assets.storage_key` is ready for them | Upload assets only queues names today |
 | Updating a registration's status and reference when a filing is submitted or confirmed (Publishing and Rights agents, Stage 4; until then a person records it) | The matrix only changes through the seed today |
 | Splits: starting a new version from the one in effect, deal types beyond net profit (royalty, license, distribution), split trees for songs, and e-signature through Dropbox Sign (Stage 2) | The editor edits one open draft today; signing is a button press until Dropbox Sign |
-| Tenant switcher in the sidebar (memberships already support several tenants) | Licensees and people in more than one label |
-| Owner screens to invite people (allowlist) | Today invitations are seeded |
 | Staging on Supabase and Vercel; CI running lint, unit, contract, RLS, mock e2e, live e2e and visual checks on every pull request | "Nothing merged without tests" |
 | Screenshot baselines (`toHaveScreenshot`) for the 37 frames | Visual tests become a merge check |
 | Replace v1 `Display` strings with structured fields as each module goes live | Live servers send data, not formatted text |

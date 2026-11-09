@@ -31,7 +31,13 @@ export type Membership = { tenantId: string; slug: string; name: string; kind: '
 
 export function memberships(sql: Sql, userId: string): Promise<Membership[]> {
   return asUser(sql, userId, async (tx) => tx<Membership[]>`
-    SELECT t.id AS "tenantId", t.slug, t.name, t.kind::text AS kind, m.role::text AS role
-    FROM memberships m JOIN tenants t ON t.id = m.tenant_id
-    ORDER BY m.created_at, t.name`);
+    SELECT "tenantId", slug, name, kind, role FROM (
+      SELECT t.id AS "tenantId", t.slug, t.name, t.kind::text AS kind, m.role::text AS role, m.created_at, 0 AS via
+      FROM memberships m JOIN tenants t ON t.id = m.tenant_id
+      UNION ALL
+      -- A licensee's owners also work in its labels, as owners.
+      SELECT c.id, c.slug, c.name, c.kind::text, 'owner', m.created_at, 1
+      FROM memberships m JOIN tenants c ON c.parent_id = m.tenant_id
+      WHERE m.role = 'owner' AND NOT EXISTS (SELECT 1 FROM memberships x WHERE x.user_id = m.user_id AND x.tenant_id = c.id)
+    ) all_tenants ORDER BY created_at, via, name`);
 }

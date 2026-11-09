@@ -267,3 +267,14 @@ test.describe('onboarding writes', () => {
     expect((await request.put('/api/onboarding', { data: { answers: { ...answers, profile: 'orchestra' } } })).status()).toBe(400);
   });
 });
+
+test.describe('invitation writes', () => {
+  test('inviting and withdrawing are saved for the session', async ({ request }) => {
+    const res = await request.post('/api/settings/invites', { data: { email: 'Sam@Example.com', role: 'payee', payeeId: 'ari-monroe' } });
+    expect(res.status()).toBe(200);
+    expect(SettingsResponse.parse(await res.json()).invites).toEqual([expect.objectContaining({ email: 'sam@example.com', role: 'payee', payee: 'Ari Monroe', joined: false })]);
+    expect(SettingsResponse.parse(await (await request.delete('/api/settings/invites?email=sam@example.com')).json()).invites).toEqual([]);
+    expect((await request.post('/api/settings/invites', { data: { email: 'sam@example.com', role: 'payee' } })).status()).toBe(400);
+    expect((await request.post('/api/settings/invites', { data: { email: 'not an email', role: 'team' } })).status()).toBe(400);
+  });
+});
