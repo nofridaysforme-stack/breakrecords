@@ -985,3 +985,34 @@ test('codes: an owner sets prefixes and assigns the next ISRC and UPC; an artist
   await rue.goto('/');
   await expect(rue).toHaveURL(/\/portal/);
 });
+
+test('someone signed in before workspaces existed gets theirs on their next visit; everyone can sign out', async ({ page, browser, baseURL }) => {
+  // A payee with a session from before: no workspace of their own yet, and no fresh sign-in.
+  const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+  const [north] = await db<{ id: string }[]>`SELECT id FROM tenants WHERE slug = 'northline'`;
+  await db`INSERT INTO allowlist (email, tenant_id, role) VALUES ('old.session@x.example', ${north.id}, 'payee') ON CONFLICT DO NOTHING`;
+  const [u] = await db<{ id: string }[]>`INSERT INTO users (email) VALUES ('old.session@x.example') RETURNING id`;
+  await db`INSERT INTO memberships (user_id, tenant_id, role) VALUES (${u.id}, ${north.id}, 'payee')`;
+  await db`INSERT INTO sessions (session_token, user_id, expires) VALUES ('old-session-token', ${u.id}, now() + interval '1 hour')`;
+  await db.end();
+  const ctx = await browser.newContext();
+  await ctx.addCookies([{ name: 'authjs.session-token', value: 'old-session-token', url: baseURL! }]);
+  const old = await ctx.newPage();
+  await old.goto('/');
+  await expect(old).toHaveURL(/\/onboarding/);
+  const me = SessionResponse.parse(await (await old.request.get('/api/session/tenant')).json());
+  expect(me.workspaces).toHaveLength(1);
+  expect(me.connections.map((c) => c.name)).toEqual(['Northline Records']);
+
+  // Sign out from the portal and from the sidebar.
+  await signIn(page, USERS.payee, { into: 'Northline Records' });
+  await page.goto('/portal');
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page).toHaveURL(/\/sign-in/);
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/sign-in/);
+  await signIn(page, USERS.owner);
+  await page.goto('/');
+  await page.getByRole('complementary', { name: 'Sidebar' }).getByRole('button', { name: 'Sign out' }).click();
+  await expect(page).toHaveURL(/\/sign-in/);
+});
