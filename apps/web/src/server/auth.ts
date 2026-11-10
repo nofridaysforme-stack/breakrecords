@@ -44,12 +44,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async signIn({ user }) { return !!user.email && (await mayAccess(user.email)); },
   },
   events: {
-    // Every sign-in turns any pending invitations for this email into memberships. Someone who
-    // signed up with an invite code gets their own workspace the first time (only once).
+    // Every sign-in turns any pending invitations for this email into memberships. Then
+    // someone who signed up with an invite code, or was invited only to be paid, gets their own
+    // workspace the first time (only once): everyone runs their own.
     async signIn({ user }) {
       if (!user.id) return;
-      await sql`SELECT app_create_workspace(${user.id})`;
       await sql`SELECT app_claim_invites(${user.id})`;
+      await sql`SELECT app_create_workspace(${user.id})`;
     },
   },
   trustHost: true,

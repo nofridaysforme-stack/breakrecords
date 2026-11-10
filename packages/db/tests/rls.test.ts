@@ -583,6 +583,33 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       expect(none).toBeNull(); // no sign-up, no workspace
     });
   });
+  describe('everyone runs their own workspace', () => {
+    it('someone invited only as a payee gets their own workspace once; the label stays a connection', async () => {
+      const [{ id: label }] = await owner`INSERT INTO tenants (slug, name, kind) VALUES ('pays-you', 'Pays You Records', 'label') RETURNING id`;
+      await owner`INSERT INTO allowlist (email, tenant_id, role) VALUES ('paid@x.test', ${label}, 'payee')`;
+      const [{ id: u }] = await app`INSERT INTO users (email) VALUES ('paid@x.test') RETURNING id`;
+      await app`SELECT app_claim_invites(${u})`;
+      const [{ t }] = await app`SELECT app_create_workspace(${u}) AS t`;
+      expect(t).toBeTruthy();
+      expect((await app`SELECT app_create_workspace(${u}) AS t`)[0].t).toBeNull(); // once
+      const mine = await memberships(app, u);
+      expect(mine.map((m) => [m.name, m.role]).sort()).toEqual([['My workspace', 'owner'], ['Pays You Records', 'payee']]);
+      expect(await withTenant(app, { userId: u, tenantId: t }, (tx) => tx`SELECT app_needs_onboarding() AS n`)).toEqual([{ n: true }]);
+      // The label sees nothing inside it.
+      await owner`INSERT INTO memberships (user_id, tenant_id, role) VALUES (${ids.ua}, ${label}, 'owner')`;
+      expect(await withTenant(app, { userId: ids.ua, tenantId: t }, (tx) => tx`SELECT app_role() AS r`)).toEqual([{ r: null }]);
+      expect(await withTenant(app, { userId: ids.ua, tenantId: t }, (tx) => tx`SELECT 1 FROM label_settings`)).toHaveLength(0);
+    });
+
+    it('co-owners and team join the inviter’s workspace only; anyone signed in can start one', async () => {
+      const [{ t: none }] = await app`SELECT app_create_workspace(${ids.ua}) AS t`;
+      expect(none).toBeNull();
+      const [{ id }] = await asUser(app, ids.ua, (tx) => tx`SELECT app_start_workspace() AS id`);
+      expect((await memberships(app, ids.ua)).find((m) => m.tenantId === id)).toMatchObject({ name: 'My workspace', role: 'owner' });
+      await expect(app`SELECT app_start_workspace()`).rejects.toThrow(/sign in first/);
+      await expect(app`SELECT app_open_workspace(${ids.ua}, '{}'::jsonb)`).rejects.toThrow(/permission denied/);
+    });
+  });
   describe('label services and their clients', () => {
     let svcUser = ''; let svc = '';
     beforeAll(async () => {

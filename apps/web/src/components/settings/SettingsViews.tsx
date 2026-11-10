@@ -201,7 +201,7 @@ function DensityControl() {
   );
 }
 
-/** Owners let people sign in. Nothing is emailed: the person signs in with the address you add. */
+/** Owners invite people: they're emailed, and sign in with the address you add. */
 function Invites({ initial, payees }: { initial: Data['invites']; payees: Data['payeeOptions'] }) {
   const { words } = useWorkspace();
   const [list, setList] = useState(initial);
@@ -223,21 +223,23 @@ function Invites({ initial, payees }: { initial: Data['invites']; payees: Data['
       const body = await res.json();
       if (!res.ok) { setError(body.message ?? 'That didn’t save.'); return; }
       setList(body.invites);
-      setMsg(method === 'POST' ? `${email.trim()} can now sign in. Tell them to use this address; nothing is emailed from here.` : `Invitation for ${target} withdrawn.`);
+      setMsg(method === 'POST'
+        ? body.emailed ? `Invitation emailed to ${email.trim()}. They sign in with that address.` : `${email.trim()} can now sign in, but the email didn’t go out. Tell them to sign in at this site with that address.`
+        : `Invitation for ${target} withdrawn.`);
       if (method === 'POST') { setEmail(''); setNewName(''); }
     } catch { setError('Couldn’t reach the server. Nothing changed.'); }
   };
   return (
     <section className={o.section} aria-labelledby="inv-h">
       <h2 id="inv-h" className={o.sectionTitle}>Invite someone</h2>
-      <p className={o.small}>They don’t need an account yet: they sign in with the email you add here, and their first sign-in puts them in.</p>
+      <p className={o.small}>They don’t need an account yet. We email them, and they sign in with the address you add here. Co-owners and team members join {words.your}. An artist or payee sets up their own workspace, with every tool, and sees what you pay them in it.</p>
       <form className={o.form} onSubmit={(e) => { e.preventDefault(); if (ready) void send('POST'); }}>
         <label className={o.field}>Email<input className={o.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" required /></label>
         <label className={o.field}>Who are they?
           <select className={o.input} value={role} onChange={(e) => setRole(e.target.value as 'owner' | 'team' | 'payee')}>
             <option value="owner">Co-owner: runs {words.your} with you, including money and invitations</option>
             <option value="team">Team member: {words.member}</option>
-            <option value="payee">Artist or payee: sees only their own statements, splits and payments</option>
+            <option value="payee">Artist or payee: gets their own workspace, and sees only their own statements, splits and payments from you</option>
           </select>
         </label>
         {role === 'payee' && (
