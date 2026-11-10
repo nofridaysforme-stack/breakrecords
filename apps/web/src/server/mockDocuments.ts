@@ -7,7 +7,7 @@ import { SAMPLE_LYRICS, SAMPLE_MASTER_OWNER, SAMPLE_PEOPLE, SAMPLE_P_YEAR, SAMPL
 import { cookies } from 'next/headers';
 import { mockSession } from './session';
 import { renderPdf } from './documents/render';
-import { documentStore } from './documents/storage';
+import { documentStore, StorageRefused } from './documents/storage';
 import { aiState, documentsView, type DocRow, type SubjectRef } from './documents/view';
 
 // Sample-data mode: documents built from the same sample catalog the seed loads, kept per
@@ -102,9 +102,14 @@ export async function mockPrepareDocument(c: { kind: DocKind; subject: DocSubjec
   const version = docs.filter((d) => d.kind === c.kind && d.subjectId === c.id).length + 1;
   const pdf = await renderPdf(doc, { brand: BRAND, version });
   const base = `mock/${createHash('sha256').update(session).digest('hex').slice(0, 16)}/${c.kind}/${c.id}/v${version}`;
-  const files = documentStore(false);
-  await files.put(`${base}.pdf`, pdf, 'application/pdf');
-  if (doc.csv) await files.put(`${base}.csv`, new TextEncoder().encode(toCsv(doc.csv.rows)), 'text/csv');
+  try {
+    const files = documentStore(false);
+    await files.put(`${base}.pdf`, pdf, 'application/pdf');
+    if (doc.csv) await files.put(`${base}.csv`, new TextEncoder().encode(toCsv(doc.csv.rows)), 'text/csv');
+  } catch (e) {
+    if (e instanceof StorageRefused) return { ok: false, status: 503, error: 'storage', message: e.message };
+    throw e;
+  }
   const id = crypto.randomUUID();
   docs.push({ id, kind: c.kind, subject: c.subject, subjectId: c.id, version, preparedAt: new Date(), preparedBy: 'You', gaps: doc.gaps, hasCsv: !!doc.csv, review: null, title: doc.title, pdfKey: `${base}.pdf`, csvKey: doc.csv ? `${base}.csv` : null });
   return { ok: true, value: await view(), id };
