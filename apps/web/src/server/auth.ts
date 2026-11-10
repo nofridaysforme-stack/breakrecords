@@ -1,5 +1,6 @@
 import 'server-only';
 import NextAuth from 'next-auth';
+import { cookies } from 'next/headers';
 import { DrizzleAdapter } from '@auth/drizzle-adapter';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { connect } from '@breakrecords/db/client';
@@ -51,6 +52,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (!user.id) return;
       await sql`SELECT app_claim_invites(${user.id})`;
       await sql`SELECT app_create_workspace(${user.id})`;
+      // Start in your own workspace, never in whatever the last person on this browser had open.
+      try { (await cookies()).delete('br_tenant'); } catch { /* not in a request that can set cookies */ }
     },
   },
   trustHost: true,
