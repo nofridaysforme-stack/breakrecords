@@ -8,6 +8,7 @@ import { footerNav, isActive, primaryNav, type NavItem } from './nav';
 import { useShellUI } from './ShellUI';
 import { useWorkspace } from './Workspace';
 import { useDecisions } from '@/data/decisions';
+import { SignOutButton } from './SignOutButton';
 import s from './Sidebar.module.css';
 
 // Label services (a licensee) add and open client workspaces from here.
@@ -89,6 +90,7 @@ export function Sidebar({ labelName, staff = false, tenants = [], connections = 
             </Link>
           );
         })}
+        {tenants.length > 0 && <SignOutButton className={`${s.item} ${s.footerItem} ${s.askItem}`} iconClassName={s.icon} labelClassName={s.label} />}
       </nav>
     </aside>
   );

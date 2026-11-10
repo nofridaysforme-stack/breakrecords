@@ -2,6 +2,7 @@ import { Suspense, type ReactNode } from 'react';
 import { PortalNav } from '@/components/portal/PortalNav';
 import s from '@/components/portal/Portal.module.css';
 import { BackToWorkspace } from '@/components/portal/BackToWorkspace';
+import { SignOutButton } from '@/components/shell/SignOutButton';
 import { authRequired, requireContext } from '@/server/context';
 import { PublishedTheme } from '@/server/publishedTheme';
 
@@ -19,6 +20,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
         <Suspense><PortalNav /></Suspense>
         <p className={s.paidBy}><span className={s.deskOnly}>Paid by {label}</span><span className={s.phoneOnly}>via {label.split(' ')[0]}</span></p>
         {home && <BackToWorkspace id={home.tenantId} name={home.name} />}
+        {ctx && <SignOutButton className={s.back} />}
       </header>
       <main id="main" className={s.main}>{children}</main>
       <Suspense><PortalNav phone /></Suspense>

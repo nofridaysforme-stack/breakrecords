@@ -39,8 +39,14 @@ export const getContext = cache(async (): Promise<RequestContext | null> => {
   const userId = session?.user?.id;
   const email = session?.user?.email;
   if (!userId || !email) return null;
-  const tenants = await memberships(sql, userId);
+  let tenants = await memberships(sql, userId);
   if (!tenants.length) return null;
+  // Someone only paid by labels gets their own workspace. Normally made at sign-in; this covers
+  // anyone who signed in before that existed (made once, by the database).
+  if (!tenants.some((m) => m.role !== 'payee')) {
+    await sql`SELECT app_create_workspace(${userId})`;
+    tenants = await memberships(sql, userId);
+  }
   const wanted = (await cookies()).get(TENANT_COOKIE)?.value;
   const workspaces = tenants.filter((m) => m.role !== 'payee');
   const connections = tenants.filter((m) => m.role === 'payee');
