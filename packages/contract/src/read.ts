@@ -225,7 +225,9 @@ export const Recording = z.object({
 export const UpdateRecordingCommand = z.object({
   genre: z.string().trim().max(60).nullable().optional(),
   ai: AiUseLabel.optional(),
-}).refine((c) => c.genre !== undefined || c.ai !== undefined, 'Send a genre or an AI use.');
+  /** Typed with or without hyphens; null removes it. Checked against the ISRC format. */
+  isrc: z.string().trim().max(20).nullable().optional(),
+}).refine((c) => c.genre !== undefined || c.ai !== undefined || c.isrc !== undefined, 'Send a genre, an AI use or an ISRC.');
 export type Recording = z.infer<typeof Recording>;
 export type UpdateRecordingCommand = z.infer<typeof UpdateRecordingCommand>;
 export const CatalogResponse = z.object({
@@ -327,8 +329,17 @@ export const SettingsResponse = z.object({
   payeeOptions: z.array(z.object({ id: Id, name: z.string() })),
 });
 /** POST /api/settings/invites: let someone sign in. Nothing is emailed; they sign in with this address. */
-export const InviteCommand = z.object({ email: z.email().transform((e) => e.toLowerCase()), role: z.enum(['team', 'payee']), payeeId: Id.optional() }).strict()
-  .refine((c) => c.role !== 'payee' || !!c.payeeId, 'Pick which payee they are.');
+/**
+ * POST /api/settings/invites. Who they'll be: a co-owner, a team member, or an artist or other
+ * payee (an existing one, or a new one added by name).
+ */
+export const InviteCommand = z.object({
+  email: z.email().transform((e) => e.toLowerCase()),
+  role: z.enum(['owner', 'team', 'payee']),
+  payeeId: Id.optional(),
+  newPayee: z.object({ name: z.string().trim().min(1).max(120) }).strict().optional(),
+}).strict()
+  .refine((c) => c.role !== 'payee' || !!c.payeeId !== !!c.newPayee, 'Pick an existing payee or name a new one.');
 const Hex = z.string().regex(/^#[0-9a-f]{6}$/i);
 export const ThemeResponse = z.object({
   theme: z.object({ background: Hex, surface: Hex, brand: Hex, primary: Hex, text: Hex }),
@@ -418,3 +429,19 @@ export const ClientsResponse = z.object({
 });
 export const CreateClientCommand = z.object({ name: z.string().trim().min(1).max(120), kind: z.enum(['artist', 'label']) }).strict();
 export type ClientsResponse = z.infer<typeof ClientsResponse>;
+
+// ---------- Recording and product codes (ISRC, UPC) ----------
+
+/** PATCH /api/catalog/releases/{id}: the release's UPC (or EAN), checked; null removes it. */
+export const UpdateReleaseCommand = z.object({ upc: z.string().trim().max(20).nullable() }).strict();
+/** GET /api/catalog/codes: the workspace's prefixes and the next code each would give. */
+export const CodesResponse = z.object({
+  isrcPrefix: z.string().nullable(), gs1Prefix: z.string().nullable(),
+  nextIsrc: z.string().nullable(), nextUpc: z.string().nullable(), canChange: z.boolean(),
+});
+/** PUT /api/catalog/codes (owners). Empty clears a prefix. */
+export const SetCodePrefixesCommand = z.object({ isrcPrefix: z.string().trim().max(10).nullable(), gs1Prefix: z.string().trim().max(14).nullable() }).strict();
+/** POST /api/catalog/codes/assign: give a recording the next ISRC, or a release the next UPC. */
+export const AssignCodeCommand = z.object({ kind: z.enum(['isrc', 'upc']), id: Id }).strict();
+export const AssignedCode = z.object({ kind: z.enum(['isrc', 'upc']), id: z.string(), code: z.string() });
+export type CodesResponse = z.infer<typeof CodesResponse>;

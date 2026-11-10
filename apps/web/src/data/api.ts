@@ -188,8 +188,13 @@ export async function getCatalog(): Promise<ReturnType<typeof mockCatalog>> {
   }
   const { mockRecordingEdits } = await import('@/server/mockCatalog');
   const edits = await mockRecordingEdits();
+  const upcs = await (await import('@/server/mockCodes')).mockUpcEdits();
   const base = mockCatalog();
-  return { ...base, recordings: base.recordings.map((r) => (edits[r.id] ? { ...r, ...edits[r.id] } : r)) };
+  return {
+    ...base,
+    recordings: base.recordings.map((r) => (edits[r.id] ? { ...r, ...edits[r.id] } : r)),
+    releases: base.releases.map((r) => (upcs[r.id] !== undefined ? { ...r, upc: upcs[r.id] ?? 'Not assigned' } : r)),
+  };
 }
 export type Contracts = { summary: string; contracts: ops.Contract[]; templates: ops.Template[]; reviews: { id: string; fileName: string; status: 'queued' | 'reviewed'; requested: string }[] };
 /** Contracts (5b). Live: the tenant's agreements, templates and review requests. */

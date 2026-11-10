@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   if ('refused' in who) return who.refused;
   if (who.ctx) { const out = await liveInvite(who.ctx, body.data); return out.ok ? NextResponse.json(out.value) : err(out.status, out.error, out.message); }
   const s = await getSettings();
-  const payee = body.data.role === 'payee' ? s.payeeOptions.find((p) => p.id === body.data.payeeId)?.name ?? null : null;
+  const payee = body.data.role !== 'payee' ? null : body.data.newPayee ? body.data.newPayee.name : s.payeeOptions.find((p) => p.id === body.data.payeeId)?.name ?? null;
   if (body.data.role === 'payee' && !payee) return err(404, 'not_found', 'No such payee.');
   await mockInvite(body.data.email, body.data.role, payee);
   return NextResponse.json(await getSettings());

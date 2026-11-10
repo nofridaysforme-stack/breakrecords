@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { ActivityResponse, CodesResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 import { MAILBOX } from '../../playwright.live.config';
@@ -540,8 +540,10 @@ test.describe('roster (live)', () => {
       ['The Low Hours', 'Band · 3 members', 'Indie rock', 1, 'Band agreement · Signed'],
       ['Marco Dela', 'Producer and writer', 'R&B', 0, 'Producer agreement · Waiting on you'],
     ]);
-    expect(r.map((a) => [a.open, a.href])).toEqual([
-      ['Glasshouse release in 17 weeks', '/releases/rel_glasshouse'], ['Rue Sato’s tax form expires Dec 1', '/money/payouts'],
+    // The countdown moves with the calendar, so only its shape is checked.
+    expect(r[0].open).toMatch(/^Glasshouse release in \d+ (weeks|days?)$|^Glasshouse releases today$/);
+    expect(r.map((a, i) => [i === 0 ? 'Glasshouse' : a.open, a.href])).toEqual([
+      ['Glasshouse', '/releases/rel_glasshouse'], ['Rue Sato’s tax form expires Dec 1', '/money/payouts'],
       ['Producer agreement needs your eyes', '/approvals/apr_producer'],
     ]);
     expect([r[0].income, r[2].income]).toEqual([1081260, 21140]);
@@ -785,8 +787,9 @@ test('an owner invites a payee, who signs in to their own portal; a team member 
   await signIn(page, USERS.owner);
   await page.goto('/settings/team');
   await page.getByRole('textbox', { name: 'Email' }).fill('ari@monroe.example');
-  await page.getByRole('combobox', { name: /^Role/ }).selectOption('payee');
-  await page.getByRole('combobox', { name: /^Which payee/ }).selectOption('ari-monroe');
+  await page.getByRole('combobox', { name: /^Who are they/ }).selectOption('payee');
+  await page.getByRole('radio', { name: /Someone already in/ }).check();
+  await page.getByRole('combobox', { name: /^Payee/ }).selectOption('ari-monroe');
   await page.getByRole('button', { name: 'Invite', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'ari@monroe.example can now sign in' })).toBeVisible();
   await expect(page.getByRole('row', { name: /ari@monroe\.example/ })).toContainText('Not signed in yet');
@@ -929,4 +932,34 @@ test('a band signs up and adds a bandmate as co-owner; label services add a clie
   expect((await band.request.get('/api/clients')).status()).toBe(403);
   await band.goto('/');
   await expect(band.getByRole('complementary', { name: 'Sidebar' }).getByRole('link', { name: 'Clients' })).toHaveCount(0);
+});
+
+test('codes: an owner sets prefixes and assigns the next ISRC and UPC; an artist who isn’t a payee yet can be invited', async ({ page, browser }) => {
+  await signIn(page, USERS.owner);
+  const codes = CodesResponse.parse(await (await page.request.put('/api/catalog/codes', { data: { isrcPrefix: 'US-ZZ9', gs1Prefix: '0360002' } })).json());
+  expect(codes.nextUpc).toBe('036000200010');
+  await page.goto('/catalog/recordings?id=low-light');
+  await page.getByRole('button', { name: /^Edit/ }).first().click();
+  await page.getByRole('button', { name: /^Assign the next ISRC/ }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Low Light now has ISRC US-ZZ9-' })).toBeVisible();
+  const rec = CatalogResponse.parse(await (await page.request.get('/api/catalog')).json()).recordings.find((r) => r.id === 'low-light')!;
+  expect(rec.isrc).toBe(codes.nextIsrc);
+
+  expect((await page.request.patch('/api/catalog/releases/rel_glasshouse', { data: { upc: null } })).status()).toBe(200);
+  await page.goto('/catalog/releases');
+  await page.getByRole('button', { name: 'Assign the next UPC to Glasshouse' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Glasshouse now has UPC 036000200010' })).toBeVisible();
+
+  // A team member can't change the prefixes.
+  const priya = await (await browser.newContext()).newPage();
+  await signIn(priya, 'priya@northline.example');
+  expect((await priya.request.put('/api/catalog/codes', { data: { isrcPrefix: 'US-AAA', gs1Prefix: null } })).status()).toBe(403);
+
+  // Invite an artist who isn't a payee yet; they sign in to their own portal.
+  const res = await page.request.post('/api/settings/invites', { data: { email: 'rue@nova.example', role: 'payee', newPayee: { name: 'Rue Nova' } } });
+  expect(res.status()).toBe(200);
+  expect(SettingsResponse.parse(await res.json()).invites.find((i) => i.email === 'rue@nova.example')).toMatchObject({ role: 'payee', payee: 'Rue Nova' });
+  const rue = await (await browser.newContext()).newPage();
+  await signIn(rue, 'rue@nova.example');
+  await expect(rue).toHaveURL(/\/portal/);
 });
