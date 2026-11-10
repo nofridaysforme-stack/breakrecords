@@ -21,7 +21,15 @@ export function authRequired(): boolean {
   return on;
 }
 
-export type RequestContext = { userId: string; email: string; tenantId: string; tenantName: string; tenantKind: Membership['kind']; role: Membership['role']; tenants: Membership[] };
+export type RequestContext = {
+  userId: string; email: string; tenantId: string; tenantName: string; tenantKind: Membership['kind']; role: Membership['role'];
+  /** Every membership, connections included. */
+  tenants: Membership[];
+  /** Workspaces they run or work in (owner or team). */
+  workspaces: Membership[];
+  /** Labels that pay them: they're a payee there and see only what their deal covers. */
+  connections: Membership[];
+};
 
 const TENANT_COOKIE = 'br_tenant';
 
@@ -34,8 +42,11 @@ export const getContext = cache(async (): Promise<RequestContext | null> => {
   const tenants = await memberships(sql, userId);
   if (!tenants.length) return null;
   const wanted = (await cookies()).get(TENANT_COOKIE)?.value;
-  const t = tenants.find((m) => m.tenantId === wanted) ?? tenants[0];
-  return { userId, email, tenantId: t.tenantId, tenantName: t.name, tenantKind: t.kind, role: t.role, tenants };
+  const workspaces = tenants.filter((m) => m.role !== 'payee');
+  const connections = tenants.filter((m) => m.role === 'payee');
+  // Their own workspace comes first; a label that pays them opens only when they choose it.
+  const t = tenants.find((m) => m.tenantId === wanted) ?? workspaces[0] ?? tenants[0];
+  return { userId, email, tenantId: t.tenantId, tenantName: t.name, tenantKind: t.kind, role: t.role, tenants, workspaces, connections };
 });
 
 /** For pages: the context, or a redirect to sign in. */

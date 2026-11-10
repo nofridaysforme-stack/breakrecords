@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, CodesResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { ActivityResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 import { MAILBOX } from '../../playwright.live.config';
@@ -84,7 +84,7 @@ test('a proposal made in the app is stored and approvable', async ({ page }) => 
 });
 
 test('payees only see the portal and cannot decide', async ({ page }) => {
-  await signIn(page, USERS.payee);
+  await signIn(page, USERS.payee, { into: 'Northline Records' });
   await page.goto('/approvals');
   await expect(page).toHaveURL(/\/portal/);
   const res = await page.request.post('/api/approvals/apr_mlc/decision', { data: { action: 'approve' } });
@@ -144,7 +144,7 @@ test.describe('catalog (live)', () => {
   });
 
   test('payees can’t change the catalog', async ({ page }) => {
-    await signIn(page, USERS.payee);
+    await signIn(page, USERS.payee, { into: 'Northline Records' });
     expect((await page.request.patch('/api/catalog/recordings/glasshouse', { data: { genre: 'Pop' } })).status()).toBe(403);
   });
 
@@ -200,7 +200,7 @@ test.describe('rights (live)', () => {
   });
 
   test('payees can’t manage profile claims', async ({ page }) => {
-    await signIn(page, USERS.payee);
+    await signIn(page, USERS.payee, { into: 'Northline Records' });
     expect((await page.request.post('/api/rights/claims/prepare', { data: {} })).status()).toBe(403);
   });
 });
@@ -238,7 +238,7 @@ test.describe('splits (live)', () => {
     expect((await page.request.post('/api/splits/gh-rec/sign', { data: { role: 'label' } })).status()).toBe(200);
 
     const marco = await (await browser.newContext()).newPage();
-    await signIn(marco, USERS.payee);
+    await signIn(marco, USERS.payee, { into: 'Northline Records' });
     await marco.goto('/portal/sign');
     await expect(marco.getByRole('heading', { name: 'Glasshouse split v5 needs your signature' })).toBeVisible();
     expect((await marco.request.post('/api/splits/gh-rec/sign', { data: { role: 'artist' } })).status()).toBe(403);
@@ -304,7 +304,7 @@ test.describe('statements (live)', () => {
   });
 
   test('a payee sees only their own statements, and no label income', async ({ page }) => {
-    await signIn(page, USERS.payee);
+    await signIn(page, USERS.payee, { into: 'Northline Records' });
     expect((await page.request.get('/api/money/royalties')).status()).toBe(403);
     expect(StatementsResponse.parse(await (await page.request.get('/api/statements')).json()).items.map((s) => s.id)).toEqual(['ST-2026-10-MD', 'ST-2026-09-MD']);
     expect((await page.request.get('/api/statements/ST-2026-10-KV')).status()).toBe(404);
@@ -392,7 +392,7 @@ test.describe('payouts (live)', () => {
   });
 
   test('a payee sees only their own portal and none of the label’s payouts', async ({ page }) => {
-    await signIn(page, USERS.payee);
+    await signIn(page, USERS.payee, { into: 'Northline Records' });
     const me = PayeeResponse.parse(await (await page.request.get('/api/portal/marco-dela')).json());
     expect(me).toMatchObject({ name: 'Marco Dela', earned: 114630, paid: 86130, next: { amount: 28500, date: 'Nov 10', from: 'From Glasshouse, October. 3 points.' }, bank: { last4: '4821' } });
     expect(me.statementIds).toEqual(['ST-2026-10-MD', 'ST-2026-09-MD']);
@@ -460,7 +460,7 @@ test.describe('releases (live)', () => {
   });
 
   test('payees and other labels see no runbooks', async ({ page, browser }) => {
-    await signIn(page, USERS.payee);
+    await signIn(page, USERS.payee, { into: 'Northline Records' });
     expect((await page.request.get('/api/releases')).status()).toBe(403);
     expect((await page.request.get('/api/releases/rel_glasshouse')).status()).toBe(403);
     const harbor = await (await browser.newContext()).newPage();
@@ -517,7 +517,7 @@ test.describe('contracts (live)', () => {
   });
 
   test('payees and other labels see no contracts', async ({ page, browser }) => {
-    await signIn(page, USERS.payee);
+    await signIn(page, USERS.payee, { into: 'Northline Records' });
     for (const path of ['/api/contracts', '/api/contracts/templates/artist']) expect((await page.request.get(path)).status()).toBe(403);
     expect((await page.request.post('/api/contracts/reviews', { data: { fileName: 'x.pdf' } })).status()).toBe(403);
     const harbor = await (await browser.newContext()).newPage();
@@ -560,7 +560,7 @@ test.describe('roster (live)', () => {
   });
 
   test('payees and other labels see no roster', async ({ page, browser }) => {
-    await signIn(page, USERS.payee);
+    await signIn(page, USERS.payee, { into: 'Northline Records' });
     expect((await page.request.get('/api/roster')).status()).toBe(403);
     const harbor = await (await browser.newContext()).newPage();
     await signIn(harbor, USERS.harbor);
@@ -618,7 +618,7 @@ test.describe('funding (live)', () => {
   });
 
   test('payees and other labels see no funding', async ({ page, browser }) => {
-    await signIn(page, USERS.payee);
+    await signIn(page, USERS.payee, { into: 'Northline Records' });
     for (const path of ['/api/funding', '/api/funding/offers']) expect((await page.request.get(path)).status()).toBe(403);
     expect((await page.request.post('/api/funding/fund_grant/dismiss')).status()).toBe(403);
     const harbor = await (await browser.newContext()).newPage();
@@ -665,7 +665,7 @@ test.describe('activity (live)', () => {
   });
 
   test('payees and other labels see no departments or activity', async ({ page, browser }) => {
-    await signIn(page, USERS.payee);
+    await signIn(page, USERS.payee, { into: 'Northline Records' });
     for (const path of ['/api/departments', '/api/activity']) expect((await page.request.get(path)).status()).toBe(403);
     expect((await page.request.patch('/api/departments/royalties', { data: { autonomy: 'suggest' } })).status()).toBe(403);
     const harbor = await (await browser.newContext()).newPage();
@@ -711,13 +711,14 @@ test.describe('settings (live)', () => {
     await page.goto('/');
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#f0c050'); // lint-allow-hex: test data
     const marco = await (await browser.newContext()).newPage();
-    await signIn(marco, USERS.payee);
+    await signIn(marco, USERS.payee, { into: 'Northline Records' });
+    await marco.goto('/portal');
     expect(await marco.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#f0c050'); // lint-allow-hex: test data
     await expect(marco.getByText('Paid by Northline Records')).toBeVisible();
   });
 
   test('payees and other labels', async ({ page, browser }) => {
-    await signIn(page, USERS.payee);
+    await signIn(page, USERS.payee, { into: 'Northline Records' });
     for (const path of ['/api/settings', '/api/settings/theme']) expect((await page.request.get(path)).status()).toBe(403);
     const harbor = await (await browser.newContext()).newPage();
     await signIn(harbor, USERS.harbor);
@@ -775,9 +776,9 @@ test('onboarding answers are saved as you go, and finishing sets the label up wi
 test('a licensee owner switches into its labels and acts there as an owner', async ({ page }) => {
   await signIn(page, USERS.licensee);
   await page.goto('/');
-  const sw = page.getByRole('button', { name: /switch label/ });
-  await expect(async () => { await sw.click(); await expect(page.getByRole('list', { name: 'Switch label' })).toBeVisible({ timeout: 1000 }); }).toPass();
-  await page.getByRole('list', { name: 'Switch label' }).getByRole('button', { name: 'Northline Records' }).click();
+  const sw = page.getByRole('button', { name: /switch workspace/ });
+  await expect(async () => { await sw.click(); await expect(page.getByRole('list', { name: 'Switch workspace' })).toBeVisible({ timeout: 1000 }); }).toPass();
+  await page.getByRole('list', { name: 'Switch workspace' }).getByRole('button', { name: 'Northline Records' }).click();
   await expect(page.getByRole('button', { name: /^Label\s*Northline Records/ })).toBeVisible(); // the page reloads in the new label
   expect((await (await page.request.get('/api/approvals')).json()).items.length).toBeGreaterThan(0);
   expect((await page.request.post('/api/session/tenant', { data: { tenantId: '00000000-0000-0000-0000-000000000000' } })).status()).toBe(403);
@@ -791,13 +792,33 @@ test('an owner invites a payee, who signs in to their own portal; a team member 
   await page.getByRole('radio', { name: /Someone already in/ }).check();
   await page.getByRole('combobox', { name: /^Payee/ }).selectOption('ari-monroe');
   await page.getByRole('button', { name: 'Invite', exact: true }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'ari@monroe.example can now sign in' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Invitation emailed to ari@monroe.example' })).toBeVisible();
   await expect(page.getByRole('row', { name: /ari@monroe\.example/ })).toContainText('Not signed in yet');
+  const mail = JSON.parse(readFileSync(path.join(MAILBOX, 'ari@monroe.example.invite.json'), 'utf8')) as { subject: string; text: string };
+  expect(mail.subject).toBe('Northline Records invited you to Indie SRVCS');
+  expect(mail.text).toMatch(/set up your own workspace first/);
 
+  // Ari gets their own workspace first, with every tool, and Northline is a connection.
   const ari = await (await browser.newContext()).newPage();
   await signIn(ari, 'ari@monroe.example');
+  await expect(ari).toHaveURL(/\/onboarding/);
+  const me = SessionResponse.parse(await (await ari.request.get('/api/session/tenant')).json());
+  expect(me.workspaces).toEqual([expect.objectContaining({ name: 'My workspace', role: 'owner' })]);
+  expect(me.connections).toEqual([expect.objectContaining({ name: 'Northline Records' })]);
+  const answers = { profile: 'solo', name: 'Ari Monroe', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_yet' }, autonomy: 'draft_and_wait' };
+  expect((await ari.request.put('/api/onboarding', { data: { answers, complete: true } })).status()).toBe(200);
+  await ari.goto('/');
+  const sidebar = ari.getByRole('complementary', { name: 'Sidebar' });
+  for (const tool of ['Releases', 'Catalog', 'Money', 'Splits', 'Contracts', 'Rights', 'Roster']) await expect(sidebar.getByRole('link', { name: tool })).toBeVisible();
+  expect((await ari.request.get('/api/catalog')).status()).toBe(200);
+  expect(CatalogResponse.parse(await (await ari.request.get('/api/catalog')).json()).recordings).toEqual([]); // their own, not Northline's
+  await sidebar.getByRole('link', { name: 'Labels I work with' }).click();
+  await ari.getByRole('button', { name: 'Open what Northline Records pays you' }).click();
   await expect(ari).toHaveURL(/\/portal/);
   await expect(ari.getByRole('heading', { name: /^Hi Ari\./ })).toBeVisible();
+  await ari.getByRole('button', { name: 'Back to Ari Monroe' }).click();
+  await expect(ari).toHaveURL(/\/$/);
+  await expect(sidebar.getByText('Ari Monroe', { exact: true })).toBeVisible();
 
   const st = SettingsResponse.parse(await (await page.request.get('/api/settings')).json());
   expect(st.invites.find((i) => i.email === 'ari@monroe.example')).toMatchObject({ role: 'payee', payee: 'Ari Monroe', joined: true });
@@ -828,7 +849,7 @@ test('documents: the label’s team prepares and downloads; other labels and pay
   expect(theirs.subjects.some((x) => x.id === 'glasshouse')).toBe(false);
 
   const payee = await (await browser.newContext()).newPage();
-  await signIn(payee, USERS.payee);
+  await signIn(payee, USERS.payee, { into: 'Northline Records' });
   expect((await payee.request.get('/api/rights/documents')).status()).toBe(403);
   expect((await payee.request.get(`/api/rights/documents/${doc.id}/file`)).status()).toBe(403);
 
@@ -866,7 +887,7 @@ test('sign-up: staff make a code; a new artist signs up, is taken through onboar
   const sidebar = artist.getByRole('complementary', { name: 'Sidebar' });
   await expect(sidebar.getByText('Personal label', { exact: true })).toBeVisible();
   await expect(sidebar.getByText('Rue Nova', { exact: true })).toBeVisible();
-  await expect(sidebar.getByRole('link', { name: 'Roster' })).toHaveCount(0);
+  await expect(sidebar.getByRole('link', { name: 'Roster' })).toBeVisible(); // every kind gets every tool
   await expect(sidebar.getByRole('link', { name: 'Invite codes' })).toHaveCount(0);
   expect((await (await artist.request.get('/api/approvals')).json()).items).toHaveLength(0); // nothing of anyone else's
   expect((await artist.request.get('/api/admin/invite-codes')).status()).toBe(403);
@@ -960,6 +981,7 @@ test('codes: an owner sets prefixes and assigns the next ISRC and UPC; an artist
   expect(res.status()).toBe(200);
   expect(SettingsResponse.parse(await res.json()).invites.find((i) => i.email === 'rue@nova.example')).toMatchObject({ role: 'payee', payee: 'Rue Nova' });
   const rue = await (await browser.newContext()).newPage();
-  await signIn(rue, 'rue@nova.example');
+  await signIn(rue, 'rue@nova.example', { into: 'Northline Records' });
+  await rue.goto('/');
   await expect(rue).toHaveURL(/\/portal/);
 });

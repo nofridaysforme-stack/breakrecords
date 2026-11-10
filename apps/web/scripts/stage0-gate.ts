@@ -31,12 +31,16 @@ async function sessionFor(email: string): Promise<string> {
   return token;
 }
 
-const get = (token: string, path: string) => fetch(`${base}${path}`, { headers: { cookie: `${cookieName}=${token}` }, redirect: 'manual' });
+const tenantOf = new Map<string, string>();
+const get = (token: string, path: string) => fetch(`${base}${path}`, { headers: { cookie: `${cookieName}=${token}${tenantOf.has(token) ? `; br_tenant=${tenantOf.get(token)}` : ''}` }, redirect: 'manual' });
 
 async function main() {
   const owner = await sessionFor('e2e-owner@northline.example');
   const harbor = await sessionFor('e2e-harbor@harbor.example');
   const payee = await sessionFor('e2e-payee@northline.example');
+  // A payee may also run a workspace of their own; these checks are about the label that pays them.
+  const [northline] = await sql<{ id: string }[]>`SELECT id FROM tenants WHERE slug = 'northline'`;
+  if (northline) tenantOf.set(payee, northline.id);
 
   // Signed out, nothing is served.
   check((await fetch(`${base}/api/approvals`)).status === 401, 'signed out: the API refuses');

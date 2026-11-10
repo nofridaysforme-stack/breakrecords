@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Building2, ChevronDown, CircleAlert, KeyRound, MessageSquare } from 'lucide-react';
+import { Building2, ChevronDown, CircleAlert, Handshake, KeyRound, MessageSquare, Plus } from 'lucide-react';
 import { footerNav, isActive, primaryNav, type NavItem } from './nav';
 import { useShellUI } from './ShellUI';
 import { useWorkspace } from './Workspace';
@@ -13,14 +13,16 @@ import s from './Sidebar.module.css';
 // Label services (a licensee) add and open client workspaces from here.
 const CLIENTS: NavItem = { label: 'Clients', href: '/clients', match: '/clients', icon: Building2 };
 const staffClients = (kind: string) => kind === 'licensee';
+// Labels that pay you (you're their payee): what your deal with each covers.
+const CONNECTIONS: NavItem = { label: 'Labels I work with', href: '/connections', match: '/connections', icon: Handshake };
 
-type Props = { labelName: string; staff?: boolean; tenants?: { id: string; name: string; current: boolean }[]; approvalIds: string[] };
+type Props = { labelName: string; staff?: boolean; tenants?: { id: string; name: string; current: boolean }[]; connections?: number; approvalIds: string[] };
 
-export function Sidebar({ labelName, staff = false, tenants = [], approvalIds }: Props) {
+export function Sidebar({ labelName, staff = false, tenants = [], connections = 0, approvalIds }: Props) {
   const pathname = usePathname() ?? '/';
   const approvalsCount = useDecisions().openCount(approvalIds);
   const { openPanel } = useShellUI();
-  const { isArtist, kind } = useWorkspace();
+  const { kind } = useWorkspace();
 
   return (
     <aside className={s.sidebar} aria-label="Sidebar">
@@ -33,7 +35,7 @@ export function Sidebar({ labelName, staff = false, tenants = [], approvalIds }:
       <LabelSwitcher labelName={labelName} tenants={tenants} />
 
       <nav aria-label="Primary" className={s.nav}>
-        {[...primaryNav.filter((item) => !(isArtist && item.label === 'Roster')), ...(staffClients(kind) ? [CLIENTS] : [])].map((item) => {
+        {[...primaryNav, ...(staffClients(kind) ? [CLIENTS] : []), ...(connections > 0 ? [CONNECTIONS] : [])].map((item) => {
           const Icon = item.icon;
           if (item.locked) {
             return (
@@ -92,33 +94,46 @@ export function Sidebar({ labelName, staff = false, tenants = [], approvalIds }:
   );
 }
 
-/** The label you're working in. With more than one, it opens a list to switch. */
+/**
+ * The workspace you're working in. It opens a list to switch to another you run or work in,
+ * and to start a new one of your own (signed in only).
+ */
 function LabelSwitcher({ labelName, tenants }: { labelName: string; tenants: { id: string; name: string; current: boolean }[] }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
   const others = tenants.filter((t) => !t.current);
+  const canOpen = tenants.length > 0; // signed in
   const { words } = useWorkspace();
   const choose = async (id: string) => {
     setError('');
     const res = await fetch('/api/session/tenant', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tenantId: id }) }).catch(() => null);
     if (!res?.ok) { setError('Couldn’t switch. Try again.'); return; }
-    window.location.assign('/'); // everything on screen belongs to the label, so start fresh
+    window.location.assign('/'); // everything on screen belongs to the workspace, so start fresh
+  };
+  const start = async () => {
+    setError(''); setBusy(true);
+    const res = await fetch('/api/session/workspace', { method: 'POST' }).catch(() => null);
+    setBusy(false);
+    if (!res?.ok) { setError((await res?.json().catch(() => null))?.message ?? 'Couldn’t start a workspace. Try again.'); return; }
+    window.location.assign('/onboarding');
   };
   return (
     <div className={s.switcherWrap} onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); }}>
-      <button type="button" className={s.switcher} aria-expanded={others.length ? open : undefined} aria-controls={others.length ? 'label-list' : undefined}
-        onClick={() => others.length && setOpen((o) => !o)}>
+      <button type="button" className={s.switcher} aria-expanded={canOpen ? open : undefined} aria-controls={canOpen ? 'label-list' : undefined}
+        onClick={() => canOpen && setOpen((o) => !o)}>
         <span>
           <span className={s.switcherKicker}>{words.kicker}</span>
           <span className={s.switcherName}>{labelName}</span>
-          <span className="visually-hidden">{others.length ? ', switch label' : ''}</span>
+          <span className="visually-hidden">{canOpen ? ', switch workspace' : ''}</span>
           <span className={s.switcherInitial} aria-hidden="true">{labelName.charAt(0)}</span>
         </span>
-        {others.length > 0 && <ChevronDown className={s.switcherChevron} size={14} aria-hidden="true" />}
+        {canOpen && <ChevronDown className={s.switcherChevron} size={14} aria-hidden="true" />}
       </button>
       {open && (
-        <ul id="label-list" className={s.switcherList} aria-label="Switch label">
+        <ul id="label-list" className={s.switcherList} aria-label="Switch workspace">
           {others.map((t) => <li key={t.id}><button type="button" className={s.switcherItem} onClick={() => choose(t.id)}>{t.name}</button></li>)}
+          <li><button type="button" className={s.switcherItem} onClick={start} disabled={busy}><Plus size={12} aria-hidden="true" /> Start a new workspace</button></li>
         </ul>
       )}
       {error && <p className={s.switcherError} role="alert"><CircleAlert size={12} aria-hidden="true" />{error}</p>}

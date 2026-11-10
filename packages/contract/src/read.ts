@@ -328,7 +328,6 @@ export const SettingsResponse = z.object({
   /** Payees a payee invitation can be linked to (so they see their own statements and splits). */
   payeeOptions: z.array(z.object({ id: Id, name: z.string() })),
 });
-/** POST /api/settings/invites: let someone sign in. Nothing is emailed; they sign in with this address. */
 /**
  * POST /api/settings/invites. Who they'll be: a co-owner, a team member, or an artist or other
  * payee (an existing one, or a new one added by name).
@@ -405,6 +404,22 @@ export const SetAiAssistCommand = z.object({ on: z.boolean() }).strict();
 export type DocumentsResponse = z.infer<typeof DocumentsResponse>;
 export type DocVersion = z.infer<typeof DocVersion>;
 export type DocReview = z.infer<typeof DocReview>;
+
+// ---------- Session (signed in only; not a label endpoint) ----------
+const Place = z.object({ id: z.string().uuid(), name: z.string(), kind: z.enum(['artist', 'label', 'licensee']) });
+/**
+ * GET /api/session/tenant: where you are, the workspaces you run or work in, and the labels
+ * that pay you (connections: you see only what your deal with each covers).
+ */
+export const SessionResponse = z.object({
+  current: z.string().uuid(),
+  workspaces: z.array(Place.extend({ role: z.enum(['owner', 'team']) })),
+  connections: z.array(Place),
+});
+/** POST /api/session/workspace: start a workspace of your own; you're switched into it. */
+export const StartedWorkspace = z.object({ tenantId: z.string().uuid() });
+/** POST /api/settings/invites answers with the settings and whether the invitation email went out. */
+export const InviteResponse = SettingsResponse.extend({ emailed: z.boolean() });
 
 // ---------- Invite codes (Indie SRVCS staff only; not a label endpoint) ----------
 

@@ -96,8 +96,7 @@ export type InviteWrite = { ok: true; value: Settings } | { ok: false; status: n
 /**
  * Lets someone sign in to this label (owners only): as a co-owner, a team member, or an artist
  * or other payee. A payee is an existing one, or a new one added here by name (a party with a
- * payee record, so statements and payouts can follow). Nothing is emailed; they sign in with
- * this address. Audited.
+ * payee record, so statements and payouts can follow). The route emails them. Audited.
  */
 export function liveInvite(ctx: RequestContext, c: { email: string; role: 'owner' | 'team' | 'payee'; payeeId?: string; newPayee?: { name: string } }): Promise<InviteWrite> {
   return withTenant(sql, ctx, async (tx) => {

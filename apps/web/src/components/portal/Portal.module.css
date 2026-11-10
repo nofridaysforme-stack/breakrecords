@@ -9,6 +9,8 @@
 .navItem:hover { color: var(--text); background: var(--surface-raised); }
 .navItem[aria-current='page'] { background: var(--surface-raised); color: var(--text); font-weight: 600; }
 .paidBy { margin-left: auto; font-size: var(--fs-meta); color: var(--text-muted); }
+.back { display: inline-flex; align-items: center; gap: 6px; min-height: var(--tap-min); padding: 0 12px; border: 1px solid var(--line); border-radius: var(--r-control); font-size: var(--fs-meta); color: var(--text); background: transparent; }
+.back:hover, .back:focus-visible { background: var(--surface-raised); }
 .main { padding: 36px 40px 48px; display: flex; flex-direction: column; gap: 24px; width: 100%; max-width: 1280px; margin: 0 auto; }
 .tabbar { display: none; }
 
