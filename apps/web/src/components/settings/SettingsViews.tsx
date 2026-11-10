@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, CircleAlert, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { TypeGlyph } from '@/components/ui/Status';
@@ -149,6 +149,7 @@ export function SettingsSectionView({ data, section, depts }: { data: Data; sect
             <dt>Default autonomy</dt><dd>Draft and wait</dd>
           </dl>
           <p className={o.small}>Changing your profile changes which departments are on. <Link href="/onboarding/welcome" className={o.linkInline}>Run setup again</Link>.</p>
+          <CodePrefixes />
           <DensityControl />
         </section>
       );
@@ -205,40 +206,60 @@ function Invites({ initial, payees }: { initial: Data['invites']; payees: Data['
   const { words } = useWorkspace();
   const [list, setList] = useState(initial);
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'team' | 'payee'>('team');
+  const [role, setRole] = useState<'owner' | 'team' | 'payee'>('team');
+  const [which, setWhich] = useState<'existing' | 'new'>(payees.length ? 'existing' : 'new');
   const [payeeId, setPayeeId] = useState(payees[0]?.id ?? '');
+  const [newName, setNewName] = useState('');
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+  const payeeChoice = role !== 'payee' ? {} : which === 'new' ? { newPayee: { name: newName.trim() } } : { payeeId };
+  const ready = !!email.trim() && (role !== 'payee' || (which === 'new' ? !!newName.trim() : !!payeeId));
   const send = async (method: 'POST' | 'DELETE', target?: string) => {
     setMsg(''); setError('');
     try {
       const res = method === 'POST'
-        ? await fetch('/api/settings/invites', { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: email.trim(), role, ...(role === 'payee' ? { payeeId } : {}) }) })
+        ? await fetch('/api/settings/invites', { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: email.trim(), role, ...payeeChoice }) })
         : await fetch(`/api/settings/invites?email=${encodeURIComponent(target!)}`, { method });
       const body = await res.json();
       if (!res.ok) { setError(body.message ?? 'That didn’t save.'); return; }
       setList(body.invites);
       setMsg(method === 'POST' ? `${email.trim()} can now sign in. Tell them to use this address; nothing is emailed from here.` : `Invitation for ${target} withdrawn.`);
-      if (method === 'POST') setEmail('');
+      if (method === 'POST') { setEmail(''); setNewName(''); }
     } catch { setError('Couldn’t reach the server. Nothing changed.'); }
   };
   return (
     <section className={o.section} aria-labelledby="inv-h">
       <h2 id="inv-h" className={o.sectionTitle}>Invite someone</h2>
-      <form className={o.form} onSubmit={(e) => { e.preventDefault(); if (email.trim()) void send('POST'); }}>
+      <p className={o.small}>They don’t need an account yet: they sign in with the email you add here, and their first sign-in puts them in.</p>
+      <form className={o.form} onSubmit={(e) => { e.preventDefault(); if (ready) void send('POST'); }}>
         <label className={o.field}>Email<input className={o.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" required /></label>
-        <label className={o.field}>Role
-          <select className={o.input} value={role} onChange={(e) => setRole(e.target.value as 'team' | 'payee')}>
-            <option value="team">Team: {words.member}</option>
-            <option value="payee">Payee: sees their own statements and splits</option>
+        <label className={o.field}>Who are they?
+          <select className={o.input} value={role} onChange={(e) => setRole(e.target.value as 'owner' | 'team' | 'payee')}>
+            <option value="owner">Co-owner: runs {words.your} with you, including money and invitations</option>
+            <option value="team">Team member: {words.member}</option>
+            <option value="payee">Artist or payee: sees only their own statements, splits and payments</option>
           </select>
         </label>
         {role === 'payee' && (
-          <label className={o.field}>Which payee
-            <select className={o.input} value={payeeId} onChange={(e) => setPayeeId(e.target.value)}>{payees.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-          </label>
+          <fieldset className={o.field} style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend>Which artist or payee?</legend>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="radio" name="which" checked={which === 'new'} onChange={() => setWhich('new')} />Someone new
+            </label>
+            {which === 'new' && <label className={o.field}>Their name, as it appears on statements<input className={o.input} value={newName} onChange={(e) => setNewName(e.target.value)} maxLength={120} placeholder="Rue Nova" /></label>}
+            {payees.length > 0 && (
+              <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input type="radio" name="which" checked={which === 'existing'} onChange={() => setWhich('existing')} />Someone already in {words.your}
+              </label>
+            )}
+            {which === 'existing' && payees.length > 0 && (
+              <label className={o.field}>Payee
+                <select className={o.input} value={payeeId} onChange={(e) => setPayeeId(e.target.value)}>{payees.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+              </label>
+            )}
+          </fieldset>
         )}
-        <div className={o.formActions}><Button variant="primary" type="submit" disabled={!email.trim()} disabledReason="Add an email address first.">Invite</Button></div>
+        <div className={o.formActions}><Button variant="primary" type="submit" disabled={!ready} disabledReason={!email.trim() ? 'Add an email address first.' : 'Choose or name the payee first.'}>Invite</Button></div>
       </form>
       {msg && <p className={o.toast} role="status"><Check size={16} className={o.good} aria-hidden="true" />{msg}</p>}
       {error && <p className={o.small} role="alert" style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--critical)' }}><CircleAlert size={14} aria-hidden="true" />{error}</p>}
@@ -258,6 +279,46 @@ function Invites({ initial, payees }: { initial: Data['invites']; payees: Data['
           </table>
         </div>
       )}
+    </section>
+  );
+}
+
+/**
+ * The workspace's own code prefixes. With them, recordings and releases can be given the next
+ * ISRC or UPC from the catalog. Most artists don't need them: distributors give codes free.
+ */
+function CodePrefixes() {
+  const [data, setData] = useState<{ isrcPrefix: string | null; gs1Prefix: string | null; nextIsrc: string | null; nextUpc: string | null; canChange: boolean } | null>(null);
+  const [isrc, setIsrc] = useState('');
+  const [gs1, setGs1] = useState('');
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    fetch('/api/catalog/codes').then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) { setData(d); setIsrc(d.isrcPrefix ?? ''); setGs1(d.gs1Prefix ?? ''); } }).catch(() => {});
+  }, []);
+  if (!data) return null;
+  const save = async () => {
+    setMsg(null);
+    const res = await fetch('/api/catalog/codes', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ isrcPrefix: isrc.trim() || null, gs1Prefix: gs1.trim() || null }) }).catch(() => null);
+    const json = await res?.json().catch(() => null);
+    if (!res?.ok) { setMsg({ ok: false, text: json?.message ?? 'That didn’t save. Nothing was changed.' }); return; }
+    setData(json); setMsg({ ok: true, text: 'Code prefixes saved.' });
+  };
+  return (
+    <section className={o.section} aria-labelledby="codes-h">
+      <h2 id="codes-h" className={o.sectionTitle}>Recording and product codes</h2>
+      <p className={o.small}>Your distributor gives you ISRCs and UPCs for free. If you own your codes (a US ISRC prefix, or a GS1 company prefix for barcodes), add them here and I’ll number new recordings and releases for you, never reusing a code.</p>
+      <form className={o.form} onSubmit={(e) => { e.preventDefault(); void save(); }}>
+        <label className={o.field}>ISRC prefix (country and registrant code)
+          <input className={o.input} value={isrc} onChange={(e) => setIsrc(e.target.value)} placeholder="US-XXX" disabled={!data.canChange} autoCapitalize="characters" spellCheck={false} />
+          <span className={o.hint}>{data.nextIsrc ? `Next ISRC: ${data.nextIsrc.replace(/^(..)(...)(..)(.....)$/, '$1-$2-$3-$4')}` : 'From the US ISRC Agency (usisrc.org).'}</span>
+        </label>
+        <label className={o.field}>GS1 company prefix
+          <input className={o.input} value={gs1} onChange={(e) => setGs1(e.target.value)} placeholder="6 to 10 digits" inputMode="numeric" disabled={!data.canChange} />
+          <span className={o.hint}>{data.nextUpc ? `Next UPC: ${data.nextUpc}` : 'From GS1 US, if you buy barcodes yourself.'}</span>
+        </label>
+        {data.canChange && <div className={o.formActions}><Button type="submit">Save prefixes</Button></div>}
+      </form>
+      {msg && <p className={o.toast} role={msg.ok ? 'status' : 'alert'}>{msg.ok ? <Check size={16} className={o.good} aria-hidden="true" /> : <CircleAlert size={16} className={o.critical} aria-hidden="true" />}{msg.text}</p>}
     </section>
   );
 }

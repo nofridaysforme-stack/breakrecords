@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ApprovalError, DocumentsResponse, ApprovalState, ContractsResponse, OnboardingResponse, DepartmentError, DepartmentsResponse, ENDPOINTS, SettingsError, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
+import { ApprovalError, CodesResponse, DocumentsResponse, ApprovalState, ContractsResponse, OnboardingResponse, DepartmentError, DepartmentsResponse, ENDPOINTS, SettingsError, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
 
 // The API contract over HTTP. Any server behind the UI, mock or live, must pass this file.
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
@@ -309,5 +309,35 @@ test.describe('prepared documents', () => {
     const res = await request.post(`/api/rights/documents/${prepared}/review`, { data: {} });
     expect(res.status()).toBe(409);
     expect((await res.json()).error).toBe('ai_off');
+  });
+});
+
+test.describe('ISRC and UPC', () => {
+  test('codes are checked when typed, and assigned from the workspace’s prefixes', async ({ request }) => {
+    expect((await request.patch('/api/catalog/recordings/low-light', { data: { isrc: 'not-an-isrc' } })).status()).toBe(400);
+    expect((await request.patch('/api/catalog/recordings/low-light', { data: { isrc: 'USNL12600014' } })).status()).toBe(409); // Glasshouse has it
+    // No prefix yet: nothing to assign from.
+    expect((await request.post('/api/catalog/codes/assign', { data: { kind: 'isrc', id: 'low-light' } })).status()).toBe(409);
+    expect((await request.put('/api/catalog/codes', { data: { isrcPrefix: 'US1', gs1Prefix: null } })).status()).toBe(400);
+    const codes = CodesResponse.parse(await (await request.put('/api/catalog/codes', { data: { isrcPrefix: 'us-zz9', gs1Prefix: '0360002' } })).json());
+    expect(codes).toMatchObject({ isrcPrefix: 'USZZ9', gs1Prefix: '0360002', nextUpc: '036000200010' });
+    const a = await (await request.post('/api/catalog/codes/assign', { data: { kind: 'isrc', id: 'low-light' } })).json();
+    expect(a.code).toBe(codes.nextIsrc);
+    expect((await request.post('/api/catalog/codes/assign', { data: { kind: 'isrc', id: 'low-light' } })).status()).toBe(409); // it has one now
+    // A UPC must have the right check digit; clear one, then assign the next.
+    expect((await request.patch('/api/catalog/releases/rel_glasshouse', { data: { upc: '036000200011' } })).status()).toBe(400);
+    expect((await request.patch('/api/catalog/releases/rel_glasshouse', { data: { upc: null } })).status()).toBe(200);
+    expect((await (await request.post('/api/catalog/codes/assign', { data: { kind: 'upc', id: 'rel_glasshouse' } })).json()).code).toBe('036000200010');
+    expect((await request.patch('/api/catalog/releases/rel_glasshouse', { data: { upc: '036000291452' } })).status()).toBe(200);
+  });
+});
+
+test.describe('inviting people', () => {
+  test('invite a co-owner, or an artist who isn’t a payee yet', async ({ request }) => {
+    const owner = SettingsResponse.parse(await (await request.post('/api/settings/invites', { data: { email: 'partner@example.com', role: 'owner' } })).json());
+    expect(owner.invites.find((i) => i.email === 'partner@example.com')).toMatchObject({ role: 'owner' });
+    const fresh = SettingsResponse.parse(await (await request.post('/api/settings/invites', { data: { email: 'rue@example.com', role: 'payee', newPayee: { name: 'Rue Nova' } } })).json());
+    expect(fresh.invites.find((i) => i.email === 'rue@example.com')).toMatchObject({ role: 'payee', payee: 'Rue Nova' });
+    expect((await request.post('/api/settings/invites', { data: { email: 'x@example.com', role: 'payee', payeeId: 'ari-monroe', newPayee: { name: 'Both' } } })).status()).toBe(400);
   });
 });

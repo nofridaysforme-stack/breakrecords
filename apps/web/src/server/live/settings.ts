@@ -93,18 +93,31 @@ export function livePublishTheme(ctx: RequestContext, theme: ThemeColors): Promi
 
 export type InviteWrite = { ok: true; value: Settings } | { ok: false; status: number; error: 'forbidden' | 'not_found' | 'invalid'; message: string };
 
-/** Lets someone sign in to this label (owners only). Nothing is emailed; they sign in with this address. Audited. */
-export function liveInvite(ctx: RequestContext, c: { email: string; role: 'team' | 'payee'; payeeId?: string }): Promise<InviteWrite> {
+/**
+ * Lets someone sign in to this label (owners only): as a co-owner, a team member, or an artist
+ * or other payee. A payee is an existing one, or a new one added here by name (a party with a
+ * payee record, so statements and payouts can follow). Nothing is emailed; they sign in with
+ * this address. Audited.
+ */
+export function liveInvite(ctx: RequestContext, c: { email: string; role: 'owner' | 'team' | 'payee'; payeeId?: string; newPayee?: { name: string } }): Promise<InviteWrite> {
   return withTenant(sql, ctx, async (tx) => {
     if (ctx.role !== 'owner') return { ok: false, status: 403, error: 'forbidden', message: 'Only the label’s owners invite people.' } as const;
-    if (c.role === 'payee') {
+    let slug: string | null = null;
+    if (c.role === 'payee' && c.newPayee) {
+      const base = c.newPayee.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'payee';
+      const taken = new Set((await tx<{ slug: string }[]>`SELECT slug FROM parties WHERE slug = ${base} OR slug LIKE ${base + '-%'}`).map((r) => r.slug));
+      slug = base; for (let i = 2; taken.has(slug); i++) slug = `${base}-${i}`;
+      const [p] = await tx<{ id: string }[]>`INSERT INTO parties (tenant_id, slug, name, type) VALUES (${ctx.tenantId}, ${slug}, ${c.newPayee.name}, 'person') RETURNING id`;
+      await tx`INSERT INTO payees (tenant_id, party_id) VALUES (${ctx.tenantId}, ${p.id})`;
+    } else if (c.role === 'payee') {
       const [p] = await tx`SELECT 1 FROM payees y JOIN parties p ON p.id = y.party_id WHERE p.slug = ${c.payeeId ?? ''}`;
       if (!p) return { ok: false, status: 404, error: 'not_found', message: 'No such payee.' } as const;
+      slug = c.payeeId!;
     }
-    await tx`INSERT INTO allowlist (email, tenant_id, role, party_slug, added_by) VALUES (${c.email}, ${ctx.tenantId}, ${c.role}, ${c.role === 'payee' ? c.payeeId! : null}, ${ctx.userId})
+    await tx`INSERT INTO allowlist (email, tenant_id, role, party_slug, added_by) VALUES (${c.email}, ${ctx.tenantId}, ${c.role}, ${slug}, ${ctx.userId})
       ON CONFLICT (email, tenant_id) DO UPDATE SET role = EXCLUDED.role, party_slug = EXCLUDED.party_slug, added_by = EXCLUDED.added_by`;
     await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
-      VALUES (${ctx.tenantId}, ${'AUD-INV-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'invite.created', ${c.email}, ${tx.json({ role: c.role, payee: c.payeeId ?? null })})`;
+      VALUES (${ctx.tenantId}, ${'AUD-INV-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'invite.created', ${c.email}, ${tx.json({ role: c.role, payee: slug, newPayee: c.newPayee?.name ?? null })})`;
     return { ok: true, value: await settingsIn(tx, ctx) } as const;
   });
 }

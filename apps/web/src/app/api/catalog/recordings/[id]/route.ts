@@ -7,7 +7,7 @@ import { liveUpdateRecording } from '@/server/live/catalog';
 
 const err = (status: number, error: string, message: string) => NextResponse.json({ error, message }, { status });
 
-/** Change a recording's genre or AI use declaration. Owners and team only. */
+/** Change a recording's genre, AI use declaration or ISRC. Owners and team only. */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const cmd = UpdateRecordingCommand.safeParse(await req.json().catch(() => null));
@@ -18,9 +18,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (ctx.role === 'payee') return err(403, 'forbidden', 'Only the label’s owner and team can change the catalog.');
     if (isLive('catalog')) {
       const r = await liveUpdateRecording(ctx, id, cmd.data);
+      if (r && 'ok' in r) return err(r.status, r.error, r.message);
       return r ? NextResponse.json(r) : err(404, 'not_found', `No recording ${id}.`);
     }
   }
   const r = await mockUpdateRecording(id, cmd.data);
+  if (r && 'ok' in r) { const e = r as { status: number; error: string; message: string }; return err(e.status, e.error, e.message); }
   return r ? NextResponse.json(r) : err(404, 'not_found', `No recording ${id}.`);
 }

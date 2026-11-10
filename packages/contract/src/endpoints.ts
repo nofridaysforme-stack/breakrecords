@@ -31,6 +31,7 @@ export const ENDPOINTS: Endpoint[] = [
   { path: '/api/portal/marco-dela', schema: R.PayeeResponse, module: 'payouts' },
   { path: '/api/portal/kesi-vale', schema: R.PayeeResponse, module: 'payouts' },
   { path: '/api/catalog', schema: R.CatalogResponse, module: 'catalog' },
+  { path: '/api/catalog/codes', schema: R.CodesResponse, module: 'catalog' },
   { path: '/api/contracts', schema: R.ContractsResponse, module: 'contracts' },
   { path: '/api/contracts/templates/artist', schema: R.Template, module: 'contracts' },
   { path: '/api/rights/registrations', schema: R.RegistrationsResponse, module: 'registrations' },

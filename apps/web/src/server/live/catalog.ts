@@ -6,6 +6,7 @@ import { withTenant, type Tx } from '@breakrecords/db/client';
 import type { getCatalog } from '@/data/api';
 import { listReleases } from '@/data/api';
 import { sql } from '../db';
+import { liveSetIsrc, type CodeError } from './codes';
 import type { RequestContext } from '../context';
 
 type Catalog = Awaited<ReturnType<typeof getCatalog>>;
@@ -88,8 +89,13 @@ export function liveCatalog(ctx: RequestContext): Promise<Catalog> {
 }
 
 /** Changes what the label owns on a recording: genre and the AI use declaration. Returns it rescored, or null if not found. */
-export function liveUpdateRecording(ctx: RequestContext, slug: string, cmd: UpdateRecordingCommand): Promise<Recording | null> {
+export function liveUpdateRecording(ctx: RequestContext, slug: string, cmd: UpdateRecordingCommand): Promise<Recording | null | CodeError> {
   return withTenant(sql, ctx, async (tx) => {
+    if (cmd.isrc !== undefined) {
+      if (!(await tx`SELECT 1 FROM recordings WHERE slug = ${slug}`).length) return null;
+      const bad = await liveSetIsrc(tx, slug, cmd.isrc);
+      if (bad) return bad;
+    }
     const ai = cmd.ai ? aiUseFromLabel(cmd.ai) : null;
     const res = await tx`UPDATE recordings SET
         genre = CASE WHEN ${cmd.genre !== undefined} THEN ${cmd.genre?.trim() || null} ELSE genre END,

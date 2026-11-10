@@ -617,6 +617,36 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       await expect(app`SELECT app_workspace_defaults(${ids.a}, 'x')`).rejects.toThrow(/permission denied/);
     });
   });
+  describe('ISRC and UPC prefixes', () => {
+    let partyA2 = '';
+    beforeAll(async () => {
+      [{ id: partyA2 }] = await owner`INSERT INTO parties (tenant_id, slug, name) VALUES (${ids.a}, 'codes-artist', 'Codes Artist') RETURNING id`;
+      await owner`INSERT INTO recordings (tenant_id, slug, title, artist_id) VALUES (${ids.a}, 'no-isrc-1', 'One', ${partyA2}), (${ids.a}, 'no-isrc-2', 'Two', ${partyA2})`;
+      await owner`INSERT INTO releases (tenant_id, slug, title, kind, artist_id) VALUES (${ids.a}, 'no-upc', 'No UPC', 'single', ${partyA2})`;
+    });
+
+    it('only owners set prefixes; codes come out numbered, never reused, with a right check digit', async () => {
+      await expect(withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT app_set_code_prefixes('US-ZZ9', '0360002')`)).rejects.toThrow(/only the owners/);
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT app_assign_isrc('no-isrc-1')`)).rejects.toThrow(/set your ISRC prefix/);
+      await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT app_set_code_prefixes('us-zz9', '036 0002')`);
+      const yy = String(new Date().getUTCFullYear() % 100).padStart(2, '0');
+      // Someone already uses the first code: it's skipped.
+      await owner`INSERT INTO recordings (tenant_id, slug, title, artist_id, isrc) VALUES (${ids.a}, 'taken', 'Taken', ${partyA2}, ${`USZZ9${yy}00001`})`;
+      const [{ c1 }] = await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT app_assign_isrc('no-isrc-1') AS c1`);
+      const [{ c2 }] = await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT app_assign_isrc('no-isrc-2') AS c2`);
+      expect([c1, c2]).toEqual([`USZZ9${yy}00002`, `USZZ9${yy}00003`]);
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT app_assign_isrc('no-isrc-1')`)).rejects.toThrow(/already has an ISRC/);
+      const [{ u }] = await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT app_assign_upc('no-upc') AS u`);
+      expect(u).toBe('036000200010'); // prefix 0360002, item 0001, check digit 0
+      expect((await owner`SELECT gtin_check_digit(left(${u}, -1)) = right(${u}, 1)::int AS ok`)[0].ok).toBe(true);
+    });
+
+    it('another label can’t assign codes to your catalog or read your prefixes', async () => {
+      await expect(withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT app_assign_isrc('no-isrc-1')`)).rejects.toThrow(/no such recording/);
+      expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT 1 FROM code_prefixes`)).toHaveLength(0);
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`UPDATE code_prefixes SET isrc_next = 1`)).rejects.toThrow(/permission denied/);
+    });
+  });
   describe('licensee owners and invitations', () => {
     it('a licensee’s owner acts as an owner in its labels, and in no others', async () => {
       expect(await withTenant(app, { userId: ids.licOwner, tenantId: ids.a }, (tx) => tx`SELECT app_role() AS r`)).toEqual([{ r: 'owner' }]);

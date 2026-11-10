@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, CircleAlert, Upload, X } from 'lucide-react';
 import { PageTitle } from '@/components/type/Type';
 import { Button } from '@/components/ui/Button';
@@ -10,6 +10,8 @@ import { Term } from '@/components/ui/Controls';
 import { LinkTabs } from '@/components/ops/LinkTabs';
 import type { getCatalog } from '@/data/api';
 import type { Recording } from '@/data/ops';
+import { formatIsrc, normalizeIsrc } from '@breakrecords/core/codes';
+import type { CodesResponse } from '@breakrecords/contract';
 import o from '@/components/ops/Ops.module.css';
 import s from './Catalog.module.css';
 
@@ -29,6 +31,19 @@ export function CatalogView({ data, tab, initialId }: { data: Data; tab: Catalog
   const edit = useRef<HTMLDialogElement>(null);
   const [queued, setQueued] = useState<string[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+  const codes = useCodes();
+
+  /** Gives the recording the next ISRC from the workspace's prefix. */
+  const assignIsrc = async (r: Recording) => {
+    setSaveError(null); setSaved(null);
+    const res = await fetch('/api/catalog/codes/assign', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'isrc', id: r.id }) }).catch(() => null);
+    const json = await res?.json().catch(() => null);
+    if (!res?.ok) { setSaveError(json?.message ?? 'Couldn’t assign an ISRC. Nothing was changed.'); return; }
+    setList((l) => l.map((x) => (x.id === r.id ? { ...x, isrc: json.code } : x)));
+    setSaved(`${r.title} now has ISRC ${formatIsrc(json.code)}.`);
+    codes.refresh();
+  };
 
   /** Shows the edit at once, then takes the server's version (rescored when live) or puts the old one back. */
   const save = async (next: Recording) => {
@@ -37,11 +52,13 @@ export function CatalogView({ data, tab, initialId }: { data: Data; tab: Catalog
     put(next); setSaveError(null);
     try {
       const res = await fetch(`/api/catalog/recordings/${encodeURIComponent(next.id)}`, {
-        method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ genre: next.genre, ai: next.ai }),
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ genre: next.genre, ai: next.ai, ...(next.isrc !== before?.isrc ? { isrc: next.isrc } : {}) }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) { if (before) put(before); setSaveError(json?.message ?? 'That didn’t save. Nothing was changed.'); return; }
       put({ ...next, ...json });
+      setSaved(`${next.title} saved.`);
     } catch {
       if (before) put(before);
       setSaveError('Couldn’t reach the server. Nothing was changed.');
@@ -60,6 +77,7 @@ export function CatalogView({ data, tab, initialId }: { data: Data; tab: Catalog
         { label: 'Releases', href: '/catalog/releases', count: data.counts.releases },
         { label: 'Assets', href: '/catalog/assets', count: data.counts.assets },
       ]} />
+      {saved && !saveError && <p className={o.toast} role="status"><Check size={16} className={o.good} aria-hidden="true" />{saved}</p>}
       {saveError && <p className={o.toast} role="alert"><CircleAlert size={16} className={o.critical} aria-hidden="true" />{saveError}</p>}
       {queued.length > 0 && (
         <p className={o.toast} role="status"><Check size={16} className={o.good} aria-hidden="true" />{queued.length} {queued.length === 1 ? 'file' : 'files'} queued. Metadata Agent will check {queued.length === 1 ? 'it' : 'them'} before anything is delivered.</p>
@@ -70,12 +88,12 @@ export function CatalogView({ data, tab, initialId }: { data: Data; tab: Catalog
   const dialogs = (
     <>
       <UploadDialog ref={upload} onQueue={(names) => setQueued((q) => [...q, ...names])} />
-      {selected && <EditDialog ref={edit} recording={selected} onSave={(r) => void save(r)} />}
+      {selected && <EditDialog ref={edit} recording={selected} onSave={(r) => void save(r)} nextIsrc={codes.data?.nextIsrc ?? null} onAssign={(r) => void assignIsrc(r)} />}
     </>
   );
 
   if (tab !== 'recordings') {
-    return <div className={s.single}>{head}{tab === 'songs' ? <Songs data={data} /> : tab === 'releases' ? <Releases data={data} /> : <Assets data={data} />}{dialogs}</div>;
+    return <div className={s.single}>{head}{tab === 'songs' ? <Songs data={data} /> : tab === 'releases' ? <Releases data={data} nextUpc={codes.data?.nextUpc ?? null} onAssigned={codes.refresh} /> : <Assets data={data} />}{dialogs}</div>;
   }
 
   return (
@@ -162,25 +180,65 @@ function Songs({ data }: { data: Data }) {
   );
 }
 
-function Releases({ data }: { data: Data }) {
+function Releases({ data, nextUpc, onAssigned }: { data: Data; nextUpc: string | null; onAssigned: () => void }) {
+  const [rows, setRows] = useState(data.releases);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [value, setValue] = useState('');
+  const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
+  const has = (upc: string) => /^\d{12,13}$/.test(upc);
+  const done = (id: string, upc: string | null, text: string) => { setRows((r) => r.map((x) => (x.id === id ? { ...x, upc: upc ?? 'Not assigned' } : x))); setToast({ ok: true, text }); setEditing(null); };
+  const saveUpc = async (id: string, title: string) => {
+    setToast(null);
+    const res = await fetch(`/api/catalog/releases/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ upc: value.trim() || null }) }).catch(() => null);
+    const json = await res?.json().catch(() => null);
+    if (!res?.ok) { setToast({ ok: false, text: json?.message ?? 'That didn’t save. Nothing was changed.' }); return; }
+    done(id, json.upc, json.upc ? `${title} now has UPC ${json.upc}.` : `${title}’s UPC was removed.`);
+  };
+  const assign = async (id: string, title: string) => {
+    setToast(null);
+    const res = await fetch('/api/catalog/codes/assign', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'upc', id }) }).catch(() => null);
+    const json = await res?.json().catch(() => null);
+    if (!res?.ok) { setToast({ ok: false, text: json?.message ?? 'Couldn’t assign a UPC. Nothing was changed.' }); return; }
+    done(id, json.code, `${title} now has UPC ${json.code}.`);
+    onAssigned();
+  };
   return (
-    <div className={o.tableWrap} role="region" aria-label="Releases" tabIndex={0}>
-      <table className={o.table}>
-        <thead><tr><th scope="col">Release</th><th scope="col">Artist</th><th scope="col">Type</th><th scope="col">Release date</th><th scope="col"><Term term="UPC" /></th><th scope="col">Tracks</th></tr></thead>
-        <tbody>
-          {data.releases.map((r) => (
-            <tr key={r.id}>
-              <th scope="row">{r.href ? <Link href={r.href} className={o.rowLink}><span className={o.art} style={{ width: 32, height: 32 }} aria-hidden="true" />{r.title}</Link> : <span className={o.rowLink} style={{ cursor: 'default' }}><span className={o.art} style={{ width: 32, height: 32 }} aria-hidden="true" />{r.title}</span>}</th>
-              <td className={o.text2}>{r.artist}</td>
-              <td className={o.text2}>{r.kind}</td>
-              <td className={o.dateMono}>{r.date}</td>
-              <td className={o.cellMono}>{r.upc}</td>
-              <td className={o.mono}>{r.tracks}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      {toast && <p className={o.toast} role={toast.ok ? 'status' : 'alert'}>{toast.ok ? <Check size={16} className={o.good} aria-hidden="true" /> : <CircleAlert size={16} className={o.critical} aria-hidden="true" />}{toast.text}</p>}
+      <div className={o.tableWrap} role="region" aria-label="Releases" tabIndex={0}>
+        <table className={o.table}>
+          <thead><tr><th scope="col">Release</th><th scope="col">Artist</th><th scope="col">Type</th><th scope="col">Release date</th><th scope="col"><Term term="UPC" /></th><th scope="col">Tracks</th></tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <th scope="row">{r.href ? <Link href={r.href} className={o.rowLink}><span className={o.art} style={{ width: 32, height: 32 }} aria-hidden="true" />{r.title}</Link> : <span className={o.rowLink} style={{ cursor: 'default' }}><span className={o.art} style={{ width: 32, height: 32 }} aria-hidden="true" />{r.title}</span>}</th>
+                <td className={o.text2}>{r.artist}</td>
+                <td className={o.text2}>{r.kind}</td>
+                <td className={o.dateMono}>{r.date}</td>
+                <td className={o.cellMono}>
+                  {editing === r.id ? (
+                    <form style={{ display: 'flex', gap: 6, alignItems: 'center' }} onSubmit={(e) => { e.preventDefault(); void saveUpc(r.id, r.title); }}>
+                      <label className="visually-hidden" htmlFor={`upc-${r.id}`}>UPC for {r.title}</label>
+                      <input id={`upc-${r.id}`} className={o.input} style={{ width: 150 }} value={value} onChange={(e) => setValue(e.target.value)} inputMode="numeric" placeholder="12 digits" />
+                      <Button size="sm" type="submit">Save</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
+                    </form>
+                  ) : (
+                    <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      {r.upc}
+                      <Button size="sm" variant="ghost" onClick={() => { setEditing(r.id); setValue(has(r.upc) ? r.upc : ''); }} aria-label={`Edit the UPC for ${r.title}`}>Edit</Button>
+                      {!has(r.upc) && nextUpc && <Button size="sm" onClick={() => void assign(r.id, r.title)} aria-label={`Assign the next UPC to ${r.title}`}>Assign {nextUpc}</Button>}
+                    </span>
+                  )}
+                </td>
+                <td className={o.mono}>{r.tracks}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {!nextUpc && <p className={o.small}>Your distributor gives you a UPC, or set your GS1 company prefix in Settings, Profile to assign your own.</p>}
+    </>
   );
 }
 
@@ -229,22 +287,38 @@ function UploadDialog({ ref, onQueue }: { ref: React.RefObject<HTMLDialogElement
   );
 }
 
-function EditDialog({ ref, recording, onSave }: { ref: React.RefObject<HTMLDialogElement | null>; recording: Recording; onSave: (r: Recording) => void }) {
+function EditDialog({ ref, recording, onSave, nextIsrc, onAssign }: { ref: React.RefObject<HTMLDialogElement | null>; recording: Recording; onSave: (r: Recording) => void; nextIsrc: string | null; onAssign: (r: Recording) => void }) {
   const [genre, setGenre] = useState(recording.genre ?? '');
   const [ai, setAi] = useState(recording.ai);
-  const [last, setLast] = useState(recording.id);
-  if (last !== recording.id) { setLast(recording.id); setGenre(recording.genre ?? ''); setAi(recording.ai); }
+  const [isrc, setIsrc] = useState(recording.isrc ?? '');
+  const [last, setLast] = useState(`${recording.id}:${recording.isrc}`);
+  if (last !== `${recording.id}:${recording.isrc}`) { setLast(`${recording.id}:${recording.isrc}`); setGenre(recording.genre ?? ''); setAi(recording.ai); setIsrc(recording.isrc ?? ''); }
   return (
     <Drawer ref={ref} title={`Edit ${recording.title}`} id="edit-h">
-      <form className={o.form} onSubmit={(e) => { e.preventDefault(); onSave({ ...recording, genre: genre.trim() || null, ai }); ref.current?.close(); }}>
+      <form className={o.form} onSubmit={(e) => { e.preventDefault(); onSave({ ...recording, genre: genre.trim() || null, ai, isrc: isrc.trim() ? normalizeIsrc(isrc) : null }); ref.current?.close(); }}>
         <label className={o.field}>Genre<input className={o.input} value={genre} onChange={(e) => setGenre(e.target.value)} /></label>
         <label className={o.field}>AI use
           <select className={o.input} value={ai} onChange={(e) => setAi(e.target.value)}>{AI_USE.filter((v) => v !== 'Not declared' || ai === 'Not declared').map((v) => <option key={v} value={v}>{v === 'None' ? 'None declared' : v}</option>)}</select>
           <span className={o.hint}>Stores ask for this. Declare any AI in the audio, lyrics or art.</span>
         </label>
-        <p className={o.small}>ISRC and credits come from your distributor and signed agreements, so Metadata Agent updates them.</p>
+        <label className={o.field}><span><Term term="ISRC" /></span>
+          <input className={o.input} value={isrc} onChange={(e) => setIsrc(e.target.value)} placeholder="US-XXX-26-00001" autoCapitalize="characters" spellCheck={false} />
+          <span className={o.hint}>From your distributor, or your own. Change it only if it’s wrong: stores pay by it.</span>
+        </label>
+        {!recording.isrc && nextIsrc && (
+          <Button onClick={() => { onAssign(recording); ref.current?.close(); }}>Assign the next ISRC ({formatIsrc(nextIsrc)})</Button>
+        )}
+        <p className={o.small}>Credits come from signed agreements, so Metadata Agent updates them.</p>
         <div className={o.formActions}><Button variant="primary" type="submit">Save</Button><Button onClick={() => ref.current?.close()}>Cancel</Button></div>
       </form>
     </Drawer>
   );
+}
+
+/** The workspace's code prefixes and the next code each would give (null until loaded). */
+function useCodes() {
+  const [data, setData] = useState<CodesResponse | null>(null);
+  const [n, setN] = useState(0);
+  useEffect(() => { fetch('/api/catalog/codes').then((r) => (r.ok ? r.json() : null)).then(setData).catch(() => setData(null)); }, [n]);
+  return { data, refresh: () => setN((x) => x + 1) };
 }
