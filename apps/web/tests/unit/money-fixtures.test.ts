@@ -18,11 +18,14 @@ describe('Batch 2 fixtures add up', () => {
     expect(src).toBe(royalties.stats.income);
     expect(art).toBe(royalties.stats.income);
   });
-  it('recoupment: recoupable costs match frame 4e ($4,000.00 and $3,200.00)', () => {
+  it('recoupment: recoupable costs match frame 4e ($4,000.00 and $3,200.00), plus Glasshouse before release', () => {
+    // Frame 4e's $4,000.00 account is Velvet Hours's now; Glasshouse isn't out yet, so nothing is recouped.
     const recoupable = recoupment.map((r) => r.costs.reduce((a, c) => a + pctOf(c.cost, c.shareBp), 0));
-    expect(recoupable).toEqual([400000, 320000]);
-    const nb = recoupment[1];
-    expect(nb.advance + recoupable[1] - nb.recouped).toBe(515000); // $5,150.00 to go
+    expect(recoupment.map((r) => r.id)).toEqual(['rel_velvet', 'rel_glasshouse', 'rel_nightbus']);
+    expect(recoupable).toEqual([400000, 160000, 320000]);
+    expect(recoupment[1].recouped).toBe(0);
+    const nb = recoupment[2];
+    expect(nb.advance + recoupable[2] - nb.recouped).toBe(515000); // $5,150.00 to go
   });
   it('payouts: the October batch is the $1,240.18 approval', () => {
     expect(payouts.batches[0].total).toBe(124018);
