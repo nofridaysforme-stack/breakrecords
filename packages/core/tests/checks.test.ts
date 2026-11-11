@@ -128,12 +128,18 @@ describe('approval checks', () => {
   });
 
   it('who publishes the songs decides whether this workspace may file as publisher (PUB-02)', () => {
-    const r = (mode: FilingFacts['publishingMode']) => byId(runChecks('filing', { ...cleanFiling, publishingMode: mode }, '2026-11-11'))['PUB-02'];
-    expect(r('self').status).toBe('pass');
-    expect(r('writers_own')).toMatchObject({ status: 'fail', fix: { href: '/onboarding/songwriting' } });
-    expect(r('publisher').status).toBe('fail');
-    expect(r('we_administer').status).toBe('unknown'); // needs admin agreements: can't check yet, never blocks
-    expect(r(null).status).toBe('unknown');
+    const withDeals = (mode: FilingFacts['publishingMode'], deal: 'administration' | 'publishing' | null, override?: FilingFacts['publishingMode']): FilingFacts => ({
+      ...cleanFiling, publishingMode: mode,
+      works: cleanFiling.works.map((w) => ({ ...w, writers: w.writers.map((x, i) => ({ ...x, deal, ...(i === 1 && override ? { mode: override } : {}) })) })),
+    });
+    const r = (f: FilingFacts) => byId(runChecks('filing', f, '2026-11-11'))['PUB-02'];
+    expect(r(withDeals('self', null)).status).toBe('pass');
+    expect(r(withDeals('we_administer', 'administration'))).toMatchObject({ status: 'pass', message: 'Every writer has a signed, current publishing or admin agreement with you.' });
+    expect(r(withDeals('we_administer', null))).toMatchObject({ status: 'fail', message: 'No signed, current publishing or admin agreement with Kesi Vale and Marco Dela.', fix: { href: '/contracts' } });
+    expect(r(withDeals('we_publish', 'administration')).message).toBe('No signed, current publishing agreement with Kesi Vale and Marco Dela.'); // admin isn't ownership
+    expect(r(withDeals('we_administer', 'administration', 'writers_own')).message).toMatch(/^Marco Dela handles their own publishing/);
+    expect(r(withDeals('writers_own', null)).status).toBe('fail');
+    expect(r(withDeals(null, null)).status).toBe('unknown');
   });
 
   it('a card with no facts has no checks', () => {

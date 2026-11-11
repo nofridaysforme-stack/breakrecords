@@ -26,7 +26,6 @@ export const mockFacts: Record<string, ApprovalFacts> = {
   "apr_mlc": {
     "kind": "filing",
     "org": "MLC",
-    "publishingMode": "we_administer",
     "works": [
       {
         "title": "Velvet Hours",
@@ -39,7 +38,9 @@ export const mockFacts: Record<string, ApprovalFacts> = {
             "shareBp": 10000,
             "pro": "ascap",
             "ipi": "00712345678",
-            "signed": true
+            "signed": true,
+            "deal": "administration",
+            "mode": null
           }
         ]
       },
@@ -55,21 +56,27 @@ export const mockFacts: Record<string, ApprovalFacts> = {
             "shareBp": 3400,
             "pro": "bmi",
             "ipi": "00623451987",
-            "signed": true
+            "signed": true,
+            "deal": "administration",
+            "mode": null
           },
           {
             "name": "Rue Sato",
             "shareBp": 3300,
             "pro": "ascap",
             "ipi": "00634512870",
-            "signed": true
+            "signed": true,
+            "deal": "administration",
+            "mode": null
           },
           {
             "name": "Theo Lind",
             "shareBp": 3300,
             "pro": "bmi",
             "ipi": "00598712340",
-            "signed": true
+            "signed": true,
+            "deal": "administration",
+            "mode": null
           }
         ]
       },
@@ -84,25 +91,32 @@ export const mockFacts: Record<string, ApprovalFacts> = {
             "shareBp": 3400,
             "pro": "bmi",
             "ipi": "00623451987",
-            "signed": true
+            "signed": true,
+            "deal": "administration",
+            "mode": null
           },
           {
             "name": "Rue Sato",
             "shareBp": 3300,
             "pro": "ascap",
             "ipi": "00634512870",
-            "signed": true
+            "signed": true,
+            "deal": "administration",
+            "mode": null
           },
           {
             "name": "Theo Lind",
             "shareBp": 3300,
             "pro": "bmi",
             "ipi": "00598712340",
-            "signed": true
+            "signed": true,
+            "deal": "administration",
+            "mode": null
           }
         ]
       }
-    ]
+    ],
+    "publishingMode": "we_administer"
   },
   "apr_payout_oct": {
     "kind": "payout",
@@ -163,21 +177,6 @@ export const mockFacts: Record<string, ApprovalFacts> = {
         }
       },
       {
-        "name": "Rue Sato",
-        "amountCents": 21420,
-        "status": "included",
-        "covered": true,
-        "pendingAgreements": [],
-        "taxForm": "W-9",
-        "withheldCents": 0,
-        "treaty": false,
-        "taxExpiresOn": null,
-        "statementNetCents": null,
-        "bankOnFile": true,
-        "lastFailed": false,
-        "split": null
-      },
-      {
         "name": "Theo Lind",
         "amountCents": 21420,
         "status": "included",
@@ -187,6 +186,21 @@ export const mockFacts: Record<string, ApprovalFacts> = {
         "withheldCents": 0,
         "treaty": true,
         "taxExpiresOn": "2026-12-31",
+        "statementNetCents": null,
+        "bankOnFile": true,
+        "lastFailed": false,
+        "split": null
+      },
+      {
+        "name": "Rue Sato",
+        "amountCents": 21420,
+        "status": "included",
+        "covered": true,
+        "pendingAgreements": [],
+        "taxForm": "W-9",
+        "withheldCents": 0,
+        "treaty": false,
+        "taxExpiresOn": null,
         "statementNetCents": null,
         "bankOnFile": true,
         "lastFailed": false,

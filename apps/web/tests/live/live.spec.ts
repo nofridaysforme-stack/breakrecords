@@ -526,15 +526,16 @@ test.describe('contracts (live)', () => {
     await signIn(page, USERS.owner);
     await page.request.delete('/api/approvals/apr_producer/decision'); // start from an open approval
     const c = await contracts(page);
-    expect(c.summary).toBe('8 active · 1 waiting on signatures · next key date Jan 9');
+    expect(c.summary).toBe('10 active · 1 waiting on signatures · next key date Jan 9');
     expect(c.contracts.map((x) => [x.id, x.template, x.sig, x.date])).toEqual([
       ['ct_producer', 'Northline producer v3 · 2 edits', 'Waiting on you', 'Nov 9'], ['ct_artist_kesi', 'Northline artist v2', 'Signed', 'Mar 6, 2029'],
       ['ct_band', 'Northline artist v2', 'Signed', 'Jan 9'], ['ct_feature', 'Northline feature v1', 'Signed', null],
-      ['ct_split_gh', 'Split sheet v1', '1 of 2 signed', null], ['ct_mix_nb', 'Northline producer v3 · 1 edit', 'Signed', null], ['ct_distribution', 'Third party · reviewed', 'Signed', 'Aug 1'], ['ct_split_nb', 'Split sheet v1', 'Signed', null],
+      ['ct_split_gh', 'Split sheet v1', '1 of 2 signed', null], ['ct_mix_nb', 'Northline producer v3 · 1 edit', 'Signed', null], ['ct_distribution', 'Third party · reviewed', 'Signed', 'Aug 1'],
+      ['ct_admin_lh', 'Northline administration v1', 'Signed', 'Jan 9'], ['ct_admin_kv', 'Northline administration v1', 'Signed', 'Mar 6, 2029'], ['ct_split_nb', 'Split sheet v1', 'Signed', null],
     ]);
     expect(c.contracts.find((x) => x.id === 'ct_split_gh')).toMatchObject({ parties: 'Kesi, Marco', terms: '75 / 25' });
     expect(c.contracts.find((x) => x.id === 'ct_band')?.parties).toBe('The Low Hours (3)');
-    expect(c.templates.map((t) => t.id)).toEqual(['artist', 'producer', 'feature', 'split', 'sync']);
+    expect(c.templates.map((t) => t.id)).toEqual(['artist', 'producer', 'feature', 'split', 'publishing', 'co-publishing', 'admin', 'sync']);
   });
 
   test('approving the producer agreement signs for the label; it then waits on Marco', async ({ page }) => {
@@ -543,7 +544,7 @@ test.describe('contracts (live)', () => {
     expect((await page.request.post('/api/approvals/apr_producer/decision', { data: { action: 'approve' } })).status()).toBe(200);
     const c = await contracts(page);
     expect(c.contracts[0]).toMatchObject({ id: 'ct_producer', sig: '0 of 1 signed', sigState: 'partial', date: null });
-    expect(c.summary).toBe('8 active · 0 waiting on signatures · next key date Jan 9');
+    expect(c.summary).toBe('10 active · 0 waiting on signatures · next key date Jan 9');
     await page.request.delete('/api/approvals/apr_producer/decision');
     expect((await contracts(page)).contracts[0].sig).toBe('Waiting on you');
   });
@@ -1102,4 +1103,24 @@ test('setup is an edit, not a reset: departments set by hand keep their level, S
   await page.goto('/clients');
   await expect(page.getByText(/is a client of/)).toBeVisible();
   await expect(page.getByRole('complementary', { name: 'Sidebar' }).getByRole('link', { name: 'Clients' })).toBeVisible();
+});
+
+test('publishing: the MLC filing may be filed because the label administers its writers; without the agreement it can’t', async ({ page }) => {
+  await signIn(page, USERS.owner);
+  const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+  // An earlier test may have changed the workspace's mode; this one is about "we administer".
+  await db`UPDATE label_settings SET publishing_mode = 'we_administer' WHERE tenant_id = (SELECT id FROM tenants WHERE slug = 'northline')`;
+  const pub02 = async () => ApprovalChecksResponse.parse(await (await page.request.get('/api/approvals/checks')).json()).items.apr_mlc.results.find((r) => r.id === 'PUB-02')!;
+  expect(await pub02()).toMatchObject({ status: 'pass', message: 'Every writer has a signed, current publishing or admin agreement with you.' });
+  // Un-sign Rue's side of the band's admin agreement: the label may no longer file for The Low Hours' writers.
+  await db`UPDATE agreement_parties SET signed_at = NULL WHERE agreement_id = (SELECT id FROM agreements WHERE slug = 'ct_admin_lh')
+    AND party_id = (SELECT id FROM parties WHERE slug = 'rue-sato' AND tenant_id = agreement_parties.tenant_id)`;
+  expect(await pub02()).toMatchObject({ status: 'fail', message: 'No signed, current publishing or admin agreement with Dana Okafor, Rue Sato and Theo Lind.' });
+  // Theo says he handles his own publishing: the label stops filing for him, whatever the agreements say.
+  await db`UPDATE agreement_parties SET signed_at = '2025-01-09' WHERE agreement_id = (SELECT id FROM agreements WHERE slug = 'ct_admin_lh')`;
+  await db`UPDATE parties SET publishing_mode = 'writers_own' WHERE slug = 'theo-lind'`;
+  expect((await pub02()).message).toMatch(/^Theo Lind handles their own publishing/);
+  await db`UPDATE parties SET publishing_mode = NULL WHERE slug = 'theo-lind'`;
+  expect((await pub02()).status).toBe('pass');
+  await db.end();
 });

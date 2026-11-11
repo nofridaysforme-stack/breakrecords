@@ -36,7 +36,8 @@ test.describe('approval writes', () => {
     expect(c.items.apr_payout_oct.canApprove).toBe(true);
     expect(c.items.apr_payout_oct.results.find((r) => r.id === 'ROY-06')?.message).toBe('Marco Dela and Ari Monroe are paid exactly what their statements say.');
     expect(failed('apr_mlc')).toEqual([]);
-    expect(c.items.apr_mlc.results.find((r) => r.id === 'PUB-02')?.status).toBe('unknown'); // can't check yet, never blocks
+    expect(c.items.apr_mlc.results.find((r) => r.id === 'PUB-02')?.message).toBe('Every writer has a signed, current publishing or admin agreement with you.');
+    expect(c.items.apr_mlc.results.find((r) => r.id === 'PUB-06')?.status).toBe('unknown'); // can't check yet, never blocks
     expect(c.items.apr_producer).toMatchObject({ canApprove: true, needsReason: false });
     expect(failed('apr_grant')).toEqual(['FUN-03']);
     // The server refuses the grant too, whatever the screen shows.

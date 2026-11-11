@@ -542,14 +542,19 @@ async function seedRunbooks(tx: Tx, tenant: string) {
 // The 5b agreements. Split sheets point at their song: parties, shares and signatures are its
 // writers. ASSUMED: the dates the signed agreements were signed.
 const AGREEMENTS: { slug: string; template?: string; edits?: number; thirdParty?: boolean; work?: string; parties?: [slug: string, signers: number, signed: string | null][];
-  key?: [string, string]; approval?: string }[] = [
+  key?: [string, string]; approval?: string; kind?: string; territory?: string; term?: [string, string | null]; feeBp?: number }[] = [
   { slug: 'ct_producer', template: 'producer', edits: 2, parties: [['marco-dela', 1, null]], approval: 'apr_producer' },
   { slug: 'ct_artist_kesi', template: 'artist', parties: [['kesi-vale', 1, '2026-03-06']], key: ['2029-03-06', 'Option period'] },
   { slug: 'ct_band', template: 'artist', parties: [['the-low-hours', 3, '2025-01-09']], key: ['2027-01-09', 'Audit window closes'] },
   { slug: 'ct_feature', template: 'feature', parties: [['ari-monroe', 1, '2026-09-30']] },
   { slug: 'ct_split_gh', template: 'split', work: 'glasshouse' },
-  { slug: 'ct_mix_nb', template: 'producer', edits: 1, parties: [['ines-pardo', 1, '2025-04-02']] },
+  { slug: 'ct_mix_nb', template: 'producer', edits: 1, parties: [['ines-pardo', 1, '2025-04-02']], kind: 'mix' },
   { slug: 'ct_distribution', thirdParty: true, parties: [['distributor', 1, '2026-08-01']], key: ['2027-08-01', 'Renewal'] },
+  // The label administers its writers' songs (publishing mode "we administer"), so it may register them.
+  { slug: 'ct_admin_lh', template: 'admin', parties: [['dana-okafor', 1, '2025-01-09'], ['theo-lind', 1, '2025-01-09'], ['rue-sato', 1, '2025-01-09']],
+    key: ['2027-01-09', 'Term renews'], kind: 'administration', territory: 'Worldwide', term: ['2025-01-09', null], feeBp: 1500 },
+  { slug: 'ct_admin_kv', template: 'admin', parties: [['kesi-vale', 1, '2026-03-06']],
+    key: ['2029-03-06', 'Term ends'], kind: 'administration', territory: 'Worldwide', term: ['2026-03-06', '2029-03-06'], feeBp: 1500 },
   { slug: 'ct_split_nb', template: 'split', work: 'night-bus' },
 ];
 
@@ -565,9 +570,12 @@ async function seedContracts(tx: Tx, tenant: string) {
   for (const a of AGREEMENTS) {
     const c = contracts.find((x) => x.id === a.slug)!;
     const work = a.work ? (await tx`SELECT id FROM works WHERE tenant_id = ${tenant} AND slug = ${a.work}`)[0].id : null;
-    const [row] = await tx`INSERT INTO agreements (tenant_id, slug, name, source, template_id, edits, reviewed, work_id, terms, key_date, key_date_what, approval_id)
+    const kind = a.kind ?? (a.thirdParty ? 'distribution' : ({ artist: 'artist', producer: 'producer', feature: 'feature', split: 'split_sheet' } as Record<string, string>)[a.template ?? ''] ?? 'other');
+    const [row] = await tx`INSERT INTO agreements (tenant_id, slug, name, source, template_id, edits, reviewed, work_id, terms, key_date, key_date_what, approval_id,
+                                                  kind, territory, starts_on, ends_on, admin_fee_bp)
       VALUES (${tenant}, ${a.slug}, ${c.name}, ${a.thirdParty ? 'third_party' : 'template'}, ${a.template ? tpl[a.template] : null}, ${a.edits ?? 0}, ${!!a.thirdParty},
-              ${work}, ${work ? null : c.terms}, ${a.key?.[0] ?? null}, ${a.key?.[1] ?? null}, ${a.approval ?? null}) RETURNING id`;
+              ${work}, ${work ? null : c.terms}, ${a.key?.[0] ?? null}, ${a.key?.[1] ?? null}, ${a.approval ?? null},
+              ${kind}, ${a.territory ?? null}, ${a.term?.[0] ?? null}, ${a.term?.[1] ?? null}, ${a.feeBp ?? null}) RETURNING id`;
     for (const [i, [slug, signers, signed]] of (a.parties ?? []).entries()) {
       const [p] = await tx`SELECT id FROM parties WHERE tenant_id = ${tenant} AND slug = ${slug}`;
       await tx`INSERT INTO agreement_parties (tenant_id, agreement_id, party_id, signers, signed_at, position) VALUES (${tenant}, ${row.id}, ${p.id}, ${signers}, ${signed}, ${i})`;

@@ -78,8 +78,15 @@ async function payoutFacts(tx: Tx, batchId: string): Promise<PayoutFacts> {
 }
 
 async function filingFacts(tx: Tx, org: string, titles: string[]): Promise<ApprovalFacts> {
-  const rows = await tx<{ title: string; name: string | null; share_bp: number | null; pro: string | null; ipi: string | null; confirmed: boolean | null; isrcs: string[] }[]>`
-    SELECT w.title, p.name, ww.share_bp, p.pro::text AS pro, p.ipi, ww.confirmed,
+  const rows = await tx<{ title: string; name: string | null; share_bp: number | null; pro: string | null; ipi: string | null; confirmed: boolean | null; isrcs: string[];
+    deal: 'publishing' | 'co_publishing' | 'administration' | null; mode: NonNullable<FilingFacts['publishingMode']> | null }[]>`
+    SELECT w.title, p.name, ww.share_bp, p.pro::text AS pro, p.ipi, ww.confirmed, p.publishing_mode AS mode,
+      -- The workspace's signed, current publishing deal with this writer (ownership first).
+      (SELECT a.kind FROM agreements a JOIN agreement_parties ap ON ap.agreement_id = a.id
+        WHERE ap.party_id = p.id AND a.kind IN ('publishing', 'co_publishing', 'administration')
+          AND NOT EXISTS (SELECT 1 FROM agreement_parties x WHERE x.agreement_id = a.id AND x.signed_at IS NULL)
+          AND (a.starts_on IS NULL OR a.starts_on <= current_date) AND (a.ends_on IS NULL OR a.ends_on >= current_date)
+        ORDER BY array_position(ARRAY['publishing', 'co_publishing', 'administration'], a.kind) LIMIT 1) AS deal,
       coalesce((SELECT array_agg(r.isrc ORDER BY r.isrc) FROM recordings r WHERE r.work_id = w.id AND r.isrc IS NOT NULL), '{}') AS isrcs
     FROM works w LEFT JOIN work_writers ww ON ww.work_id = w.id LEFT JOIN parties p ON p.id = ww.party_id
     WHERE w.title = ANY(${titles}) ORDER BY w.title, ww.share_bp DESC NULLS LAST, p.name`;
@@ -87,7 +94,7 @@ async function filingFacts(tx: Tx, org: string, titles: string[]): Promise<Appro
     const mine = rows.filter((r) => r.title === title);
     return {
       title, isrcs: mine[0]?.isrcs ?? [],
-      writers: mine.filter((r) => r.name).map((r) => ({ name: r.name!, shareBp: r.share_bp ?? 0, pro: r.pro, ipi: r.ipi, signed: !!r.confirmed })),
+      writers: mine.filter((r) => r.name).map((r) => ({ name: r.name!, shareBp: r.share_bp ?? 0, pro: r.pro, ipi: r.ipi, signed: !!r.confirmed, deal: r.deal, mode: r.mode })),
     };
   });
   const [settings] = await tx<{ publishing_mode: FilingFacts['publishingMode'] }[]>`SELECT publishing_mode FROM label_settings`;

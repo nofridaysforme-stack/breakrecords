@@ -75,7 +75,13 @@ export type FilingFacts = {
   publishingMode?: PublishingMode | null;
   works: {
     title: string;
-    writers: { name: string; shareBp: number; pro: string | null; ipi: string | null; signed: boolean }[];
+    writers: {
+      name: string; shareBp: number; pro: string | null; ipi: string | null; signed: boolean;
+      /** The signed, current publishing deal the workspace has with this writer, if any. */
+      deal?: 'publishing' | 'co_publishing' | 'administration' | null;
+      /** This writer's own publishing mode, when it differs from the workspace's. */
+      mode?: PublishingMode | null;
+    }[];
     isrcs: string[];
   }[];
 };
@@ -241,17 +247,26 @@ const PUBLISHING: Rule<FilingFacts>[] = [
   },
   {
     id: 'PUB-02', title: 'Right to file as publisher', appliesTo: ['filing'], facts: 'filing', severity: 'block',
-    fix: { label: 'Open setup', href: '/onboarding/songwriting' },
+    fix: { label: 'Open contracts', href: '/contracts' },
     check: (f) => {
-      const inputs = [`publishing mode: ${f.publishingMode ?? 'not set'}`];
-      switch (f.publishingMode) {
-        case 'self': return pass('You publish your own songs, so you can register them.', inputs);
-        case 'publisher': return fail('Setup says a publisher handles your songs, so they register them. Prepare the packet for your publisher instead.', inputs);
-        case 'writers_own': return fail('Your writers handle their own publishing, so this workspace doesn’t file as publisher. Prepare a packet for each writer to submit.', inputs);
-        case 'we_publish': case 'we_administer':
-          return { ...unknown(`You ${f.publishingMode === 'we_publish' ? 'publish' : 'administer'} your writers’ songs, which needs a signed ${f.publishingMode === 'we_publish' ? 'publishing' : 'admin'} agreement with each writer. Those agreements arrive with the publishing module.`), inputs };
-        default: return unknown('Who publishes these songs isn’t set. Answer the songwriting step in setup.');
+      // Each writer's own mode wins over the workspace's. Self-published writers file their own
+      // songs; when the workspace publishes or administers, every writer needs a signed, current
+      // deal of that kind; when a publisher or the writer handles it, the workspace never files.
+      const writers = new Map<string, { mode: PublishingMode | null; deal: string | null }>();
+      f.works.forEach((w) => w.writers.forEach((x) => writers.set(x.name, { mode: x.mode ?? f.publishingMode ?? null, deal: x.deal ?? null })));
+      const list = [...writers.entries()];
+      const inputs = [`workspace mode: ${f.publishingMode ?? 'not set'}`, ...list.map(([n, x]) => `${n}: ${x.mode ?? 'not set'}, deal ${x.deal ?? 'none'}`)];
+      if (list.some(([, x]) => !x.mode)) return { ...unknown('Who publishes these songs isn’t set. Answer the songwriting step in setup.'), inputs };
+      const own = list.filter(([, x]) => x.mode === 'writers_own' || x.mode === 'publisher').map(([n]) => n);
+      const needs = (mode: PublishingMode | null) => (mode === 'we_publish' ? ['publishing', 'co_publishing'] : mode === 'we_administer' ? ['publishing', 'co_publishing', 'administration'] : null);
+      const missing = list.filter(([, x]) => { const ok = needs(x.mode); return ok && !(x.deal && ok.includes(x.deal)); }).map(([n, x]) => [n, x.mode] as const);
+      if (!own.length && !missing.length) {
+        return pass(list.every(([, x]) => x.mode === 'self') ? 'You publish your own songs, so you can register them.' : 'Every writer has a signed, current publishing or admin agreement with you.', inputs);
       }
+      return fail([
+        ...(own.length ? [`${names(own)} ${own.length === 1 ? 'handles' : 'handle'} their own publishing (or a publisher does), so this workspace doesn’t file for them. Prepare a packet for them to submit.`] : []),
+        ...(missing.length ? [`No signed, current ${missing[0][1] === 'we_publish' ? 'publishing' : 'publishing or admin'} agreement with ${names(missing.map(([n]) => n))}.`] : []),
+      ].join(' '), inputs);
     },
   },
   {
