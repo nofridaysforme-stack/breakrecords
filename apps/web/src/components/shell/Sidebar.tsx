@@ -11,9 +11,9 @@ import { useDecisions } from '@/data/decisions';
 import { SignOutButton } from './SignOutButton';
 import s from './Sidebar.module.css';
 
-// Label services (a licensee) add and open client workspaces from here.
+// Any workspace can run releases for clients (ONB-01): each client is its own workspace.
+// Label services see it first; everyone else finds it after the core tools.
 const CLIENTS: NavItem = { label: 'Clients', href: '/clients', match: '/clients', icon: Building2 };
-const staffClients = (kind: string) => kind === 'licensee';
 // Labels that pay you (you're their payee): what your deal with each covers.
 const CONNECTIONS: NavItem = { label: 'Labels I work with', href: '/connections', match: '/connections', icon: Handshake };
 
@@ -36,7 +36,7 @@ export function Sidebar({ labelName, staff = false, tenants = [], connections = 
       <LabelSwitcher labelName={labelName} tenants={tenants} />
 
       <nav aria-label="Primary" className={s.nav}>
-        {[...primaryNav, ...(staffClients(kind) ? [CLIENTS] : []), ...(connections > 0 ? [CONNECTIONS] : [])].map((item) => {
+        {[...(kind === 'licensee' ? [primaryNav[0], CLIENTS, ...primaryNav.slice(1)] : [...primaryNav, CLIENTS]), ...(connections > 0 ? [CONNECTIONS] : [])].map((item) => {
           const Icon = item.icon;
           if (item.locked) {
             return (

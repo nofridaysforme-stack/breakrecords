@@ -2,7 +2,7 @@ import 'server-only';
 import type { z } from 'zod';
 import type { OnboardingAnswers } from '@breakrecords/contract';
 import { withTenant } from '@breakrecords/db/client';
-import { PROFILES } from '@/components/onboarding/steps';
+import { defaultPublishing, PROFILES } from '@/components/onboarding/steps';
 import { sql } from '../db';
 import type { RequestContext } from '../context';
 
@@ -14,10 +14,19 @@ const BLANK: Answers = {
   profile: 'solo', name: '', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_sure' }, autonomy: 'draft_and_wait', members: [],
 };
 
-export function liveOnboarding(ctx: RequestContext): Promise<{ answers: Answers | null; completed: boolean; live: true; defaults: Answers }> {
+/** Departments set to their own level: anything not on the workspace's saved default. */
+const customDepartments = (tx: Parameters<Parameters<typeof withTenant>[2]>[0]) => tx<{ name: string }[]>`
+  SELECT d.name FROM departments d JOIN label_settings s ON s.tenant_id = d.tenant_id
+  WHERE d.phase = 1 AND s.default_autonomy IS NOT NULL AND d.autonomy IS DISTINCT FROM s.default_autonomy
+    -- a department that can't act alone sits at Draft and wait when the default is Act within limits
+    AND NOT (s.default_autonomy = 'act_within_limits' AND NOT d.can_act AND d.autonomy = 'draft_and_wait')
+  ORDER BY d.position`;
+
+export function liveOnboarding(ctx: RequestContext): Promise<{ answers: Answers | null; completed: boolean; live: true; defaults: Answers; customDepartments: string[] }> {
   return withTenant(sql, ctx, async (tx) => {
     const [r] = await tx<{ answers: Answers; completed_at: Date | null }[]>`SELECT answers, completed_at FROM onboarding`;
-    return { answers: r?.answers ?? null, completed: !!r?.completed_at, live: true, defaults: { ...BLANK, name: ctx.tenantName === 'My workspace' ? '' : ctx.tenantName } };
+    const custom = (await customDepartments(tx)).map((d) => d.name);
+    return { answers: r?.answers ?? null, completed: !!r?.completed_at, live: true, defaults: { ...BLANK, name: ctx.tenantName === 'My workspace' ? '' : ctx.tenantName }, customDepartments: custom };
   });
 }
 
@@ -35,8 +44,13 @@ export function liveSaveOnboarding(ctx: RequestContext, answers: Answers, comple
       await tx`INSERT INTO label_settings (tenant_id, country, profile, statement_period, spend_cap_cents)
         VALUES (${ctx.tenantId}, ${country ?? 'US'}, ${profile}, 'Monthly, artists quarterly', 30000)
         ON CONFLICT (tenant_id) DO UPDATE SET profile = EXCLUDED.profile${country ? tx`, country = EXCLUDED.country` : tx``}`;
+      // Re-running setup is an edit, not a reset (ONB-03): only departments still on the old default
+      // move to the new one; any you set yourself keep their level. The chosen level is saved as the
+      // default (ONB-04), which is what Settings shows.
+      const keep = new Set((await customDepartments(tx)).map((d) => d.name));
       await tx`UPDATE departments SET autonomy = CASE WHEN ${answers.autonomy}::autonomy_level = 'act_within_limits' AND NOT can_act THEN 'draft_and_wait' ELSE ${answers.autonomy}::autonomy_level END
-        WHERE phase = 1`;
+        WHERE phase = 1 AND NOT (name = ANY(ARRAY(SELECT jsonb_array_elements_text(${tx.json([...keep])}::jsonb))))`;
+      await tx`UPDATE label_settings SET default_autonomy = ${answers.autonomy}, publishing_mode = ${answers.publishing?.mode ?? defaultPublishing(answers.profile)} WHERE tenant_id = ${ctx.tenantId}`;
       // Owners name the workspace and set what kind it is (artist, label, or label services).
       if (ctx.role === 'owner') await tx`SELECT app_apply_onboarding(${answers.name}, ${answers.profile})`;
       // A band's other members become co-owners: they sign in with their email (nothing is sent).
@@ -49,7 +63,8 @@ export function liveSaveOnboarding(ctx: RequestContext, answers: Answers, comple
       }
       await tx`UPDATE onboarding SET completed_at = now(), completed_by = ${ctx.userId} WHERE tenant_id = ${ctx.tenantId}`;
       await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
-        VALUES (${ctx.tenantId}, ${'AUD-ONB-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'onboarding.completed', ${answers.profile}, ${tx.json({ autonomy: answers.autonomy, country: answers.country })})`;
+        VALUES (${ctx.tenantId}, ${'AUD-ONB-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'onboarding.completed', ${answers.profile},
+                ${tx.json({ autonomy: answers.autonomy, country: answers.country, publishing: answers.publishing?.mode ?? defaultPublishing(answers.profile), kept: [...keep] })})`;
     }
     const [r] = await tx<{ completed_at: Date | null }[]>`SELECT completed_at FROM onboarding`;
     return { answers, completed: !!r?.completed_at, live: true as const };

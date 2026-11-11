@@ -48,7 +48,7 @@ test.describe('desktop only', () => {
 
   test('statement: waterfall, CSV download and the agent answers', async ({ page }) => {
     await page.goto('/money/statements/ST-2026-10-KV');
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Kesi Vale earned $2,346.75 from Glasshouse in October');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Kesi Vale earned $2,346.75 from Velvet Hours in October');
     await expect(page.getByRole('row', { name: /Kesi Vale nets/ })).toContainText('$2,346.75');
     const download = page.waitForEvent('download');
     await page.getByRole('button', { name: 'CSV' }).click();
@@ -105,5 +105,5 @@ test('a payee only sees their own statements', async ({ page }) => {
 test('portal statement explains itself', async ({ page }) => {
   await page.goto('/portal/statements/ST-2026-10-KV?as=kesi-vale');
   await page.getByRole('button', { name: 'Why this amount?' }).click();
-  await expect(page.getByRole('dialog')).toContainText('this is the month Glasshouse recouped');
+  await expect(page.getByRole('dialog')).toContainText('this is the month Velvet Hours recouped');
 });

@@ -1,6 +1,6 @@
 import 'server-only';
 import { toIso } from '@breakrecords/core/dates';
-import { deliveryBlockers, phaseDate, phaseStatus, releaseStatus, type TaskState } from '@breakrecords/core/runbook';
+import { deliveryBlockers, phaseDate, phaseStatus, releaseStatus, type TaskState, syncTaskState } from '@breakrecords/core/runbook';
 import { withTenant, type Tx } from '@breakrecords/db/client';
 import type { budgets as sampleBudgets } from '@/data/money';
 import type { Release } from '@/data/types';
@@ -35,9 +35,15 @@ async function build(tx: Tx, r: Row, today: string): Promise<Release> {
   const date = toIso(r.planned_date ?? r.release_date ?? new Date());
   const phases = await tx<{ id: string; name: string; starts_on: Date | null; offset_days: number | null; until: boolean }[]>`
     SELECT id, name, starts_on, offset_days, until FROM runbook_phases WHERE release_id = ${r.id} ORDER BY position`;
-  const tasks = await tx<{ phase_id: string; title: string; owner: string; state: TaskState; gate_owner: string | null; gate_waiting_on: string | null; blocks_delivery: string | null }[]>`
+  const stored = await tx<{ phase_id: string; title: string; owner: string; state: TaskState; gate_owner: string | null; gate_waiting_on: string | null; blocks_delivery: string | null }[]>`
     SELECT t.phase_id, t.title, t.owner, t.state::text AS state, t.gate_owner, t.gate_waiting_on, t.blocks_delivery
     FROM runbook_tasks t JOIN runbook_phases ph ON ph.id = t.phase_id WHERE ph.release_id = ${r.id} ORDER BY ph.position, t.position`;
+  // Code tasks follow the catalog: a UPC on the release and an ISRC on every track mark them done.
+  const [codes] = await tx<{ assigned: boolean }[]>`
+    SELECT rel.upc IS NOT NULL AND EXISTS (SELECT 1 FROM release_tracks t WHERE t.release_id = rel.id)
+      AND NOT EXISTS (SELECT 1 FROM release_tracks t JOIN recordings rec ON rec.id = t.recording_id WHERE t.release_id = rel.id AND rec.isrc IS NULL) AS assigned
+    FROM releases rel WHERE rel.id = ${r.id}`;
+  const tasks = stored.map((t) => ({ ...t, state: syncTaskState(t.title, t.state, { codesAssigned: !!codes?.assigned }) }));
   const [money] = await tx<{ planned: string; spent: string }[]>`
     SELECT coalesce(sum(planned_cents), 0) AS planned, coalesce(sum(spent_cents), 0) AS spent FROM release_budget_lines WHERE release_id = ${r.id}`;
   const assets = await tx<{ name: string; kind: string; detail: string | null; ready: boolean }[]>`

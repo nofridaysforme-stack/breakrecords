@@ -7,14 +7,14 @@ import { decide, bulkApprove } from '../src/approvals';
 const V4 = { node: 'gh-rec', version: 4, terms: { producerBp: 300, labelOfNetBp: 5000, artistOfNetBp: 5000, featureOfArtistBp: 1000 } };
 const payee = (p: Partial<PayeeFact> & { name: string; amountCents: number }): PayeeFact => ({
   status: 'included', covered: true, pendingAgreements: [], taxForm: 'W-9', taxExpiresOn: null, withheldCents: 0,
-  treaty: false, bankOnFile: true, lastFailed: false, split: null, ...p,
+  treaty: false, bankOnFile: true, lastFailed: false, split: null, statementNetCents: null, ...p,
 });
 
 const demoPayout: PayoutFacts = {
   kind: 'payout', periodEnd: '2026-10-31', paysOn: '2026-11-10', minimumCents: 2500,
   payees: [
-    payee({ name: 'Marco Dela', amountCents: 28500, covered: true, pendingAgreements: ['producer agreement'], split: { ...V4, role: 'producer' } }),
-    payee({ name: 'Ari Monroe', amountCents: 26075, split: { ...V4, role: 'feature' } }),
+    payee({ name: 'Marco Dela', amountCents: 28500, covered: false, pendingAgreements: ['producer agreement'], statementNetCents: 28500 }),
+    payee({ name: 'Ari Monroe', amountCents: 26075, split: { ...V4, role: 'feature' }, statementNetCents: 46075 }),
     payee({ name: 'Theo Lind', amountCents: 21420, taxForm: 'W-8BEN', taxExpiresOn: '2028-12-31', covered: false }),
     payee({ name: 'Rue Sato', amountCents: 21420, taxExpiresOn: '2026-12-01' }), // a W-9 doesn't expire
     payee({ name: 'Jules Arden', amountCents: 1840, status: 'carried', taxForm: null, bankOnFile: false }),
@@ -29,8 +29,9 @@ const demoPayout: PayoutFacts = {
 const cleanPayout: PayoutFacts = {
   ...demoPayout,
   payees: [
-    payee({ name: 'Marco Dela', amountCents: 28500, split: { ...V4, role: 'producer' } }),
-    payee({ name: 'Ari Monroe', amountCents: 46075, split: { ...V4, role: 'feature' } }), // 4.85% of the same base
+    // Covered by a signed split, so a different agreement still being signed doesn't matter.
+    payee({ name: 'Marco Dela', amountCents: 28500, split: { ...V4, role: 'producer' }, pendingAgreements: ['producer agreement, Glasshouse'], statementNetCents: 28500 }),
+    payee({ name: 'Ari Monroe', amountCents: 26075, split: { ...V4, role: 'feature' }, statementNetCents: 26075 }),
     payee({ name: 'Theo Lind', amountCents: 21420, taxForm: 'W-8BEN', taxExpiresOn: '2028-12-31', withheldCents: 6426 }),
     payee({ name: 'Jules Arden', amountCents: 1840, status: 'carried' }),
   ],
@@ -78,7 +79,7 @@ describe('approval checks', () => {
     expect(r['ROY-03'].message).toMatch(/Theo Lind is on a W-8 with \$0\.00 withheld/);
     expect(r['ROY-04'].message).toContain('Glasshouse earns $10,000.00 before its Mar 5, 2027 release');
     expect(r['ROY-05'].message).toContain('Low Light earns $150.00 with no ISRC');
-    expect(r['ROY-06'].message).toContain('Marco Dela (3%) is paid $285.00, but Ari Monroe (4.85%) is paid $260.75');
+    expect(r['ROY-06'].message).toBe('Ari Monroe is paid $260.75, but their statement says $460.75.');
     expect(r['ROY-07'].message).toContain('Night Bus has an open audit flag');
     expect(r['ROY-07'].fix?.href).toBe('/activity');
     expect(r['ROY-09'].message).toContain('Jules Arden ($18.40) carries forward');
@@ -124,6 +125,15 @@ describe('approval checks', () => {
     expect(byId(runChecks('plan', grant(), '2026-11-11'))['FUN-03'].status).toBe('pass');
     expect(byId(runChecks('plan', grant(), '2026-11-16'))['FUN-03'].message).toBe('The deadline, Nov 15, has passed.');
     expect(byId(runChecks('plan', grant({ fields: [{ label: 'Budget', value: '', limit: 100 }] }), '2026-11-11'))['FUN-02'].message).toBe('Budget is empty.');
+  });
+
+  it('who publishes the songs decides whether this workspace may file as publisher (PUB-02)', () => {
+    const r = (mode: FilingFacts['publishingMode']) => byId(runChecks('filing', { ...cleanFiling, publishingMode: mode }, '2026-11-11'))['PUB-02'];
+    expect(r('self').status).toBe('pass');
+    expect(r('writers_own')).toMatchObject({ status: 'fail', fix: { href: '/onboarding/songwriting' } });
+    expect(r('publisher').status).toBe('fail');
+    expect(r('we_administer').status).toBe('unknown'); // needs admin agreements: can't check yet, never blocks
+    expect(r(null).status).toBe('unknown');
   });
 
   it('a card with no facts has no checks', () => {

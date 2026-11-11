@@ -1,5 +1,6 @@
 'use client';
 
+import { PUBLISHING_LABEL } from '@/components/onboarding/steps';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Check, CircleAlert, Minus } from 'lucide-react';
@@ -12,6 +13,8 @@ import { useShellUI, type Density } from '@/components/shell/ShellUI';
 import { useWorkspace } from '@/components/shell/Workspace';
 import o from '@/components/ops/Ops.module.css';
 import s from './Settings.module.css';
+
+const AUTONOMY_LABEL = { observe: 'Observe', suggest: 'Suggest', draft_and_wait: 'Draft and wait', act_within_limits: 'Act within limits' } as const;
 
 type Data = Awaited<ReturnType<typeof getSettings>>;
 
@@ -146,9 +149,10 @@ export function SettingsSectionView({ data, section, depts }: { data: Data; sect
             <dt>{words.kicker}</dt><dd>{c.name}</dd>
             <dt>Country</dt><dd>{c.country}</dd>
             <dt>Profile</dt><dd>{c.profile}</dd>
-            <dt>Default autonomy</dt><dd>Draft and wait</dd>
+            <dt>Default autonomy</dt><dd>{c.defaultAutonomy ? AUTONOMY_LABEL[c.defaultAutonomy] : 'Not set yet'}</dd>
+            <dt>Songwriting</dt><dd>{c.publishingMode ? PUBLISHING_LABEL[c.publishingMode] : 'Not set yet'}</dd>
           </dl>
-          <p className={o.small}>Changing your profile changes which departments are on. <Link href="/onboarding/welcome" className={o.linkInline}>Run setup again</Link>.</p>
+          <p className={o.small}>Every tool stays available whatever your profile; it sets defaults and wording. Departments you set yourself keep their level. <Link href="/onboarding/welcome" className={o.linkInline}>Change how Indie SRVCS is set up for you</Link>.</p>
           <CodePrefixes />
           <DensityControl />
         </section>

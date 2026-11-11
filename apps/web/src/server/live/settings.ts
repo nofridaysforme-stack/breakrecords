@@ -11,7 +11,7 @@ import type { RequestContext } from '../context';
 const n = (v: unknown) => Number(v ?? 0);
 
 async function settingsIn(tx: Tx, ctx: RequestContext): Promise<Settings> {
-  const [cfg] = await tx<{ country: string; profile: string; statement_period: string; spend_cap_cents: string }[]>`SELECT * FROM label_settings`;
+  const [cfg] = await tx<{ country: string; profile: string; statement_period: string; spend_cap_cents: string; default_autonomy: Settings['config']['defaultAutonomy']; publishing_mode: Settings['config']['publishingMode'] }[]>`SELECT * FROM label_settings`;
   const [policy] = await tx<{ minimum_cents: string }[]>`SELECT minimum_cents FROM payout_policies`;
   const routes = await tx<{ type: Settings['routing'][number]['type']; label: string; rule: string; approver: string; cap_cents: string | null }[]>`
     SELECT type::text AS type, label, rule, approver, cap_cents FROM approval_routes ORDER BY position`;
@@ -26,6 +26,7 @@ async function settingsIn(tx: Tx, ctx: RequestContext): Promise<Settings> {
     config: {
       name: ctx.tenantName, country: cfg?.country ?? 'US', profile: cfg?.profile ?? 'Not set', statementPeriod: cfg?.statement_period ?? 'Not set',
       minimumPayout: policy ? n(policy.minimum_cents) : 2500, spendCap: cfg ? n(cfg.spend_cap_cents) : 0,
+      defaultAutonomy: cfg?.default_autonomy ?? null, publishingMode: cfg?.publishing_mode ?? null,
     },
     integrations: ints.map((i) => ({ id: i.slug, name: i.name, abbr: i.abbr, state: i.state, status: i.status })),
     team: team.map((t) => ({ id: t.user_id, name: t.name ?? t.email.split('@')[0], role: t.title ?? (t.role === 'owner' ? 'Owner' : 'Team') })),

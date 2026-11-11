@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayMonth, monthYear, recoupment, shareBasis, shareTerms, signPrompt, taxState } from '../src/payouts';
+import { dayMonth, monthYear, recoupment, shareBasis, shareTerms, signPrompt, taxState, w8ExpiresOn } from '../src/payouts';
 
 const v4 = { producerBp: 300, labelOfNetBp: 5000, artistOfNetBp: 5000, featureOfArtistBp: 1000 };
 const v5 = { producerBp: 300, labelOfNetBp: 4000, artistOfNetBp: 5500, featureOfArtistBp: 1000 };
@@ -26,10 +26,15 @@ describe('portal wording', () => {
 describe('tax forms', () => {
   it('on file, expiring within 60 days, expired or missing', () => {
     expect(taxState('W-9', null, '2026-11-08')).toEqual({ status: 'ok', label: 'On file' });
-    expect(taxState('W-9', '2026-12-01', '2026-11-08')).toEqual({ status: 'expiring', label: 'Expires Dec 1' });
+    expect(taxState('W-9', '2026-12-01', '2026-11-08')).toEqual({ status: 'ok', label: 'On file' }); // a W-9 never expires
+    expect(taxState('W-8BEN', '2026-12-31', '2026-11-08')).toEqual({ status: 'expiring', label: 'Expires Dec 31' });
     expect(taxState('W-8BEN', '2028-01-01', '2026-11-08').status).toBe('ok');
-    expect(taxState('W-9', '2026-11-01', '2026-11-08')).toEqual({ status: 'missing', label: 'Expired Nov 1' });
+    expect(taxState('W-8BEN-E', '2026-11-01', '2026-11-08')).toEqual({ status: 'missing', label: 'Expired Nov 1' });
     expect(taxState(null, null, '2026-11-08')).toEqual({ status: 'missing', label: 'Missing' });
+  });
+  it('a W-8 lasts until the end of the third calendar year after signing', () => {
+    expect(w8ExpiresOn('2023-03-04')).toBe('2026-12-31');
+    expect(w8ExpiresOn('2026-12-31')).toBe('2029-12-31');
   });
   it('formats dates in UTC', () => { expect(dayMonth('2026-12-01')).toBe('Dec 1'); expect(monthYear('2026-10-01')).toBe('Oct 2026'); });
 });

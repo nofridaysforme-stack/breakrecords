@@ -1,6 +1,7 @@
 import 'server-only';
-import type { ApprovalFacts, PayoutFacts } from '@breakrecords/core/checks';
+import type { ApprovalFacts, FilingFacts, PayoutFacts } from '@breakrecords/core/checks';
 import type { DealTerms } from '@breakrecords/core/dealSplit';
+import { w8ExpiresOn } from '@breakrecords/core/payouts';
 import type { Tx } from '@breakrecords/db/client';
 
 // Gathers what the approval checks read, for every agent-prepared card in this tenant, from
@@ -19,13 +20,15 @@ async function payoutFacts(tx: Tx, batchId: string): Promise<PayoutFacts> {
            to_char(b.pays_on, 'YYYY-MM-DD') AS pays_on, (SELECT minimum_cents FROM payout_policies) AS minimum
     FROM payout_batches b WHERE b.id = ${batchId}`;
   const lines = await tx<{
-    party_id: string; name: string; amount: string; status: string; tax_form: string | null; tax_expires_on: Date | null; bank: string | null;
-    last_failed: boolean; stmt_version: string | null;
+    party_id: string; name: string; role: string; amount: string; withheld: string; status: string; tax_form: string | null; tax_expires_on: Date | null; tax_signed_on: Date | null;
+    treaty: boolean; bank: string | null; last_failed: boolean; stmt_version: string | null; stmt_net: string | null;
   }[]>`
-    SELECT l.party_id, p.name, l.amount_cents AS amount, l.status::text, y.tax_form, y.tax_expires_on, y.bank_last4 AS bank,
+    SELECT l.party_id, p.name, l.role, l.amount_cents AS amount, l.withheld_cents AS withheld, l.status::text, y.tax_form, y.tax_expires_on, y.tax_signed_on,
+      y.treaty_country IS NOT NULL AS treaty, y.bank_last4 AS bank,
       coalesce((SELECT pl.status = 'failed' FROM payout_lines pl JOIN payout_batches pb ON pb.id = pl.batch_id
                 WHERE pl.party_id = l.party_id AND pb.period < ${b.period}::date ORDER BY pb.period DESC LIMIT 1), false) AS last_failed,
-      (SELECT s.version_id FROM payee_statements s WHERE s.id = l.statement_id) AS stmt_version
+      (SELECT s.version_id FROM payee_statements s WHERE s.id = l.statement_id) AS stmt_version,
+      (SELECT s.net_cents FROM payee_statements s WHERE s.id = l.statement_id) AS stmt_net
     FROM payout_lines l JOIN parties p ON p.id = l.party_id LEFT JOIN payees y ON y.party_id = l.party_id
     WHERE l.batch_id = ${batchId} ORDER BY l.amount_cents DESC`;
   // Split versions in effect for the period, fully signed, and who is on each.
@@ -36,9 +39,9 @@ async function payoutFacts(tx: Tx, batchId: string): Promise<PayoutFacts> {
       AND NOT EXISTS (SELECT 1 FROM split_versions later WHERE later.node_id = v.node_id AND later.status IN ('in_effect', 'superseded')
                         AND later.effective_from > v.effective_from AND later.effective_from <= ${b.period_end}::date)
       AND NOT EXISTS (SELECT 1 FROM split_parties x WHERE x.version_id = v.id AND x.signed_at IS NULL)`;
-  const agreements = await tx<{ party_id: string; name: string; complete: boolean }[]>`
-    SELECT ap.party_id, a.name, NOT EXISTS (SELECT 1 FROM agreement_parties x WHERE x.agreement_id = a.id AND x.signed_at IS NULL) AS complete
-    FROM agreements a JOIN agreement_parties ap ON ap.agreement_id = a.id`;
+  const agreements = await tx<{ party_id: string; party: string; name: string; complete: boolean }[]>`
+    SELECT ap.party_id, p.name AS party, a.name, NOT EXISTS (SELECT 1 FROM agreement_parties x WHERE x.agreement_id = a.id AND x.signed_at IS NULL) AS complete
+    FROM agreements a JOIN agreement_parties ap ON ap.agreement_id = a.id JOIN parties p ON p.id = ap.party_id`;
   const income = await tx<{ recording_id: string; title: string; isrc: string | null; released_on: Date | null; amount: string }[]>`
     SELECT r.id AS recording_id, r.title, r.isrc,
       (SELECT min(rel.release_date) FROM release_tracks rt JOIN releases rel ON rel.id = rt.release_id WHERE rt.recording_id = r.id) AS released_on,
@@ -54,11 +57,17 @@ async function payoutFacts(tx: Tx, batchId: string): Promise<PayoutFacts> {
       const mine = splits.filter((s) => s.party_id === l.party_id);
       const split = mine.find((s) => s.version_id === l.stmt_version) ?? mine[0];
       const theirs = agreements.filter((a) => a.party_id === l.party_id);
+      // A band member is paid as the band ("The Low Hours"): the band's signed agreement covers them.
+      const asGroup = agreements.some((a) => a.complete && a.party === l.role);
+      const w8 = !!l.tax_form?.startsWith('W-8');
       return {
         name: l.name, amountCents: Number(l.amount), status: l.status === 'carried' ? 'carried' : 'included',
-        covered: !!split || theirs.some((a) => a.complete),
+        covered: !!split || asGroup || theirs.some((a) => a.complete),
         pendingAgreements: theirs.filter((a) => !a.complete).map((a) => lower(a.name)),
-        taxForm: l.tax_form, taxExpiresOn: iso(l.tax_expires_on), withheldCents: 0, treaty: false,
+        taxForm: l.tax_form, withheldCents: Number(l.withheld), treaty: l.treaty,
+        // A W-9 never expires; a W-8's expiry is worked out from when it was signed.
+        taxExpiresOn: w8 ? iso(l.tax_expires_on) ?? (l.tax_signed_on ? w8ExpiresOn(l.tax_signed_on) : null) : null,
+        statementNetCents: l.stmt_net == null ? null : Number(l.stmt_net),
         bankOnFile: !!l.bank, lastFailed: l.last_failed,
         split: split ? { node: split.node, version: split.version, terms: split.terms, role: split.role } : null,
       };
@@ -81,7 +90,8 @@ async function filingFacts(tx: Tx, org: string, titles: string[]): Promise<Appro
       writers: mine.filter((r) => r.name).map((r) => ({ name: r.name!, shareBp: r.share_bp ?? 0, pro: r.pro, ipi: r.ipi, signed: !!r.confirmed })),
     };
   });
-  return { kind: 'filing', org, works };
+  const [settings] = await tx<{ publishing_mode: FilingFacts['publishingMode'] }[]>`SELECT publishing_mode FROM label_settings`;
+  return { kind: 'filing', org, works, publishingMode: settings?.publishing_mode ?? null };
 }
 
 /** Facts for every agent-prepared card, keyed by approval id. Cards without facts have no checks. */

@@ -8,7 +8,7 @@ const ROUTES = [
   '/approvals/apr_payout_oct', '/approvals/apr_producer', '/approvals/apr_mlc', '/approvals/apr_grant',
   '/releases', '/releases/rel_glasshouse',
   '/onboarding/welcome', '/onboarding/profile', '/onboarding/name', '/onboarding/country', '/onboarding/distributor',
-  '/onboarding/catalog', '/onboarding/pro', '/onboarding/autonomy', '/onboarding/finish',
+  '/onboarding/catalog', '/onboarding/songwriting', '/onboarding/autonomy', '/onboarding/finish',
   '/dev/type', '/dev/components',
   '/splits/gh-rec', '/splits/gh-song', '/money/royalties', '/money/statements', '/money/statements/ST-2026-10-KV',
   '/money/payouts', '/money/recoupment', '/money/budgets',

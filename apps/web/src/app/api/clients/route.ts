@@ -3,12 +3,12 @@ import { CreateClientCommand } from '@breakrecords/contract';
 import { authRequired, getContext } from '@/server/context';
 import { payoutErr as err } from '@/server/teamRoute';
 
-/** Label services only. With sign-in off (sample data) there are no client workspaces. */
+/** A workspace's owners. With sign-in off (sample data) there are no client workspaces. */
 async function services() {
   if (!authRequired()) return { refused: err(409, 'not_available', 'Client workspaces work when sign-in is on.') } as const;
   const ctx = await getContext();
   if (!ctx) return { refused: err(401, 'unauthorized', 'Sign in to continue.') } as const;
-  if (ctx.tenantKind !== 'licensee' || ctx.role !== 'owner') return { refused: err(403, 'forbidden', 'Clients are for the owners of a label services workspace.') } as const;
+  if (ctx.role !== 'owner') return { refused: err(403, 'forbidden', 'Only the workspace’s owners add and see clients.') } as const;
   return { ctx } as const;
 }
 

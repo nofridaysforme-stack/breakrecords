@@ -24,7 +24,7 @@ const RISK: Record<string, Risk> = { low: 'low', needs_your_eyes: 'needsEyes', d
 const CONTEXT: Record<string, { context: string; riskLabel?: string }> = {
   apr_payout_oct: { context: 'October statements' },
   apr_producer: { context: 'Glasshouse' },
-  apr_mlc: { context: 'Glasshouse and 2 catalog songs' },
+  apr_mlc: { context: 'Velvet Hours and 2 Night Bus songs' },
   apr_grant: { context: 'Project grant, non-repayable', riskLabel: 'Due in 9 days' },
 };
 
@@ -32,13 +32,16 @@ const CONTEXT: Record<string, { context: string; riskLabel?: string }> = {
 export const approvalTags: Record<string, { artists: string[]; releases: string[]; dept: string; short?: string }> = {
   apr_payout_oct: { artists: ['Kesi Vale', 'The Low Hours'], releases: ['Glasshouse', 'Night Bus EP'], dept: 'Royalties' },
   apr_producer: { artists: ['Kesi Vale'], releases: ['Glasshouse'], dept: 'Legal' },
-  apr_mlc: { artists: ['Kesi Vale'], releases: ['Glasshouse'], dept: 'Publishing' },
+  apr_mlc: { artists: ['Kesi Vale', 'The Low Hours'], releases: ['Velvet Hours', 'Night Bus EP'], dept: 'Publishing' },
   apr_grant: { artists: ['Kesi Vale'], releases: ['Glasshouse'], dept: 'Funding', short: 'Grant draft' },
 };
 
+// A grant application is submitted to a funder, so it is a Filing (Filing routing), not a Plan.
+const TYPE: Record<string, ApprovalSummary['type']> = { apr_grant: 'filing' };
+
 export const approvals: ApprovalSummary[] = sample.approvals.map((a) => ({
   id: a.id,
-  type: a.type as ApprovalSummary['type'],
+  type: TYPE[a.id] ?? (a.type as ApprovalSummary['type']),
   title: a.title,
   agent: a.agent,
   due: shortDate(a.due),
@@ -73,7 +76,10 @@ export const glasshouseWaterfall: WaterfallRow[] = runWaterfall(
   sample.waterfallGlasshouseOct2026.map((r, i): WaterfallStep =>
     'subtotal' in r && r.subtotal
       ? { kind: 'subtotal', label: r.label }
-      : { kind: i === 0 ? 'start' : 'step', label: r.label, rule: r.rule ?? '', amount: toCents(r.amount ?? 0), source: r.source },
+      // The design's October waterfall is Glasshouse's, but Glasshouse isn't out until Mar 5, 2027:
+      // the same October income is Velvet Hours's, under its own split (v1) and costs (RC-VH).
+      : { kind: i === 0 ? 'start' : 'step', label: r.label, rule: r.rule ?? '', amount: toCents(r.amount ?? 0),
+          source: r.source === 'SPL-v4' ? 'SPL-VH-v1' : r.source === 'RC-GH' ? 'RC-VH' : r.source },
   ),
 );
 export const artistNet: Cents = toCents(sample.artistNet);

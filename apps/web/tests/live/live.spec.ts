@@ -51,21 +51,30 @@ test('a decision is saved for the label: a teammate sees it, and it survives sig
   expect(ApprovalState.parse(await (await page.request.get('/api/approvals/state')).json()).decisions.apr_producer).toBeUndefined();
 });
 
-test('checks: the October payout, MLC filing and grant can’t be approved yet; the server refuses; fixing the data clears a rule', async ({ page }) => {
+test('checks: the clean demo passes, the grant waits on a deadline check, and breaking the data blocks the payout on the server', async ({ page }) => {
   await signIn(page, USERS.owner);
   const checks = async () => ApprovalChecksResponse.parse(await (await page.request.get('/api/approvals/checks')).json());
   const c = await checks();
-  const failed = (id: string) => c.items[id].results.filter((r) => r.status === 'fail' && r.severity === 'block').map((r) => r.id);
+  const failed = (x: typeof c, id: string) => x.items[id].results.filter((r) => r.status === 'fail' && r.severity === 'block').map((r) => r.id);
   expect(c.today).toBe(new Date().toISOString().slice(0, 10)); // the real date, not the sample's
-  expect(failed('apr_payout_oct')).toEqual(['ROY-01', 'ROY-03', 'ROY-04', 'ROY-05', 'ROY-06', 'ROY-07']);
-  const msg = (id: string, rule: string) => c.items[id].results.find((r) => r.id === rule)!.message;
-  expect(msg('apr_payout_oct', 'ROY-01')).toContain('Marco Dela’s producer agreement, Glasshouse isn’t signed yet.');
-  expect(msg('apr_payout_oct', 'ROY-06')).toContain('Marco Dela (3%) is paid $285.00, but Ari Monroe (4.85%) is paid $260.75');
-  expect(msg('apr_payout_oct', 'ROY-07')).toContain('Night Bus has an open audit flag');
-  expect(failed('apr_mlc')).toEqual(['PUB-01', 'PUB-03']);
-  expect(msg('apr_mlc', 'PUB-01')).toContain('Glasshouse’s split sheet has 1 of 2 signatures.');
-  expect(failed('apr_grant')).toEqual(['FUN-03']);
+  expect(failed(c, 'apr_payout_oct')).toEqual([]);
+  expect(failed(c, 'apr_mlc')).toEqual([]);
+  expect(failed(c, 'apr_grant')).toEqual(['FUN-03']);
   expect(c.items.apr_producer.canApprove).toBe(true);
+
+  // The broken copy of the label: reopen the audit flag, drop Rue's tax form, give Low Light October income.
+  const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+  await db`UPDATE audit_flags SET resolved_at = NULL, resolution = NULL`;
+  await db`UPDATE payees SET tax_form = NULL WHERE party_id = (SELECT id FROM parties WHERE slug = 'rue-sato' AND tenant_id = (SELECT id FROM tenants WHERE slug = 'northline'))`;
+  await db`UPDATE income_lines SET recording_id = (SELECT id FROM recordings WHERE slug = 'low-light' AND tenant_id = income_lines.tenant_id)
+    WHERE id IN (SELECT l.id FROM income_lines l JOIN recordings r ON r.id = l.recording_id JOIN income_statements s ON s.id = l.statement_id
+                 WHERE r.slug = 'paper-moons' AND s.period = '2026-10-01' LIMIT 5)`;
+  const broken = await checks();
+  expect(failed(broken, 'apr_payout_oct')).toEqual(['ROY-02', 'ROY-04', 'ROY-05', 'ROY-07']);
+  const msg = (id: string) => broken.items.apr_payout_oct.results.find((r) => r.id === id)!.message;
+  expect(msg('ROY-02')).toBe('Rue Sato has no tax form on file.');
+  expect(msg('ROY-07')).toContain('Night Bus has an open audit flag');
+  expect(msg('ROY-05')).toContain('Low Light earns');
 
   // Refused on the server, whatever the screen shows, and nothing is recorded.
   const res = await page.request.post('/api/approvals/apr_payout_oct/decision', { data: { action: 'approve' } });
@@ -74,12 +83,14 @@ test('checks: the October payout, MLC filing and grant can’t be approved yet; 
   await page.goto('/approvals');
   await expect(page.getByRole('region', { name: /Can't approve yet/ }).filter({ visible: true }).getByRole('article', { name: 'Payout batch for October' })).toBeVisible();
 
-  // Resolving the audit flag clears ROY-07 on the next run; the rest still hold.
-  const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+  // Resolving the flag clears ROY-07 on the next run; the rest still hold.
   await db`UPDATE audit_flags SET resolved_at = now(), resolution = 'Distributor confirmed the streams'`;
-  const after = await checks();
-  expect(after.items.apr_payout_oct.results.find((r) => r.id === 'ROY-07')!.status).toBe('pass');
-  await db`UPDATE audit_flags SET resolved_at = NULL, resolution = NULL`;
+  expect((await checks()).items.apr_payout_oct.results.find((r) => r.id === 'ROY-07')!.status).toBe('pass');
+  // Put the clean demo back.
+  await db`UPDATE payees SET tax_form = 'W-9' WHERE party_id = (SELECT id FROM parties WHERE slug = 'rue-sato' AND tenant_id = (SELECT id FROM tenants WHERE slug = 'northline'))`;
+  await db`UPDATE income_lines SET recording_id = (SELECT id FROM recordings WHERE slug = 'paper-moons' AND tenant_id = income_lines.tenant_id)
+    WHERE recording_id IN (SELECT id FROM recordings WHERE slug = 'low-light')`;
+  expect(failed(await checks(), 'apr_payout_oct')).toEqual([]);
 
   // An approval is logged with every rule result and the inputs it read.
   await page.request.delete('/api/approvals/apr_producer/decision');
@@ -310,7 +321,7 @@ test.describe('statements (live)', () => {
     expect(r.sources.reduce((a, x) => a + x.amount, 0)).toBe(r.stats.income); // reconciles to the cent
     expect(r.sources.map((x) => x.name)).toEqual(['Distributor', 'SoundExchange', 'MLC', 'PRO', 'Sync', 'Bandcamp']);
     expect(r.byArtist.reduce((a, x) => a + x.amount, 0) + r.unmatched.value).toBe(r.stats.income);
-    expect(r.byArtist[0]).toMatchObject({ name: 'Kesi Vale', amount: 1081260, meta: 'Glasshouse, Velvet Hours and Paper Moons' });
+    expect(r.byArtist[0]).toMatchObject({ name: 'Kesi Vale', amount: 1102400, meta: 'Velvet Hours and Paper Moons' });
     expect(r.unmatched).toMatchObject({ count: 27, value: 4112, note: 'Royalties Agent thinks 24 are a typo in "Night Bus" metadata.', unknown: { count: 3, value: 272 } });
     expect(r.zeroTracks).toEqual([{ name: 'Night Bus (demo)', streams: 412 }, { name: 'Static Hymn', streams: 688 }]);
 
@@ -321,9 +332,9 @@ test.describe('statements (live)', () => {
   test('statements are served as issued, and checked', async ({ page }) => {
     await signIn(page, USERS.owner);
     const list = StatementsResponse.parse(await (await page.request.get('/api/statements')).json());
-    expect(list.items.map((s) => s.id)).toEqual(['ST-2026-10-KV', 'ST-2026-10-MD', 'ST-2026-09-MD']);
+    expect(list.items.map((s) => s.id)).toEqual(['ST-2026-10-KV', 'ST-2026-10-MD', 'ST-2026-10-AM', 'ST-2026-09-MD']);
     const kv = StatementResponse.parse(await (await page.request.get('/api/statements/ST-2026-10-KV')).json());
-    expect(kv).toMatchObject({ payee: 'Kesi Vale', release: 'Glasshouse', period: 'October 2026', split: 'split v4', net: 234675, pays: 'Jan 15 on the quarterly artist run' });
+    expect(kv).toMatchObject({ payee: 'Kesi Vale', release: 'Velvet Hours', period: 'October 2026', split: 'split v1', net: 234675, pays: 'Jan 15 on the quarterly artist run' });
     expect(kv.rows.at(-1)?.balance).toBe(kv.net);
     await page.goto('/money/statements');
     await expect(page.getByRole('row', { name: /Kesi Vale/ })).toContainText('$2,346.75');
@@ -348,8 +359,8 @@ test.describe('statements (live)', () => {
     expect((await page.request.get('/api/statements/ST-2026-10-KV')).status()).toBe(404);
     expect((await page.request.post('/api/money/royalties/match', { data: { isrc: 'USNL1250031', recordingId: 'night-bus' } })).status()).toBe(403);
     await page.goto('/portal/statements');
-    await expect(page.getByRole('link', { name: /October 2026 · Glasshouse/ })).toContainText('$285.00');
-    await expect(page.getByRole('link', { name: /September 2026 · Glasshouse/ })).toContainText('$312.60');
+    await expect(page.getByRole('link', { name: /October 2026 · Velvet Hours/ })).toContainText('$285.00');
+    await expect(page.getByRole('link', { name: /September 2026 · Velvet Hours/ })).toContainText('$312.60');
     await page.goto('/portal/statements/ST-2026-10-MD');
     await expect(page.getByText('$285.00').first()).toBeVisible();
   });
@@ -385,9 +396,9 @@ test.describe('payouts (live)', () => {
       ['pb-2026-09', 5, 101844, 'sent', 'Sent Oct 10'], ['pb-2026-08', 5, 93402, 'failed', 'Theo Lind, bank details'], ['pb-2026-07', 4, 82270, 'sent', 'Sent Aug 10'],
     ]);
     expect(p.carryForward).toEqual([{ name: 'Jules Arden', role: 'Session bass', amount: 1840 }, { name: 'Pia Novak', role: 'Artwork, 0.5 pt', amount: 912 }]);
-    expect(p.taxForms.filter((t) => t.status !== 'ok').map((t) => [t.name, t.label, t.fix])).toEqual([['Rue Sato', 'Expires Dec 1', 'Request new'], ['Jules Arden', 'Missing', 'Request form']]);
+    expect(p.taxForms.filter((t) => t.status !== 'ok').map((t) => [t.name, t.label, t.fix])).toEqual([['Theo Lind', 'Expires Dec 31', 'Request new'], ['Jules Arden', 'Missing', 'Request form']]);
     const r = RecoupmentResponse.parse(await (await page.request.get('/api/money/recoupment')).json());
-    expect(r.items.map((i) => [i.id, i.recouped, i.recoupedIn ?? i.projected])).toEqual([['rel_glasshouse', 400000, 'Oct 2026'], ['rel_nightbus', 305000, 'Aug 2027']]);
+    expect(r.items.map((i) => [i.id, i.recouped, i.recoupedIn ?? i.projected])).toEqual([['rel_velvet', 400000, 'Oct 2026'], ['rel_glasshouse', 0, 'Jun 2027'], ['rel_nightbus', 305000, 'Aug 2027']]);
   });
 
   test('requests and costs are saved for the label and audited', async ({ page, browser }) => {
@@ -425,14 +436,14 @@ test.describe('payouts (live)', () => {
   test('the portal is built from the payee’s own rows', async ({ page }) => {
     await signIn(page, USERS.owner);
     const kesi = PayeeResponse.parse(await (await page.request.get('/api/portal/kesi-vale')).json());
-    expect(kesi).toMatchObject({ earned: 234675, paid: 0, next: { amount: 234675, date: 'Jan 15', from: 'From Glasshouse, October. 50% of net profit, less feature.' } });
+    expect(kesi).toMatchObject({ earned: 234675, paid: 0, next: { amount: 234675, date: 'Jan 15', from: 'From Velvet Hours, October. 50% of net profit, less feature.' } });
     expect(kesi.signPrompt.text).toBe('Your share goes up from 43.65% to 48.02% of recording income.');
   });
 
   test('a payee sees only their own portal and none of the label’s payouts', async ({ page }) => {
     await signIn(page, USERS.payee, { into: 'Northline Records' });
     const me = PayeeResponse.parse(await (await page.request.get('/api/portal/marco-dela')).json());
-    expect(me).toMatchObject({ name: 'Marco Dela', earned: 114630, paid: 86130, next: { amount: 28500, date: 'Nov 10', from: 'From Glasshouse, October. 3 points.' }, bank: { last4: '4821' } });
+    expect(me).toMatchObject({ name: 'Marco Dela', earned: 114630, paid: 86130, next: { amount: 28500, date: 'Nov 10', from: 'From Velvet Hours, October. 3 points.' }, bank: { last4: '4821' } });
     expect(me.statementIds).toEqual(['ST-2026-10-MD', 'ST-2026-09-MD']);
     expect((await page.request.get('/api/portal/kesi-vale')).status()).toBe(404);
     for (const path of ['/api/money/payouts', '/api/money/recoupment']) expect((await page.request.get(path)).status()).toBe(403);
@@ -515,11 +526,11 @@ test.describe('contracts (live)', () => {
     await signIn(page, USERS.owner);
     await page.request.delete('/api/approvals/apr_producer/decision'); // start from an open approval
     const c = await contracts(page);
-    expect(c.summary).toBe('7 active · 1 waiting on signatures · next key date Jan 9');
+    expect(c.summary).toBe('8 active · 1 waiting on signatures · next key date Jan 9');
     expect(c.contracts.map((x) => [x.id, x.template, x.sig, x.date])).toEqual([
       ['ct_producer', 'Northline producer v3 · 2 edits', 'Waiting on you', 'Nov 9'], ['ct_artist_kesi', 'Northline artist v2', 'Signed', 'Mar 6, 2029'],
       ['ct_band', 'Northline artist v2', 'Signed', 'Jan 9'], ['ct_feature', 'Northline feature v1', 'Signed', null],
-      ['ct_split_gh', 'Split sheet v1', '1 of 2 signed', null], ['ct_distribution', 'Third party · reviewed', 'Signed', 'Aug 1'], ['ct_split_nb', 'Split sheet v1', 'Signed', null],
+      ['ct_split_gh', 'Split sheet v1', '1 of 2 signed', null], ['ct_mix_nb', 'Northline producer v3 · 1 edit', 'Signed', null], ['ct_distribution', 'Third party · reviewed', 'Signed', 'Aug 1'], ['ct_split_nb', 'Split sheet v1', 'Signed', null],
     ]);
     expect(c.contracts.find((x) => x.id === 'ct_split_gh')).toMatchObject({ parties: 'Kesi, Marco', terms: '75 / 25' });
     expect(c.contracts.find((x) => x.id === 'ct_band')?.parties).toBe('The Low Hours (3)');
@@ -532,7 +543,7 @@ test.describe('contracts (live)', () => {
     expect((await page.request.post('/api/approvals/apr_producer/decision', { data: { action: 'approve' } })).status()).toBe(200);
     const c = await contracts(page);
     expect(c.contracts[0]).toMatchObject({ id: 'ct_producer', sig: '0 of 1 signed', sigState: 'partial', date: null });
-    expect(c.summary).toBe('7 active · 0 waiting on signatures · next key date Jan 9');
+    expect(c.summary).toBe('8 active · 0 waiting on signatures · next key date Jan 9');
     await page.request.delete('/api/approvals/apr_producer/decision');
     expect((await contracts(page)).contracts[0].sig).toBe('Waiting on you');
   });
@@ -581,10 +592,10 @@ test.describe('roster (live)', () => {
     // The countdown moves with the calendar, so only its shape is checked.
     expect(r[0].open).toMatch(/^Glasshouse release in \d+ (weeks|days?)$|^Glasshouse releases today$/);
     expect(r.map((a, i) => [i === 0 ? 'Glasshouse' : a.open, a.href])).toEqual([
-      ['Glasshouse', '/releases/rel_glasshouse'], ['Rue Sato’s tax form expires Dec 1', '/money/payouts'],
+      ['Glasshouse', '/releases/rel_glasshouse'], ['Theo Lind’s tax form expires Dec 31', '/money/payouts'],
       ['Producer agreement needs your eyes', '/approvals/apr_producer'],
     ]);
-    expect([r[0].income, r[2].income]).toEqual([1081260, 21140]);
+    expect([r[0].income, r[2].income]).toEqual([1102400, 0]); // Low Light isn't released, so it earns nothing
     await page.goto('/roster');
     await expect(page.getByRole('heading', { name: 'Kesi Vale', level: 2 })).toBeVisible();
   });
@@ -721,7 +732,8 @@ test.describe('settings (live)', () => {
   test('settings, routing and integrations come from the database; the minimum payout from payouts', async ({ page }) => {
     await signIn(page, USERS.owner);
     const st = SettingsResponse.parse(await (await page.request.get('/api/settings')).json());
-    expect(st.config).toEqual({ name: 'Northline Records', country: 'US', profile: 'Small label', statementPeriod: 'Monthly, artists quarterly', minimumPayout: 2500, spendCap: 30000 });
+    expect(st.config).toEqual({ name: 'Northline Records', country: 'US', profile: 'Small label', statementPeriod: 'Monthly, artists quarterly', minimumPayout: 2500, spendCap: 30000,
+      defaultAutonomy: expect.any(String), publishingMode: expect.any(String) });
     expect(st.routing.map((r) => [r.type, r.cap])).toEqual([['money', 'Over $0'], ['signature', 'Always'], ['filing', 'Always'], ['public', 'Always'], ['plan', 'Over $250']]);
     expect(st.integrations.find((i) => i.id === 'accounting')).toMatchObject({ state: 'err', status: 'Token expired' });
     const res = await page.request.post('/api/settings/integrations/soundexchange/connect');
@@ -774,7 +786,7 @@ test('Home’s money row is read from the same tables as the money screens', asy
   // Forecast: the Sep and Oct average for three months, less the Nov 10 and Jan 15 payouts.
   expect(h.numbers.cash90).toBe(Math.round(((1210712 + 1428640) / 2) * 3) - 124018 - 690415);
   expect(h.numberNotes).toEqual({ period: 'Oct', income: 'Oct, 6 sources', owed: '6 payees', owedApprovalId: 'apr_payout_oct',
-    recouped: 'Glasshouse fully recouped', cash90: 'Recent average, less payouts due', unclaimed: '2 sources to claim' });
+    recouped: 'Velvet Hours fully recouped', cash90: 'Recent average, less payouts due', unclaimed: '2 sources to claim' });
   await page.goto('/');
   await expect(page.getByText('Oct, 6 sources').first()).toBeVisible();
 });
@@ -782,7 +794,8 @@ test('Home’s money row is read from the same tables as the money screens', asy
 test('⌘K searches the signed-in label’s own data', async ({ page, browser }) => {
   await signIn(page, USERS.owner);
   const hits = async (p: import('@playwright/test').Page, q: string) => SearchResponse.parse(await (await p.request.get(`/api/search?q=${encodeURIComponent(q)}`)).json()).items;
-  expect((await hits(page, 'glasshouse')).map((i) => i.id)).toEqual(expect.arrayContaining(['r-glasshouse', 'rel-rel_glasshouse', 'st-ST-2026-10-KV']));
+  expect((await hits(page, 'glasshouse')).map((i) => i.id)).toEqual(expect.arrayContaining(['r-glasshouse', 'rel-rel_glasshouse']));
+  expect((await hits(page, 'velvet')).map((i) => i.id)).toEqual(expect.arrayContaining(['st-ST-2026-10-KV']));
   expect((await hits(page, 'mara')).map((i) => i.label)).not.toContain('Mara Quill');
   const harbor = await (await browser.newContext()).newPage();
   await signIn(harbor, USERS.harbor);
@@ -987,10 +1000,12 @@ test('a band signs up and adds a bandmate as co-owner; label services add a clie
   expect(SettingsResponse.parse(await (await svc.request.get('/api/settings')).json()).canInvite).toBe(true); // services act as owners in the client
   expect((await (await svc.request.get('/api/approvals')).json()).items).toHaveLength(0);
 
-  // The band can't see or add clients; nobody else sees this one.
-  expect((await band.request.get('/api/clients')).status()).toBe(403);
+  // A band can have clients too (every tool for every kind), and sees only its own, never the services company's.
+  expect(await (await band.request.get('/api/clients')).json()).toMatchObject({ clients: [], canAdd: true }); // any workspace can have clients
+  const added = await band.request.post('/api/clients', { data: { name: 'Side Project', kind: 'artist' } });
+  expect((await added.json()).clients.map((x: { name: string }) => x.name)).toEqual(['Side Project']);
   await band.goto('/');
-  await expect(band.getByRole('complementary', { name: 'Sidebar' }).getByRole('link', { name: 'Clients' })).toHaveCount(0);
+  await expect(band.getByRole('complementary', { name: 'Sidebar' }).getByRole('link', { name: 'Clients' })).toBeVisible();
 });
 
 test('codes: an owner sets prefixes and assigns the next ISRC and UPC; an artist who isn’t a payee yet can be invited', async ({ page, browser }) => {
@@ -1053,4 +1068,38 @@ test('someone signed in before workspaces existed gets theirs on their next visi
   await page.goto('/');
   await page.getByRole('complementary', { name: 'Sidebar' }).getByRole('button', { name: 'Sign out' }).click();
   await expect(page).toHaveURL(/\/sign-in/);
+});
+
+test('setup is an edit, not a reset: departments set by hand keep their level, Settings shows the chosen default, and any workspace can add clients', async ({ page }) => {
+  await signIn(page, USERS.owner);
+  const depts = async () => DepartmentsResponse.parse(await (await page.request.get('/api/departments')).json()).departments.filter((d) => d.phase === 1);
+  const before = await depts();
+  const was = SettingsResponse.parse(await (await page.request.get('/api/settings')).json()).config.defaultAutonomy;
+  // Set by hand: anything not on the saved default (a department that can't act alone sits at Draft and wait).
+  const custom = before.filter((d) => d.autonomy !== was && !(was === 'act_within_limits' && !d.canAct && d.autonomy === 'draft_and_wait')).map((d) => [d.name, d.autonomy]);
+  expect(custom.length).toBeGreaterThan(0); // the sample label has some set by hand
+  const ob = OnboardingResponse.parse(await (await page.request.get('/api/onboarding')).json());
+  expect(ob.customDepartments).toEqual(custom.map(([n]) => n));
+
+  const answers = { profile: 'small_label', name: 'Northline Records', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_sure' }, autonomy: 'observe', publishing: { mode: 'writers_own' } };
+  expect((await page.request.put('/api/onboarding', { data: { answers, complete: true } })).status()).toBe(200);
+  const after = await depts();
+  for (const [name, level] of custom) expect(after.find((d) => d.name === name)?.autonomy).toBe(level); // kept
+  expect(after.filter((d) => !custom.some(([n]) => n === d.name)).map((d) => d.autonomy)).toEqual(after.filter((d) => !custom.some(([n]) => n === d.name)).map(() => 'observe'));
+  const st = SettingsResponse.parse(await (await page.request.get('/api/settings')).json());
+  expect(st.config).toMatchObject({ defaultAutonomy: 'observe', publishingMode: 'writers_own' });
+  await page.goto('/settings/profile');
+  await expect(page.getByRole('main')).toContainText('Observe');
+  await expect(page.getByRole('main')).toContainText('Writers handle their own');
+  // Writers handle their own publishing, so the MLC filing can't be filed as publisher (PUB-02).
+  const c = ApprovalChecksResponse.parse(await (await page.request.get('/api/approvals/checks')).json());
+  expect(c.items.apr_mlc.results.find((r) => r.id === 'PUB-02')).toMatchObject({ status: 'fail' });
+
+  // Northline is a client of its licensee, so it can't have clients (a band workspace can: see the sign-up test).
+  const nl = await (await page.request.get('/api/clients')).json();
+  expect(nl).toMatchObject({ canAdd: false });
+  expect((await page.request.post('/api/clients', { data: { name: 'Nested', kind: 'artist' } })).status()).toBe(403);
+  await page.goto('/clients');
+  await expect(page.getByText(/is a client of/)).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Sidebar' }).getByRole('link', { name: 'Clients' })).toBeVisible();
 });

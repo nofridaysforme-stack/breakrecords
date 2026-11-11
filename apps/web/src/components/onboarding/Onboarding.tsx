@@ -7,7 +7,7 @@ import { AutonomyDial, type Autonomy } from '@/components/ui/AutonomyDial';
 import { Eyebrow } from '@/components/type/Type';
 import { Term } from '@/components/ui/Controls';
 import { cx } from '@/components/ui/cx';
-import { COUNTRIES, DISTRIBUTORS, PROFILES, PROS, STEPS, stepIndex, type StepId } from './steps';
+import { COUNTRIES, DISTRIBUTORS, PROFILES, PROS, PUBLISHING, PUBLISHING_LABEL, STEPS, defaultPublishing, stepIndex, type StepId } from './steps';
 import { useOnboarding, type Answers } from './useOnboarding';
 import s from './Onboarding.module.css';
 
@@ -20,15 +20,21 @@ const PANEL: Record<Autonomy, string> = {
   act_within_limits: 'With "Act within limits", I finish routine tasks under the spend caps you set. Money, signatures, filings and anything public still come to you.',
 };
 
-/** A real workspace (live) says what actually happened: nothing is connected or imported yet. */
-function summary(a: Answers, live = false): [string, string][] {
+/**
+ * What setup did, in true words (ONB-05): nothing reads "Connected" or "imported" unless it
+ * happened. Connecting a distributor and importing a catalog arrive with Stage 1; setup only
+ * records which ones you chose.
+ */
+const isArtist = (p: string) => p === 'solo' || p === 'band';
+function summary(a: Answers): [string, string][] {
+  const mode = a.publishing?.mode ?? defaultPublishing(a.profile);
   const rows: [string, string][] = [
     ['Profile', PROFILES.find((p) => p.id === a.profile)?.name ?? ''],
     ['Name', a.name || 'Not set yet'],
     ['Country', a.country],
-    ['Distributor', live ? (a.distributor ?? 'Skipped for now') : a.distributor ? 'Connected' : 'Skipped for now'],
-    ['Catalog', live ? 'Later, when import is ready' : a.catalogFile ? '14 recordings imported' : 'Skipped for now'],
-    ['PRO', a.pro.status === 'affiliated' ? `Affiliated${a.pro.org ? `, ${a.pro.org}` : ''}` : a.pro.status === 'not_yet' ? 'Not yet' : 'Not sure'],
+    ['Distributor', a.distributor ? `${a.distributor}, chosen (not connected yet)` : 'Skipped'],
+    ['Catalog', a.catalogFile ? `${a.catalogFile}, chosen (not imported yet)` : 'Skipped'],
+    ['Songwriting', `${PUBLISHING_LABEL[mode]}${isArtist(a.profile) ? (a.pro.status === 'affiliated' ? `, ${a.pro.org ?? PROS[0]}` : a.pro.status === 'not_yet' ? ', no PRO yet' : ', PRO not sure') : ''}`],
   ];
   if (a.profile === 'band' && a.members?.length) rows.push(['Co-owners', `${a.members.length} invited`]);
   return rows;
@@ -38,7 +44,7 @@ const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export function Onboarding({ step }: { step: StepId }) {
   const router = useRouter();
-  const { answers, set, complete, live } = useOnboarding();
+  const { answers, set, complete, live, customDepartments } = useOnboarding();
   const i = stepIndex(step);
   const go = async (to: number) => {
     if (to >= STEPS.length) await complete(); // finishing sets the label up from the answers
@@ -72,7 +78,7 @@ export function Onboarding({ step }: { step: StepId }) {
           <div className={s.setSoFar}>
             <h2 className={s.setLabel}>You&apos;ve set so far</h2>
             <dl className={s.setGrid}>
-              {summary(answers, live).map(([k, v]) => <div key={k} style={{ display: 'contents' }}><dt className={s.setKey}>{k}</dt><dd style={{ margin: 0 }}>{v}</dd></div>)}
+              {summary(answers).map(([k, v]) => <div key={k} style={{ display: 'contents' }}><dt className={s.setKey}>{k}</dt><dd style={{ margin: 0 }}>{v}</dd></div>)}
             </dl>
           </div>
           <div className={s.panelActions}>
@@ -129,7 +135,7 @@ export function Onboarding({ step }: { step: StepId }) {
     case 'profile':
       return shell({
         title: 'How do you put out music?',
-        lede: 'Your pick decides which departments switch on. You can change it any time in Settings.',
+        lede: 'Your pick sets your starting point. Every tool is always available.',
         next: `Continue as ${profileName}`,
         body: (
           <fieldset className={s.profiles}>
@@ -140,7 +146,7 @@ export function Onboarding({ step }: { step: StepId }) {
                 <span className={s.profileTop}><span className={s.radio} aria-hidden="true"><span className={s.radioDot} /></span><span className={s.selected} aria-hidden="true">Selected</span></span>
                 <span className={s.profileName}>{p.name}</span>
                 <span className={s.profileWho}>{p.who}</span>
-                <span className={s.turnsOn}><Eyebrow as="span">Turns on</Eyebrow><span className={s.turnsOnText}>{p.on}</span></span>
+                <span className={s.turnsOn}><Eyebrow as="span">Starts with</Eyebrow><span className={s.turnsOnText}>{p.starts}</span></span>
               </label>
             ))}
           </fieldset>
@@ -212,43 +218,68 @@ export function Onboarding({ step }: { step: StepId }) {
           </div>
         ),
       });
-    case 'pro':
+    case 'songwriting': {
+      // ONB-06: who owns or administers the songs decides what a filing may claim (PUB-02).
+      const artist = isArtist(answers.profile);
+      const options = PUBLISHING[artist ? 'artist' : 'label'];
+      const mode = answers.publishing?.mode ?? defaultPublishing(answers.profile);
       return shell({
-        title: 'Are you with a PRO?',
-        lede: 'A PRO pays songwriters when their songs are played in public or streamed.',
+        title: artist ? (answers.profile === 'band' ? 'Who publishes your band’s songs?' : 'Who publishes your songs?')
+          : answers.profile === 'services' ? 'Who handles your clients’ publishing?' : 'Who handles your writers’ publishing?',
+        lede: artist ? 'This decides what I register for you, and with whom.' : 'This decides what you may file as publisher, and what I prepare for the writers instead. Each writer can be set differently later.',
         body: (
           <div className={s.form} style={{ maxWidth: 760 }}>
-            <p className={s.hint}>What is a <Term term="PRO" />?</p>
             <fieldset className={s.choices}>
-              <legend className="visually-hidden">PRO status</legend>
-              {([['affiliated', 'Yes, I’m affiliated'], ['not_yet', 'Not yet'], ['not_sure', 'I’m not sure']] as const).map(([v, l]) => (
-                <label key={v} className={s.choice}>
-                  <input type="radio" name="pro" checked={answers.pro.status === v} onChange={() => set('pro', { ...answers.pro, status: v })} />{l}
+              <legend className="visually-hidden">Publishing</legend>
+              {options.map((o) => (
+                <label key={o.id} className={s.choice}>
+                  <input type="radio" name="publishing" checked={mode === o.id} onChange={() => set('publishing', { ...answers.publishing, mode: o.id })} />
+                  <span><span style={{ display: 'block' }}>{o.label}</span><span className={s.hint}>{o.hint}</span></span>
                 </label>
               ))}
             </fieldset>
-            {answers.pro.status === 'affiliated' && (
-              <label className={s.field}>Which one?
-                <select className={s.select} value={answers.pro.org} onChange={(e) => set('pro', { status: 'affiliated', org: e.target.value })}>
-                  {PROS.map((p) => <option key={p}>{p}</option>)}
-                </select>
-              </label>
+            {artist && (
+              <>
+                <p className={s.hint}>Are you with a <Term term="PRO" />? A PRO pays songwriters when their songs are played in public or streamed.</p>
+                <fieldset className={s.choices}>
+                  <legend className="visually-hidden">PRO status</legend>
+                  {([['affiliated', 'Yes, I’m affiliated'], ['not_yet', 'Not yet'], ['not_sure', 'I’m not sure']] as const).map(([v, l]) => (
+                    <label key={v} className={s.choice}>
+                      <input type="radio" name="pro" checked={answers.pro.status === v} onChange={() => set('pro', { status: v, ...(v === 'affiliated' ? { org: answers.pro.org ?? PROS[0] } : {}) })} />{l}
+                    </label>
+                  ))}
+                </fieldset>
+                {answers.pro.status === 'affiliated' && (
+                  <>
+                    <label className={s.field}>Which one?
+                      <select className={s.select} value={answers.pro.org ?? PROS[0]} onChange={(e) => set('pro', { status: 'affiliated', org: e.target.value })}>
+                        {PROS.map((p) => <option key={p}>{p}</option>)}
+                      </select>
+                    </label>
+                    <label className={s.field}>Your IPI number (optional)
+                      <input className={s.input} inputMode="numeric" value={answers.publishing?.ipi ?? ''} placeholder="9 to 11 digits, on your PRO account"
+                        onChange={(e) => { const ipi = e.target.value.replace(/\D/g, '').slice(0, 11); set('publishing', { mode, ...(ipi ? { ipi } : {}) }); }} />
+                    </label>
+                  </>
+                )}
+                {answers.pro.status === 'not_yet' && <p className={s.hint}>When you join one, add it in Settings. Until then, your songs’ performance royalties can’t reach you.</p>}
+                {answers.pro.status === 'not_sure' && <p className={s.hint}>I’ll check whether your songs are registered anywhere and suggest a next step.</p>}
+              </>
             )}
-            {answers.pro.status !== 'affiliated' && <p className={s.hint}>That’s fine. I’ll check whether your songs are registered anywhere and suggest a next step.</p>}
           </div>
         ),
       });
+    }
     case 'finish':
       return shell({
         title: `${answers.name || 'Your label'} is set up.`,
-        lede: !live ? 'Your agents are importing what you connected. Tell me a goal on Home and I’ll come back with a plan.'
-          : answers.profile === 'services' ? 'Next, add your first client on the Clients page. Each client gets their own workspace.'
+        lede: answers.profile === 'services' ? 'Next, add your first client on the Clients page. Each client gets their own workspace.'
           : answers.profile === 'band' && answers.members?.length ? 'Your bandmates can sign in with their emails now. Tell me a goal on Home and I’ll come back with a plan.'
           : 'Tell me a goal on Home and I’ll come back with a plan.',
         next: 'Go to Home',
         body: (
           <dl className={s.summary}>
-            {[...summary(answers, live), ['Autonomy', ({ observe: 'Observe', suggest: 'Suggest', draft_and_wait: 'Draft and wait', act_within_limits: 'Act within limits' } as const)[answers.autonomy]] as [string, string]].map(([k, v]) => (
+            {[...summary(answers), ['Autonomy', `${({ observe: 'Observe', suggest: 'Suggest', draft_and_wait: 'Draft and wait', act_within_limits: 'Act within limits' } as const)[answers.autonomy]}${customDepartments.length ? `. ${customDepartments.length === 1 ? `${customDepartments[0]} keeps its` : `${customDepartments.length} departments keep their`} own setting` : ''}`] as [string, string]].map(([k, v]) => (
               <div key={k} style={{ display: 'contents' }}><dt className={s.summaryKey}>{k}</dt><dd style={{ margin: 0 }}>{v}</dd></div>
             ))}
           </dl>

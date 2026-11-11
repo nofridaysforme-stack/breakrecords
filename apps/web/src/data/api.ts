@@ -36,7 +36,8 @@ export async function getHome(scenario: Scenario = 'default') {
   const live = ctx ? await (await import('@/server/live/home')).liveHomeNumbers(ctx) : null;
   return {
     scenario,
-    home,
+    // Live: the real date (sample data keeps the mockups' Fri, Nov 6, like every sample screen).
+    home: live ? { ...home, today: new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) } : home,
     numbers: live?.numbers ?? homeNumbers,
     numberNotes: live?.notes ?? homeNumberNotes,
     approvals: scenario === 'empty' ? [] : await approvalItems(),

@@ -9,8 +9,12 @@ import { EmptyState } from '@/components/ui/Blocks';
 import o from '@/components/ops/Ops.module.css';
 import s from '@/components/admin/InviteCodes.module.css';
 
-/** Add clients and open their workspaces. Each client's data stays in their own workspace. */
-export function ClientsView({ initial }: { initial: ClientsResponse }) {
+/**
+ * Add clients and open their workspaces. Each client's data stays in their own workspace. Any
+ * top-level workspace can have clients; a client workspace can't have clients of its own.
+ */
+export function ClientsView({ initial, sample = false }: { initial: ClientsResponse; sample?: boolean }) {
+  const canAdd = !sample && initial.canAdd !== false;
   const [clients, setClients] = useState(initial.clients);
   const [name, setName] = useState('');
   const [kind, setKind] = useState<'artist' | 'label'>('artist');
@@ -38,11 +42,13 @@ export function ClientsView({ initial }: { initial: ClientsResponse }) {
       <div className={o.head}>
         <div>
           <PageTitle>Clients</PageTitle>
-          <p className={o.sub}>Each client has their own workspace: their catalog, money, splits and documents stay separate from every other client’s. You work inside it as an owner, and invite the artist from its Settings, Team and roles.</p>
+          <p className={o.sub}>Run releases for artists or labels you don’t own. Each client has their own workspace: their catalog, money, splits and documents stay separate from every other client’s. You work inside it as an owner, and invite the artist from its Settings, Team and roles.</p>
         </div>
       </div>
 
-      <form className={s.form} onSubmit={add} style={{ gridTemplateColumns: 'minmax(0, 2fr) 200px auto' }}>
+      {sample && <p className={o.toast} role="note">The sample label has no clients. Once you’re signed in to your own workspace, add clients here.</p>}
+      {!sample && initial.clientOf && <p className={o.toast} role="note">This workspace is a client of {initial.clientOf}, so it can’t have clients of its own. Add clients from your own workspace.</p>}
+      {canAdd && <form className={s.form} onSubmit={add} style={{ gridTemplateColumns: 'minmax(0, 2fr) 200px auto' }}>
         <label className={s.field}>Client name
           <input className={s.input} value={name} onChange={(e) => setName(e.target.value)} maxLength={120} required placeholder="Rue Nova" />
         </label>
@@ -53,7 +59,7 @@ export function ClientsView({ initial }: { initial: ClientsResponse }) {
           </select>
         </label>
         <Button type="submit" variant="primary" disabled={busy || !name.trim()}>Add client</Button>
-      </form>
+      </form>}
 
       {toast && <p className={o.toast} role={toast.ok ? 'status' : 'alert'}>{!toast.ok && <CircleAlert size={16} className={o.critical} aria-hidden="true" />}{toast.text}</p>}
 
