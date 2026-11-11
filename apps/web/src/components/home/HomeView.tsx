@@ -45,7 +45,7 @@ export function AgentRail({ feed }: { feed: HomeData['feed'] }) {
 }
 
 export function HomeView({ scenario, home, numbers, notes, approvals, labelShort }: Props) {
-  const { pending, approve, undo, proposals, decisions } = useDecisions();
+  const { pending, approve, undo, proposals, decisions, checks } = useDecisions();
   const { openCommand, openPanel } = useShellUI();
   const router = useRouter();
   const [justApproved, setJustApproved] = useState<string | null>(null);
@@ -162,7 +162,7 @@ export function HomeView({ scenario, home, numbers, notes, approvals, labelShort
           <p className={s.note}>Nothing needs you right now.</p>
         ) : (
           <div className={s.cards}>
-            {waiting.slice(0, 3).map((a) => <ApprovalCard key={a.id} approval={a} reviewHref={a.href ?? `/approvals/${a.id}`} onApprove={onApprove} />)}
+            {waiting.slice(0, 3).map((a) => <ApprovalCard key={a.id} approval={a} reviewHref={a.href ?? `/approvals/${a.id}`} onApprove={onApprove} cantApprove={checks?.[a.id] ? !checks[a.id].canApprove : false} />)}
           </div>
         )}
       </section>

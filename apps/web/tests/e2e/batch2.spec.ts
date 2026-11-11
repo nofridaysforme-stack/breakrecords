@@ -1,6 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
+/** The sample cards fail their checks on purpose; tests of the approve flow itself turn checks off. */
+const checksOff = (page: Page, baseURL?: string) => page.context().addCookies([{ name: 'br_checks', value: 'off', url: baseURL ?? 'http://localhost:3100' }]);
+
 
 test.describe('desktop only', () => {
   test.beforeEach(({ page }) => test.skip(isPhone(page), 'Desktop layout'));
@@ -63,7 +66,8 @@ test.describe('desktop only', () => {
     await expect(page.getByText('1,228 of 1,231 matched')).toBeVisible();
   });
 
-  test('payouts follow the approval decision', async ({ page }) => {
+  test('payouts follow the approval decision', async ({ page, baseURL }) => {
+    await checksOff(page, baseURL);
     await page.goto('/money/payouts');
     await expect(page.getByRole('row', { name: /October 2026/ })).toContainText('Awaiting approval');
     await page.getByRole('row', { name: /October 2026/ }).getByRole('link', { name: 'Review' }).click();

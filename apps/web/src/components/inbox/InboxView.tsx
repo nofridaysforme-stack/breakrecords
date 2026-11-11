@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { ChevronDown } from 'lucide-react';
 import { PageTitle } from '@/components/type/Type';
 import { Button, ButtonLink } from '@/components/ui/Button';
@@ -39,7 +40,8 @@ function Filter({ label, value, options, onChange }: { label: string; value: str
 }
 
 export function InboxView({ scenario, items: serverItems, payoutTotal }: Props) {
-  const { pending, approve, undo, proposals } = useDecisions();
+  const { pending, approve, undo, proposals, checks } = useDecisions();
+  const router = useRouter();
   const items: InboxItem[] = useMemo(() => [
     // Approvals created in the app come first, as on Home, so the phone's first 3 include them.
     ...(scenario === 'empty' ? [] : proposals.map((p) => ({ ...p, artists: p.artists ?? ['Kesi Vale'], releases: p.releases ?? ['Glasshouse'], dept: p.dept ?? 'Release' }))),
@@ -64,11 +66,15 @@ export function InboxView({ scenario, items: serverItems, payoutTotal }: Props) 
     (filters.artist === 'All' || a.artists.includes(filters.artist)) &&
     (filters.release === 'All' || a.releases.includes(filters.release)) &&
     (filters.dept === 'All' || a.dept === filters.dept);
-  const visible = waiting.filter(matches);
+  // Cards with a failed Block check sit at the top under "Can't approve yet", with their reasons.
+  const cantApprove = (a: InboxItem) => checks?.[a.id] ? !checks[a.id].canApprove : false;
+  const stuck = waiting.filter(matches).filter(cantApprove);
+  const visible = waiting.filter(matches).filter((a) => !cantApprove(a));
   const specialItem = items.find((a) => a.id === special);
   const specialCount = specialItem && matches(specialItem) ? 1 : 0;
   const shownTypes = TYPES.filter((t) => tab === 'all' || tab === t);
   const count = (t: ApprovalType) => visible.filter((a) => a.type === t).length + (t === 'money' ? specialCount : 0);
+  const stuckOf = (t: ApprovalType) => stuck.filter((a) => a.type === t);
   const selItems = visible.filter((a) => selected.has(a.id) && canBulkApprove(a));
   const opts = useMemo(() => ({
     artist: [...new Set(items.flatMap((a) => a.artists))],
@@ -84,6 +90,23 @@ export function InboxView({ scenario, items: serverItems, payoutTotal }: Props) 
     : `${confirmed.length} items approved. Nothing is sent before its due date.`);
 
   const total = waiting.length + (special ? 1 : 0);
+  const stuckCard = (a: InboxItem) => {
+    const failed = checks![a.id].results.filter((r) => r.status === 'fail' && r.severity === 'block');
+    return (
+      <ApprovalBlocked
+        key={a.id}
+        approval={{ id: a.id, type: a.type, title: a.title, due: a.due }}
+        reason={<><strong>{failed.length} {failed.length === 1 ? 'check' : 'checks'} failed.</strong> {failed[0].id}: {failed[0].message}</>}
+        fix={{ label: 'See why', onClick: () => router.push(hrefOf(a)) }}
+      />
+    );
+  };
+  const stuckCards = stuck.length > 0 && (
+    <section className={s.stuck} aria-labelledby="stuck-h">
+      <h2 id="stuck-h" className={s.stuckHead}>Can&apos;t approve yet <span>· {stuck.length}</span></h2>
+      {stuck.map(stuckCard)}
+    </section>
+  );
   const subtitle = `${total} ${total === 1 ? 'decision' : 'decisions'} waiting. Nothing moves until you approve.`;
 
   // ---------- states with no list ----------
@@ -171,14 +194,17 @@ export function InboxView({ scenario, items: serverItems, payoutTotal }: Props) 
         </div>
         <UnderlineTabs
           label="Approval type" value={tab} onChange={setTab}
-          items={[{ value: 'all', label: 'All', count: visible.length + specialCount }, ...TYPES.map((t) => ({ value: t, label: approvalTypeLabel(t), count: count(t) }))]}
+          items={[{ value: 'all', label: 'All', count: visible.length + stuck.length + specialCount }, ...TYPES.map((t) => ({ value: t, label: approvalTypeLabel(t), count: count(t) + stuckOf(t).length }))]}
         >
           <div className={s.list} style={{ paddingTop: 22 }}>
             {banner}
+            {(tab === 'all') && stuckCards}
             <BulkBar count={selItems.length} summary={summary} onClear={() => setSelected(new Set())} onApprove={() => decide(selItems.map((a) => a.id))} />
             {shownTypes.map((t) => (
-              <ApprovalGroup key={t} type={t} count={count(t)} emptyText={t === 'public' ? 'Nothing public is waiting. Phase 2 marketing will route posts and press here.' : `Nothing in ${approvalTypeLabel(t).toLowerCase()} is waiting.`}>
+              <ApprovalGroup key={t} type={t} count={count(t) + stuckOf(t).length} emptyText={t === 'public' ? 'Nothing public is waiting. Phase 2 marketing will route posts and press here.' : `Nothing in ${approvalTypeLabel(t).toLowerCase()} is waiting.`}>
                 {t === 'money' && specialCount > 0 && specialCard}
+                {tab === 'all' && stuckOf(t).length > 0 && !count(t) && <p className={s.stuckNote}>Waiting above, under Can&apos;t approve yet.</p>}
+                {tab !== 'all' && stuckOf(t).map(stuckCard)}
                 {visible.filter((a) => a.type === t).map(row)}
               </ApprovalGroup>
             ))}
@@ -195,6 +221,7 @@ export function InboxView({ scenario, items: serverItems, payoutTotal }: Props) 
           ))}
         </div>
         {banner}
+        {tab === 'all' && stuckCards}
         {specialCount > 0 && (tab === 'all' || tab === 'money') && specialCard}
         {phoneShown.map((a) => <ApprovalCard key={a.id} approval={a} phone="inbox" reviewHref={hrefOf(a)} onApprove={(id) => decide([id])} />)}
         {!showAll && hidden.length > 0 && (

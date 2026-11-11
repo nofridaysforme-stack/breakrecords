@@ -602,6 +602,10 @@ async function seedActivity(tx: Tx, tenant: string) {
     await tx`INSERT INTO agent_events (tenant_id, id, occurred_at, kind, text, who, dept, inputs, reasoning, output)
       VALUES (${tenant}, ${e.id}, ${at}, ${e.kind}, ${e.text}, ${e.who}, ${e.dept}, ${e.inputs}, ${e.reasoning}, ${e.output})`;
   }
+  // The Audit Agent's open flag (RUN-88119): Night Bus's October income stays out of payouts (ROY-07).
+  await tx`DELETE FROM audit_flags WHERE tenant_id = ${tenant}`;
+  await tx`INSERT INTO audit_flags (tenant_id, recording_id, kind, note, event_id)
+    SELECT ${tenant}, id, 'stream_spike', 'unusual stream spike on Oct 28', 'RUN-88119' FROM recordings WHERE tenant_id = ${tenant} AND slug = 'night-bus'`;
   // Team members: the user row and membership the allowlist would create, with a name and title.
   for (const [email, name, role, title] of [['jana@northline.example', 'Jana', 'owner', 'Owner'], ['priya@northline.example', 'Priya Shah', 'team', 'Rights lead']] as const) {
     const [u] = await tx`INSERT INTO users (email, name) VALUES (${email}, ${name}) ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id`;

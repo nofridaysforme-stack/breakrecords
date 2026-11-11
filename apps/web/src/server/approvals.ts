@@ -1,7 +1,11 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
-import type { ApprovalError, ApprovalState, Proposal } from '@breakrecords/contract';
-import { bulkApprove, decide, propose, undo, type Outcome } from '@breakrecords/core/approvals';
+import { cookies } from 'next/headers';
+import type { ApprovalChecksResponse, ApprovalError, ApprovalState, Proposal } from '@breakrecords/contract';
+import { bulkApprove, decide, propose, undo, type ApproveCommand, type Outcome } from '@breakrecords/core/approvals';
+import { gate, runChecks } from '@breakrecords/core/checks';
+import { mockFacts } from '@/data/checkFacts';
+import { TODAY } from '@/data/fixtures';
 import { approvals as serverItems } from '@/data/sample';
 import { isLive } from './modules';
 import { authRequired, getContext } from './context';
@@ -11,17 +15,25 @@ import { mockSession } from './session';
 /** What any approvals backend must do. The mock below and the live one (Stage 1) share it. */
 export interface ApprovalsBackend {
   state(): Promise<ApprovalState>;
-  decide(id: string, cmd: { action: 'approve' } | { action: 'reject'; reason: string }): Promise<Outcome<Proposal>>;
+  /** Each open card's checks, run now. */
+  checks(): Promise<ApprovalChecksResponse>;
+  decide(id: string, cmd: ApproveCommand | { action: 'reject'; reason: string }): Promise<Outcome<Proposal>>;
   bulkApprove(ids: string[]): Promise<Outcome<Proposal>>;
   undo(ids: string[]): Promise<Outcome<Proposal>>;
   propose(p: Proposal): Promise<Outcome<Proposal>>;
 }
 
 // ---------- mock: in memory, one state per browser session ----------
+/**
+ * The sample label's checks. Sample data keeps its fixed date (TODAY), like every other mock
+ * screen. The sample cards fail several checks on purpose; tests of the approve flow itself
+ * turn checks off for their browser with the `br_checks=off` cookie (sample data only, never live).
+ */
+const mockChecks = (off = false) => off ? {} : Object.fromEntries(serverItems.filter((a) => mockFacts[a.id]).map((a) => [a.id, runChecks(a.type, mockFacts[a.id], TODAY.iso)]));
 const g = globalThis as unknown as { __brApprovals?: Map<string, ApprovalState> };
 const sessions = (g.__brApprovals ??= new Map());
 
-function mock(sessionId: string): ApprovalsBackend {
+function mock(sessionId: string, checksOff = false): ApprovalsBackend {
   const read = (): ApprovalState => sessions.get(sessionId) ?? { decisions: {}, proposals: [] };
   const ctx = () => {
     const s = read();
@@ -31,11 +43,19 @@ function mock(sessionId: string): ApprovalsBackend {
       // The mock never executes anything, so every decision can be undone.
       executed: new Set<string>(),
       newAuditId: () => `AUD-MOCK-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+      checks: (id: string) => mockChecks(checksOff)[id] ?? [],
     };
   };
   const commit = (o: Outcome<Proposal>) => { if (o.ok) sessions.set(sessionId, o.state); return o; };
   return {
     state: async () => read(),
+    checks: async () => ({
+      today: TODAY.iso,
+      items: Object.fromEntries(Object.entries(mockChecks(checksOff)).map(([id, results]) => {
+        const g = gate(results);
+        return [id, { results, canApprove: !g.blocks.length, needsReason: g.warns.length > 0 }];
+      })),
+    }),
     decide: async (id, cmd) => commit(decide(read(), id, cmd, ctx())),
     bulkApprove: async (ids) => commit(bulkApprove(read(), ids, ctx())),
     undo: async (ids) => commit(undo(read(), ids, ctx())),
@@ -54,7 +74,7 @@ export async function approvalsBackend(): Promise<ApprovalsBackend> {
     if (ctx.role === 'payee') throw new Forbidden();
     if (isLive('approvals')) return liveApprovals(ctx);
   }
-  return mock(await mockSession());
+  return mock(await mockSession(), (await cookies()).get('br_checks')?.value === 'off');
 }
 
 const STATUS: Record<ApprovalError['error'], number> = {

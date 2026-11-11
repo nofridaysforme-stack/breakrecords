@@ -1,11 +1,15 @@
 // Approval rules (flows.md > Approval rules), enforced by whichever server sits behind the API.
 // Pure functions over a plain state object: the mock keeps it in memory, the live server in
 // Postgres. Nothing here executes the approved action; that is a separate, later step.
+// Each card's checks (./checks) gate approving: a failed Block rule refuses it, and a failed
+// Warn rule needs a typed reason.
+import { gate, type CheckResult } from './checks';
 
 export type ApprovalKind = 'money' | 'signature' | 'filing' | 'public' | 'plan';
 export type RiskLevel = 'low' | 'dueSoon' | 'needsEyes' | 'blocked';
 export type ApprovalItem = { id: string; type: ApprovalKind; risk: RiskLevel };
 export type DecisionRecord = { status: 'approved' | 'rejected'; at: number; reason?: string; by?: string; auditId?: string };
+export type ApproveCommand = { action: 'approve'; acceptWarnings?: string };
 export type ProposalItem = ApprovalItem & Record<string, unknown>;
 export type ApprovalsState<P extends ProposalItem = ProposalItem> = { decisions: Record<string, DecisionRecord>; proposals: P[] };
 
@@ -22,13 +26,15 @@ type Ctx = {
   /** Ids whose action already ran; those can no longer be undone. */
   executed?: ReadonlySet<string>;
   newAuditId: () => string;
+  /** The card's checks, run now (so they see today's data). */
+  checks?: (id: string) => CheckResult[];
 };
 
 /** Low risk only, never signatures. */
 export const canBulkApprove = (a: ApprovalItem) => a.risk === 'low' && a.type !== 'signature';
 
 export function decide<P extends ProposalItem>(
-  state: ApprovalsState<P>, id: string, cmd: { action: 'approve' } | { action: 'reject'; reason: string }, ctx: Ctx,
+  state: ApprovalsState<P>, id: string, cmd: ApproveCommand | { action: 'reject'; reason: string }, ctx: Ctx,
 ): Outcome<P> {
   const item = ctx.find(id);
   if (!item) return { ok: false, error: 'not_found', message: `No approval ${id}.` };
@@ -39,8 +45,18 @@ export function decide<P extends ProposalItem>(
   if (current) return { ok: false, error: 'invalid', message: `This is already ${current.status}. Undo it first.` };
   if (cmd.action === 'reject' && !cmd.reason?.trim()) return { ok: false, error: 'reason_required', message: 'A rejection needs a reason.' };
   if (cmd.action === 'approve' && item.risk === 'blocked') return { ok: false, error: 'blocked', message: 'This is blocked. Fix what’s missing first.' };
+  let accepted: string | undefined;
+  if (cmd.action === 'approve') {
+    const { blocks, warns } = gate(ctx.checks?.(id) ?? []);
+    if (blocks.length) return { ok: false, error: 'blocked', message: `Can’t approve yet. ${blocks.map((b) => `${b.id}: ${b.message}`).join(' ')}`, ids: [id] };
+    accepted = cmd.acceptWarnings?.trim();
+    if (warns.length && !accepted) return { ok: false, error: 'reason_required', message: `Say why you’re accepting ${warns.length === 1 ? 'the warning' : `${warns.length} warnings`} (${warns.map((w) => w.id).join(', ')}).`, ids: [id] };
+  }
   const auditId = ctx.newAuditId();
-  const decision: DecisionRecord = { status: target, at: ctx.now, by: ctx.by, auditId, ...(cmd.action === 'reject' ? { reason: cmd.reason.trim() } : {}) };
+  const decision: DecisionRecord = {
+    status: target, at: ctx.now, by: ctx.by, auditId,
+    ...(cmd.action === 'reject' ? { reason: cmd.reason.trim() } : accepted ? { reason: accepted } : {}),
+  };
   return { ok: true, state: { ...state, decisions: { ...state.decisions, [id]: decision } }, auditIds: [auditId] };
 }
 
@@ -51,6 +67,9 @@ export function bulkApprove<P extends ProposalItem>(state: ApprovalsState<P>, id
   if (missing.length) return { ok: false, error: 'not_found', message: 'Some approvals don’t exist.', ids: missing };
   const refused = unique.filter((id) => !canBulkApprove(ctx.find(id)!));
   if (refused.length) return { ok: false, error: 'not_bulk_approvable', message: 'Only low-risk items can be approved together, and signatures never.', ids: refused };
+  // A card with any failed check is approved on its own, where its reasons are shown.
+  const failing = unique.filter((id) => { const g = gate(ctx.checks?.(id) ?? []); return g.blocks.length || g.warns.length; });
+  if (failing.length) return { ok: false, error: 'blocked', message: 'Some of these have failed checks. Open each one to see why.', ids: failing };
   let next = state; const auditIds: string[] = [];
   for (const id of unique) {
     const r = decide(next, id, { action: 'approve' }, ctx);

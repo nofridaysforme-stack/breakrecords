@@ -30,3 +30,9 @@
   .desk { display: none; }
   .phone { display: flex; flex-direction: column; gap: 16px; }
 }
+
+/* Cards whose checks failed (precondition engine), above the type groups. */
+.stuck { display: flex; flex-direction: column; gap: 10px; }
+.stuckHead { font-size: var(--fs-body); font-weight: 700; display: flex; gap: 6px; align-items: center; }
+.stuckHead span { color: var(--text-muted); font-weight: 500; }
+.stuckNote { font-size: var(--fs-meta); color: var(--text-muted); }

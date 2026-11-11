@@ -6,16 +6,21 @@
 // nothing is sent, paid, signed or filed.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { X } from 'lucide-react';
-import type { ApprovalError, ApprovalState, Decision as DecisionT, Proposal as ProposalT } from '@breakrecords/contract';
+import type { ApprovalChecksResponse, ApprovalError, ApprovalState, Decision as DecisionT, Proposal as ProposalT } from '@breakrecords/contract';
 
 export type Decision = DecisionT;
 /** An approval created in the app, such as a release date change sent as a Plan (flows.md). */
 export type Proposal = ProposalT;
 
+export type Checks = ApprovalChecksResponse['items'][string];
+
 type Store = {
   decisions: Record<string, Decision>;
   proposals: Proposal[];
-  approve: (ids: string[]) => void;
+  /** Each card's checks, from the server (null until loaded). */
+  checks: Record<string, Checks> | null;
+  /** `acceptWarnings` is the typed reason for approving despite failed Warn checks. */
+  approve: (ids: string[], acceptWarnings?: string) => void;
   reject: (id: string, reason: string) => void;
   undo: (ids: string[]) => void;
   /** Ids from the given list that still need a decision. */
@@ -32,6 +37,7 @@ type Call = { url: string; method: 'POST' | 'DELETE'; body?: unknown };
 
 export function DecisionsProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<ApprovalState>(EMPTY);
+  const [checks, setChecks] = useState<Record<string, Checks> | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Writes run one at a time, in order, so a proposal always lands before its approval.
   const queue = useRef<Promise<void>>(Promise.resolve());
@@ -39,8 +45,9 @@ export function DecisionsProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch('/api/approvals/state', { cache: 'no-store' });
+      const [res, chk] = await Promise.all([fetch('/api/approvals/state', { cache: 'no-store' }), fetch('/api/approvals/checks', { cache: 'no-store' })]);
       if (res.ok) setState(await res.json());
+      if (chk.ok) setChecks(((await chk.json()) as ApprovalChecksResponse).items);
     } catch { /* offline: keep what we have */ }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
@@ -78,10 +85,12 @@ export function DecisionsProvider({ children }: { children: ReactNode }) {
     return {
       decisions: state.decisions,
       proposals: state.proposals,
-      approve: (ids) => {
+      checks,
+      approve: (ids, acceptWarnings) => {
         if (!ids.length) return;
-        const optimistic = decide(ids, { status: 'approved', at: Date.now() });
-        if (ids.length === 1) write(optimistic, { url: `/api/approvals/${encodeURIComponent(ids[0])}/decision`, method: 'POST', body: { action: 'approve' } });
+        const reason = acceptWarnings?.trim();
+        const optimistic = decide(ids, { status: 'approved', at: Date.now(), ...(reason ? { reason } : {}) });
+        if (ids.length === 1) write(optimistic, { url: `/api/approvals/${encodeURIComponent(ids[0])}/decision`, method: 'POST', body: { action: 'approve', ...(reason ? { acceptWarnings: reason } : {}) } });
         else write(optimistic, { url: '/api/approvals/decisions', method: 'POST', body: { action: 'approve', ids } });
       },
       reject: (id, reason) => {
@@ -102,7 +111,7 @@ export function DecisionsProvider({ children }: { children: ReactNode }) {
           { url: '/api/approvals', method: 'POST', body: { proposal: p } });
       },
     };
-  }, [state, write]);
+  }, [state, checks, write]);
 
   return (
     <Ctx.Provider value={store}>

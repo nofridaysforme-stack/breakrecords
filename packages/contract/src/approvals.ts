@@ -55,7 +55,8 @@ export const ApprovalState = z.object({
 
 /** POST /api/approvals/{id}/decision. A rejection always needs a reason (flows.md, step 5). */
 export const DecideCommand = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('approve') }),
+  /** A card with failed Warn checks needs `acceptWarnings`, a typed reason kept with the decision. */
+  z.object({ action: z.literal('approve'), acceptWarnings: z.string().trim().min(1).max(1000).optional() }),
   z.object({ action: z.literal('reject'), reason: z.string().trim().min(1, 'A rejection needs a reason') }),
 ]);
 
@@ -74,6 +75,32 @@ export const ApprovalError = z.object({
   ids: z.array(Id).optional(),
 });
 
+// ---------- checks (the precondition engine, packages/core/src/checks.ts) ----------
+
+/** One rule's result on one card. */
+export const CheckResult = z.object({
+  id: z.string().regex(/^[A-Z]{3}-\d{2}$/),
+  title: z.string(),
+  severity: z.enum(['block', 'warn']),
+  /** unknown: the facts aren't recorded anywhere yet ("Can't check yet"); it never blocks. */
+  status: z.enum(['pass', 'fail', 'unknown']),
+  message: z.string(),
+  fix: z.object({ label: z.string(), href: z.string().startsWith('/') }).optional(),
+  inputs: z.array(z.string()),
+});
+/** GET /api/approvals/checks: every open card's checks, run now against today's data. */
+export const ApprovalChecksResponse = z.object({
+  /** The date the rules ran with. */
+  today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  items: z.record(z.string(), z.object({
+    results: z.array(CheckResult),
+    /** No failed Block rule. */
+    canApprove: z.boolean(),
+    /** Failed Warn rules: approving needs a typed reason. */
+    needsReason: z.boolean(),
+  })),
+});
+
 export const ApprovalsResponse = z.object({ scenario: z.enum(['default', 'empty', 'working', 'blocked', 'error', 'partial']), items: z.array(ApprovalSummary) });
 
 export type ApprovalSummary = z.infer<typeof ApprovalSummary>;
@@ -84,3 +111,5 @@ export type DecideCommand = z.infer<typeof DecideCommand>;
 export type BulkApproveCommand = z.infer<typeof BulkApproveCommand>;
 export type ProposeCommand = z.infer<typeof ProposeCommand>;
 export type ApprovalError = z.infer<typeof ApprovalError>;
+export type CheckResult = z.infer<typeof CheckResult>;
+export type ApprovalChecksResponse = z.infer<typeof ApprovalChecksResponse>;
