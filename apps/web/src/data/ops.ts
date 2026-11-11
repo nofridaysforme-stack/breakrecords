@@ -310,6 +310,8 @@ export const routing = [
 export const labelConfig = {
   name: 'Northline Records', country: 'US', profile: 'Small label', statementPeriod: 'Monthly, artists quarterly',
   minimumPayout: toCents(25), spendCap: toCents(300),
+  defaultAutonomy: 'draft_and_wait' as 'observe' | 'suggest' | 'draft_and_wait' | 'act_within_limits' | null,
+  publishingMode: 'we_administer' as 'self' | 'publisher' | 'we_publish' | 'we_administer' | 'writers_own' | null,
 };
 
 export type IntegrationState = 'ok' | 'off' | 'err';

@@ -632,15 +632,19 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       expect(await withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT app_role() AS r`)).toEqual([{ r: 'owner' }]);
       expect((await withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT slug FROM departments WHERE phase = 1`)).length).toBe(9);
       // A client is not a parent: it can't add clients of its own, and stays an artist on setup.
-      await expect(withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT app_create_client('Nested', 'artist')`)).rejects.toThrow(/only the owners of a label services/);
+      await expect(withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT app_create_client('Nested', 'artist')`)).rejects.toThrow(/owners add clients|can't have clients/);
       await withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT app_apply_onboarding('Rue Nova', 'services')`);
       expect((await owner`SELECT kind FROM tenants WHERE id = ${c1}`)[0].kind).toBe('artist');
     });
 
     it('nobody else adds or lists another workspace’s clients, and the defaults helper isn’t the app’s', async () => {
-      await expect(withTenant(app, { userId: ids.ua, tenantId: svc }, (tx) => tx`SELECT app_create_client('Mine', 'artist')`)).rejects.toThrow(/only the owners/);
+      await expect(withTenant(app, { userId: ids.ua, tenantId: svc }, (tx) => tx`SELECT app_create_client('Mine', 'artist')`)).rejects.toThrow(/owners add clients/);
       expect(await withTenant(app, { userId: ids.ua, tenantId: svc }, (tx) => tx`SELECT * FROM app_clients()`)).toHaveLength(0);
-      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT app_create_client('Mine', 'artist')`)).rejects.toThrow(/only the owners/);
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT app_create_client('Mine', 'artist')`)).rejects.toThrow(/can't have clients of its own/); // a is a client of lic
+      // Any top-level workspace can have clients, not only label services (ONB-01).
+      const [{ id: own }] = await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT app_create_client('B client', 'artist') AS id`);
+      expect((await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT name FROM app_clients()`)).map((r) => r.name)).toEqual(['B client']);
+      await owner`DELETE FROM tenants WHERE id = ${own}`;
       await expect(app`SELECT app_workspace_defaults(${ids.a}, 'x')`).rejects.toThrow(/permission denied/);
     });
   });

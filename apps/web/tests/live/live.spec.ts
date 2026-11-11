@@ -732,7 +732,8 @@ test.describe('settings (live)', () => {
   test('settings, routing and integrations come from the database; the minimum payout from payouts', async ({ page }) => {
     await signIn(page, USERS.owner);
     const st = SettingsResponse.parse(await (await page.request.get('/api/settings')).json());
-    expect(st.config).toEqual({ name: 'Northline Records', country: 'US', profile: 'Small label', statementPeriod: 'Monthly, artists quarterly', minimumPayout: 2500, spendCap: 30000 });
+    expect(st.config).toEqual({ name: 'Northline Records', country: 'US', profile: 'Small label', statementPeriod: 'Monthly, artists quarterly', minimumPayout: 2500, spendCap: 30000,
+      defaultAutonomy: expect.any(String), publishingMode: expect.any(String) });
     expect(st.routing.map((r) => [r.type, r.cap])).toEqual([['money', 'Over $0'], ['signature', 'Always'], ['filing', 'Always'], ['public', 'Always'], ['plan', 'Over $250']]);
     expect(st.integrations.find((i) => i.id === 'accounting')).toMatchObject({ state: 'err', status: 'Token expired' });
     const res = await page.request.post('/api/settings/integrations/soundexchange/connect');
@@ -999,10 +1000,12 @@ test('a band signs up and adds a bandmate as co-owner; label services add a clie
   expect(SettingsResponse.parse(await (await svc.request.get('/api/settings')).json()).canInvite).toBe(true); // services act as owners in the client
   expect((await (await svc.request.get('/api/approvals')).json()).items).toHaveLength(0);
 
-  // The band can't see or add clients; nobody else sees this one.
-  expect((await band.request.get('/api/clients')).status()).toBe(403);
+  // A band can have clients too (every tool for every kind), and sees only its own, never the services company's.
+  expect(await (await band.request.get('/api/clients')).json()).toMatchObject({ clients: [], canAdd: true }); // any workspace can have clients
+  const added = await band.request.post('/api/clients', { data: { name: 'Side Project', kind: 'artist' } });
+  expect((await added.json()).clients.map((x: { name: string }) => x.name)).toEqual(['Side Project']);
   await band.goto('/');
-  await expect(band.getByRole('complementary', { name: 'Sidebar' }).getByRole('link', { name: 'Clients' })).toHaveCount(0);
+  await expect(band.getByRole('complementary', { name: 'Sidebar' }).getByRole('link', { name: 'Clients' })).toBeVisible();
 });
 
 test('codes: an owner sets prefixes and assigns the next ISRC and UPC; an artist who isn’t a payee yet can be invited', async ({ page, browser }) => {
@@ -1065,4 +1068,38 @@ test('someone signed in before workspaces existed gets theirs on their next visi
   await page.goto('/');
   await page.getByRole('complementary', { name: 'Sidebar' }).getByRole('button', { name: 'Sign out' }).click();
   await expect(page).toHaveURL(/\/sign-in/);
+});
+
+test('setup is an edit, not a reset: departments set by hand keep their level, Settings shows the chosen default, and any workspace can add clients', async ({ page }) => {
+  await signIn(page, USERS.owner);
+  const depts = async () => DepartmentsResponse.parse(await (await page.request.get('/api/departments')).json()).departments.filter((d) => d.phase === 1);
+  const before = await depts();
+  const was = SettingsResponse.parse(await (await page.request.get('/api/settings')).json()).config.defaultAutonomy;
+  // Set by hand: anything not on the saved default (a department that can't act alone sits at Draft and wait).
+  const custom = before.filter((d) => d.autonomy !== was && !(was === 'act_within_limits' && !d.canAct && d.autonomy === 'draft_and_wait')).map((d) => [d.name, d.autonomy]);
+  expect(custom.length).toBeGreaterThan(0); // the sample label has some set by hand
+  const ob = OnboardingResponse.parse(await (await page.request.get('/api/onboarding')).json());
+  expect(ob.customDepartments).toEqual(custom.map(([n]) => n));
+
+  const answers = { profile: 'small_label', name: 'Northline Records', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_sure' }, autonomy: 'observe', publishing: { mode: 'writers_own' } };
+  expect((await page.request.put('/api/onboarding', { data: { answers, complete: true } })).status()).toBe(200);
+  const after = await depts();
+  for (const [name, level] of custom) expect(after.find((d) => d.name === name)?.autonomy).toBe(level); // kept
+  expect(after.filter((d) => !custom.some(([n]) => n === d.name)).map((d) => d.autonomy)).toEqual(after.filter((d) => !custom.some(([n]) => n === d.name)).map(() => 'observe'));
+  const st = SettingsResponse.parse(await (await page.request.get('/api/settings')).json());
+  expect(st.config).toMatchObject({ defaultAutonomy: 'observe', publishingMode: 'writers_own' });
+  await page.goto('/settings/profile');
+  await expect(page.getByRole('main')).toContainText('Observe');
+  await expect(page.getByRole('main')).toContainText('Writers handle their own');
+  // Writers handle their own publishing, so the MLC filing can't be filed as publisher (PUB-02).
+  const c = ApprovalChecksResponse.parse(await (await page.request.get('/api/approvals/checks')).json());
+  expect(c.items.apr_mlc.results.find((r) => r.id === 'PUB-02')).toMatchObject({ status: 'fail' });
+
+  // Northline is a client of its licensee, so it can't have clients (a band workspace can: see the sign-up test).
+  const nl = await (await page.request.get('/api/clients')).json();
+  expect(nl).toMatchObject({ canAdd: false });
+  expect((await page.request.post('/api/clients', { data: { name: 'Nested', kind: 'artist' } })).status()).toBe(403);
+  await page.goto('/clients');
+  await expect(page.getByText(/is a client of/)).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Sidebar' }).getByRole('link', { name: 'Clients' })).toBeVisible();
 });

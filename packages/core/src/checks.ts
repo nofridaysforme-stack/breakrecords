@@ -67,9 +67,12 @@ export type PayoutFacts = {
   flags: { recording: string; note: string }[];
 };
 
+export type PublishingMode = 'self' | 'publisher' | 'we_publish' | 'we_administer' | 'writers_own';
 export type FilingFacts = {
   kind: 'filing';
   org: string;
+  /** Who owns or administers the songs (setup's songwriting step), or null if never set. */
+  publishingMode?: PublishingMode | null;
   works: {
     title: string;
     writers: { name: string; shareBp: number; pro: string | null; ipi: string | null; signed: boolean }[];
@@ -238,7 +241,18 @@ const PUBLISHING: Rule<FilingFacts>[] = [
   },
   {
     id: 'PUB-02', title: 'Right to file as publisher', appliesTo: ['filing'], facts: 'filing', severity: 'block',
-    check: () => unknown('Publishing and admin agreements aren’t tracked yet, so this can’t be checked. It arrives with the publishing module.'),
+    fix: { label: 'Open setup', href: '/onboarding/songwriting' },
+    check: (f) => {
+      const inputs = [`publishing mode: ${f.publishingMode ?? 'not set'}`];
+      switch (f.publishingMode) {
+        case 'self': return pass('You publish your own songs, so you can register them.', inputs);
+        case 'publisher': return fail('Setup says a publisher handles your songs, so they register them. Prepare the packet for your publisher instead.', inputs);
+        case 'writers_own': return fail('Your writers handle their own publishing, so this workspace doesn’t file as publisher. Prepare a packet for each writer to submit.', inputs);
+        case 'we_publish': case 'we_administer':
+          return { ...unknown(`You ${f.publishingMode === 'we_publish' ? 'publish' : 'administer'} your writers’ songs, which needs a signed ${f.publishingMode === 'we_publish' ? 'publishing' : 'admin'} agreement with each writer. Those agreements arrive with the publishing module.`), inputs };
+        default: return unknown('Who publishes these songs isn’t set. Answer the songwriting step in setup.');
+      }
+    },
   },
   {
     id: 'PUB-03', title: 'Writer PRO and IPI', appliesTo: ['filing'], facts: 'filing', severity: 'block',

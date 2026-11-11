@@ -201,3 +201,28 @@ test('checks: a card that fails its checks sits under Can’t approve yet, and A
   await page.goto('/approvals/apr_mlc');
   await expect(page.getByRole('region', { name: 'Checks' })).toContainText('Can’t check yet');
 });
+
+test('setup: profiles say what they start with, the songwriting step sets who publishes, and Finish only claims what happened', async ({ page }) => {
+  await page.goto('/onboarding/profile');
+  await expect(page.getByText('Your pick sets your starting point. Every tool is always available.')).toBeVisible();
+  await expect(page.getByText('Starts with').first()).toBeVisible();
+  await expect(page.getByText('Turns on')).toHaveCount(0);
+  await page.getByRole('radio', { name: /Small label/ }).check({ force: true });
+  await page.goto('/onboarding/songwriting');
+  await expect(page.getByRole('heading', { name: 'Who handles your writers’ publishing?' })).toBeVisible();
+  await page.getByRole('radio', { name: /Writers handle their own/ }).check({ force: true });
+  await page.goto('/onboarding/profile');
+  await page.getByRole('radio', { name: /Solo artist/ }).check({ force: true });
+  await page.goto('/onboarding/songwriting');
+  await expect(page.getByRole('heading', { name: 'Who publishes your songs?' })).toBeVisible();
+  await page.getByRole('radio', { name: /I publish my own songs/ }).check({ force: true });
+  await page.getByRole('radio', { name: /Yes, I’m affiliated/ }).check({ force: true });
+  await page.getByLabel('Which one?').selectOption('ASCAP');
+  await page.goto('/onboarding/finish');
+  const summary = page.getByRole('main');
+  await expect(summary).toContainText('Self-published, ASCAP');
+  await expect(summary).toContainText('DistroKid, chosen (not connected yet)');
+  await expect(summary).toContainText('chosen (not imported yet)');
+  await expect(summary).not.toContainText('Connected');
+  await expect(summary).not.toContainText('importing');
+});

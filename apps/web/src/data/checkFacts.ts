@@ -26,6 +26,7 @@ export const mockFacts: Record<string, ApprovalFacts> = {
   "apr_mlc": {
     "kind": "filing",
     "org": "MLC",
+    "publishingMode": "we_administer",
     "works": [
       {
         "title": "Velvet Hours",

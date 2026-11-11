@@ -1,5 +1,5 @@
 import 'server-only';
-import type { ApprovalFacts, PayoutFacts } from '@breakrecords/core/checks';
+import type { ApprovalFacts, FilingFacts, PayoutFacts } from '@breakrecords/core/checks';
 import type { DealTerms } from '@breakrecords/core/dealSplit';
 import { w8ExpiresOn } from '@breakrecords/core/payouts';
 import type { Tx } from '@breakrecords/db/client';
@@ -90,7 +90,8 @@ async function filingFacts(tx: Tx, org: string, titles: string[]): Promise<Appro
       writers: mine.filter((r) => r.name).map((r) => ({ name: r.name!, shareBp: r.share_bp ?? 0, pro: r.pro, ipi: r.ipi, signed: !!r.confirmed })),
     };
   });
-  return { kind: 'filing', org, works };
+  const [settings] = await tx<{ publishing_mode: FilingFacts['publishingMode'] }[]>`SELECT publishing_mode FROM label_settings`;
+  return { kind: 'filing', org, works, publishingMode: settings?.publishing_mode ?? null };
 }
 
 /** Facts for every agent-prepared card, keyed by approval id. Cards without facts have no checks. */

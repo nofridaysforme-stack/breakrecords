@@ -5,6 +5,9 @@ import { z } from 'zod';
 import { AgentState, Autonomy, Bp, Cents, Display, Id, IsoDate, RegistrationStatus, Scenario, TaskState } from './primitives';
 import { ApprovalSummary, ApprovalType } from './approvals';
 
+/** Who owns or administers the songs (set in setup; a writer can override it). */
+export const PublishingMode = z.enum(['self', 'publisher', 'we_publish', 'we_administer', 'writers_own']);
+
 const Link = z.string().startsWith('/');
 const Term = z.enum(['PRO', 'MLC', 'SoundExchange']);
 
@@ -319,7 +322,12 @@ export const ActivityResponse = z.array(z.object({
 export const SettingsResponse = z.object({
   nav: z.array(z.object({ id: Id, label: z.string() })),
   routing: z.array(z.object({ type: ApprovalType, label: z.string(), rule: z.string(), who: z.string(), cap: Display })),
-  config: z.object({ name: z.string(), country: z.string().length(2), profile: z.string(), statementPeriod: z.string(), minimumPayout: Cents, spendCap: Cents }),
+  config: z.object({
+    name: z.string(), country: z.string().length(2), profile: z.string(), statementPeriod: z.string(), minimumPayout: Cents, spendCap: Cents,
+    /** The level chosen in setup, which new departments start at. Null before setup. */
+    defaultAutonomy: Autonomy.nullable().optional(),
+    publishingMode: PublishingMode.nullable().optional(),
+  }),
   integrations: z.array(z.object({ id: Id, name: z.string(), abbr: z.string(), state: z.enum(['ok', 'off', 'err']), status: z.string() })),
   team: z.array(TeamMember),
   /** Invitations (owners only): who may sign in, and whether they have. */
@@ -366,12 +374,25 @@ export const OnboardingAnswers = z.object({
   autonomy: Autonomy,
   /** A band's other members, who become co-owners (by email; they sign in with it). */
   members: z.array(z.email()).max(10).optional(),
+  /**
+   * The songwriting step: who owns or administers the songs (PUB-02). Artists publish their own
+   * songs or have a publisher; labels and services publish, administer, or leave it to the writers.
+   */
+  publishing: z.object({
+    mode: PublishingMode,
+    /** Digits only, as typed; kept once it's a full IPI (9 to 11 digits). */
+    ipi: z.string().regex(/^\d{0,11}$/).optional(),
+  }).optional(),
 });
 /**
  * GET /api/onboarding: the answers so far, saved as the person goes. `live` is a real workspace
  * (sign-in on), whose setup starts blank (`defaults`) rather than from the sample label.
  */
-export const OnboardingResponse = z.object({ answers: OnboardingAnswers.nullable(), completed: z.boolean(), live: z.boolean().optional(), defaults: OnboardingAnswers.optional() });
+export const OnboardingResponse = z.object({
+  answers: OnboardingAnswers.nullable(), completed: z.boolean(), live: z.boolean().optional(), defaults: OnboardingAnswers.optional(),
+  /** Re-running setup: departments set to their own level, which setup leaves alone. */
+  customDepartments: z.array(z.string()).optional(),
+});
 /** PUT /api/onboarding: save the answers; `complete` sets the label up from them (profile, country, how much agents do). */
 export const SaveOnboardingCommand = z.object({ answers: OnboardingAnswers, complete: z.boolean().optional() }).strict();
 export const RosterResponse = z.array(z.object({
@@ -441,6 +462,9 @@ export type InviteCodesResponse = z.infer<typeof InviteCodesResponse>;
 
 export const ClientsResponse = z.object({
   clients: z.array(z.object({ id: z.string(), name: z.string(), kind: z.enum(['artist', 'label']), added: z.string(), people: z.number().int().nonnegative() })),
+  /** Any top-level workspace can add clients. A client workspace can't, and says whose client it is. */
+  canAdd: z.boolean().optional(),
+  clientOf: z.string().nullable().optional(),
 });
 export const CreateClientCommand = z.object({ name: z.string().trim().min(1).max(120), kind: z.enum(['artist', 'label']) }).strict();
 export type ClientsResponse = z.infer<typeof ClientsResponse>;

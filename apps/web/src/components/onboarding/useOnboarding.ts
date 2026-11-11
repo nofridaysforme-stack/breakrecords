@@ -13,12 +13,14 @@ export type Answers = {
   pro: { status: 'affiliated' | 'not_yet' | 'not_sure'; org?: string };
   autonomy: Autonomy;
   members?: string[]; // a band's other members (emails), who become co-owners
+  /** Who owns or administers the songs; unset means the profile's starting choice. */
+  publishing?: { mode: 'self' | 'publisher' | 'we_publish' | 'we_administer' | 'writers_own'; ipi?: string };
 };
 
 // Defaults match the sample label so the mockup flow reads the same as 2a and 2b.
 const DEFAULTS: Answers = {
   profile: 'small_label', name: 'Northline Records', country: 'United States', distributor: 'DistroKid',
-  catalogFile: 'northline-catalog.csv', pro: { status: 'affiliated', org: 'BMI' }, autonomy: 'draft_and_wait',
+  catalogFile: 'northline-catalog.csv', pro: { status: 'affiliated', org: 'BMI' }, autonomy: 'draft_and_wait', publishing: { mode: 'we_administer' },
 };
 const KEY = 'br.onboarding.v1';
 
@@ -26,6 +28,7 @@ const KEY = 'br.onboarding.v1';
 export function useOnboarding() {
   const [answers, setAnswers] = useState<Answers>(DEFAULTS);
   const [live, setLive] = useState(false); // a real workspace: blank start, no sample import
+  const [custom, setCustom] = useState<string[]>([]); // departments on their own level, which setup leaves alone
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // This tab's copy is the newest; the server's fills in on a new device or browser.
   useEffect(() => {
@@ -33,6 +36,7 @@ export function useOnboarding() {
     try { local = sessionStorage.getItem(KEY); if (local) setAnswers({ ...DEFAULTS, ...JSON.parse(local) }); } catch { /* ignore */ }
     fetch('/api/onboarding').then((r) => (r.ok ? r.json() : null)).then((b) => {
       if (b?.live) setLive(true);
+      if (Array.isArray(b?.customDepartments)) setCustom(b.customDepartments);
       if (local) return; // this tab's copy is newer
       if (b?.answers) setAnswers({ ...(b.defaults ?? DEFAULTS), ...b.answers });
       else if (b?.defaults) setAnswers(b.defaults);
@@ -54,5 +58,5 @@ export function useOnboarding() {
   }, [save]);
   /** Sets the label up from the answers. */
   const complete = useCallback(() => { if (timer.current) clearTimeout(timer.current); return save(answers, true); }, [answers, save]);
-  return { answers, set, complete, live };
+  return { answers, set, complete, live, customDepartments: custom };
 }

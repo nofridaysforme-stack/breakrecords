@@ -127,6 +127,15 @@ describe('approval checks', () => {
     expect(byId(runChecks('plan', grant({ fields: [{ label: 'Budget', value: '', limit: 100 }] }), '2026-11-11'))['FUN-02'].message).toBe('Budget is empty.');
   });
 
+  it('who publishes the songs decides whether this workspace may file as publisher (PUB-02)', () => {
+    const r = (mode: FilingFacts['publishingMode']) => byId(runChecks('filing', { ...cleanFiling, publishingMode: mode }, '2026-11-11'))['PUB-02'];
+    expect(r('self').status).toBe('pass');
+    expect(r('writers_own')).toMatchObject({ status: 'fail', fix: { href: '/onboarding/songwriting' } });
+    expect(r('publisher').status).toBe('fail');
+    expect(r('we_administer').status).toBe('unknown'); // needs admin agreements: can't check yet, never blocks
+    expect(r(null).status).toBe('unknown');
+  });
+
   it('a card with no facts has no checks', () => {
     expect(runChecks('plan', null, '2026-11-11')).toEqual([]);
   });

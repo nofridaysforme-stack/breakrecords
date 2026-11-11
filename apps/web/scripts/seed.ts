@@ -643,7 +643,9 @@ async function seedSettings(tx: Tx, northline: string, harbor: string, licensee:
     for (const table of ['label_settings', 'approval_routes', 'integrations', 'white_label']) await tx.unsafe(`DELETE FROM ${table} WHERE tenant_id = $1`, [t]);
   }
   const c = labelConfig;
-  await tx`INSERT INTO label_settings (tenant_id, country, profile, statement_period, spend_cap_cents) VALUES (${northline}, ${c.country}, ${c.profile}, ${c.statementPeriod}, ${c.spendCap})`;
+  // Set up before, at Draft and wait; Metadata and others were changed by hand since (kept on a re-run).
+  await tx`INSERT INTO label_settings (tenant_id, country, profile, statement_period, spend_cap_cents, default_autonomy, publishing_mode)
+    VALUES (${northline}, ${c.country}, ${c.profile}, ${c.statementPeriod}, ${c.spendCap}, 'draft_and_wait', 'we_administer')`;
   await tx`INSERT INTO label_settings (tenant_id, country, profile, statement_period, spend_cap_cents) VALUES (${harbor}, 'US', 'Small label', 'Quarterly', 20000)`;
   for (const [i, r] of routing.entries()) {
     await tx`INSERT INTO approval_routes (tenant_id, type, label, rule, approver, cap_cents, position) VALUES (${northline}, ${r.type}, ${r.label}, ${r.rule}, ${r.who}, ${CAPS[r.type]}, ${i})`;
