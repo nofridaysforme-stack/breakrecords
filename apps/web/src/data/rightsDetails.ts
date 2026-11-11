@@ -1,8 +1,8 @@
 // Sample rights details for the Northline catalog: the facts prepared documents need (legal
 // names, PROs, IPIs, writer roles, publishers, master owner). Shared by the seed (live mode) and
 // the mock. Every person and number here is invented. Some facts are left out on purpose, so
-// the documents show what a real catalog's gaps look like: Marco Dela has no PRO or IPI yet,
-// Rue Sato has no IPI, and Glasshouse has no publisher for Marco's share.
+// the documents show what a real catalog's gaps look like: Marco Dela has no PRO or IPI yet, and
+// Glasshouse (not released yet) has no publisher for Marco's share.
 
 export type SamplePro = 'ascap' | 'bmi' | 'sesac' | 'gmr' | 'socan' | 'prs' | 'other' | 'none';
 export type SampleRole = 'composer' | 'lyricist' | 'composer_lyricist';
@@ -17,7 +17,7 @@ export const SAMPLE_PEOPLE: SamplePerson[] = [
   { name: 'Marco Dela', legalName: 'Marco Delacroix', email: 'marco@northline.example', citizenship: 'US', domicile: 'US' },
   { name: 'Dana Okafor', legalName: 'Dana Okafor', pro: 'bmi', ipi: '00623451987', email: 'dana@lowhours.example', citizenship: 'US', domicile: 'US' },
   { name: 'Theo Lind', legalName: 'Theodore Lind', pro: 'bmi', ipi: '00598712340', email: 'theo@lowhours.example', citizenship: 'SE', domicile: 'US' },
-  { name: 'Rue Sato', legalName: 'Rue Sato', pro: 'ascap', email: 'rue@lowhours.example', citizenship: 'US', domicile: 'US' },
+  { name: 'Rue Sato', legalName: 'Rue Sato', pro: 'ascap', ipi: '00634512870', email: 'rue@lowhours.example', citizenship: 'US', domicile: 'US' },
   { name: 'Vale Songs', legalName: 'Vale Songs LLC', pro: 'ascap', ipi: '00811122233', address: '14 Ferry Street, Portland, ME 04101', type: 'company' },
   { name: 'Northline Music Publishing', legalName: 'Northline Music Publishing LLC', pro: 'bmi', ipi: '00844455566', address: '200 Commercial Street, Portland, ME 04101', type: 'company' },
   { name: 'Northline Records', legalName: 'Northline Records LLC', address: '200 Commercial Street, Portland, ME 04101', citizenship: 'US', domicile: 'US', type: 'company' },
@@ -48,7 +48,7 @@ export const SAMPLE_P_YEAR: Record<string, number> = {
 // Shared with the seed: which songs have lyrics on file, whose writer shares are signed (5b:
 // Night Bus signed; Glasshouse 1 of 2, Kesi has, Marco hasn't), and each release's tracks.
 export const SAMPLE_LYRICS = new Set(['glasshouse', 'night-bus', 'velvet-hours']);
-export const SAMPLE_SIGNED = new Set(['night-bus', 'velvet-hours', 'paper-moons']);
+export const SAMPLE_SIGNED = new Set(['night-bus', 'static-hymn', 'velvet-hours', 'paper-moons']);
 export const SAMPLE_SIGNED_BY = new Map([['glasshouse', 'Kesi Vale']]);
 export const SAMPLE_RELEASE_TRACKS: Record<string, { kind: 'single' | 'ep' | 'album'; date: string; tracks: string[] }> = {
   rel_glasshouse: { kind: 'single', date: '2027-03-05', tracks: ['glasshouse'] },

@@ -86,12 +86,14 @@ export const contracts: Contract[] = [
   { id: 'ct_band', name: 'Band agreement', template: 'Northline artist v2', templateId: 'artist', parties: 'The Low Hours (3)', terms: '50/50 net profit, $5,000 advance', date: 'Jan 9', dateWhat: 'Audit window closes', sig: 'Signed', sigState: 'signed' },
   { id: 'ct_feature', name: 'Feature agreement', template: 'Northline feature v1', templateId: 'feature', parties: 'Ari Monroe', terms: '10% of artist share', date: null, dateWhat: '', sig: 'Signed', sigState: 'signed' },
   { id: 'ct_split_gh', name: 'Split sheet, Glasshouse song', template: 'Split sheet v1', templateId: 'split', parties: 'Kesi, Marco', terms: '75 / 25', date: null, dateWhat: '', sig: '1 of 2 signed', sigState: 'partial' },
+  // ASSUMED: Ines Pardo's mix on Night Bus is paid 1 point, so she has her own signed agreement.
+  { id: 'ct_mix_nb', name: 'Mix engineer agreement, Night Bus', template: 'Northline producer v3 · 1 edit', templateId: 'producer', parties: 'Ines Pardo', terms: '1 point', date: null, dateWhat: '', sig: 'Signed', sigState: 'signed' },
   { id: 'ct_distribution', name: 'Distribution agreement', template: 'Third party · reviewed', parties: 'Distributor', terms: '0% fee, 1 year auto-renew', date: 'Aug 1', dateWhat: 'Renewal', sig: 'Signed', sigState: 'signed' },
   // ASSUMED: the 7th active agreement the 5b subtitle counts; shares as in the MLC filing.
   { id: 'ct_split_nb', name: 'Split sheet, Night Bus song', template: 'Split sheet v1', templateId: 'split', parties: 'The Low Hours (3)', terms: '34 / 33 / 33', date: null, dateWhat: '', sig: 'Signed', sigState: 'signed' },
 ];
 
-export const contractsSummary = '7 active · 1 waiting on signatures · next key date Jan 9';
+export const contractsSummary = '8 active · 1 waiting on signatures · next key date Jan 9';
 
 export type Template = {
   id: string; name: string; version: string; summary: string;
@@ -337,7 +339,7 @@ export const tenant = {
 // ---------- Roster (undrawn) ----------
 // Income from 4b (October). ASSUMED: release counts beyond the 3 releases in Catalog.
 export const roster = [
-  { id: 'art_kesi', name: 'Kesi Vale', type: 'Solo artist', genre: 'R&B', releases: 3, contract: 'Artist agreement · Signed', income: toCents(10812.6), open: 'Glasshouse release in 17 weeks', href: '/releases/rel_glasshouse' },
-  { id: 'art_lowhours', name: 'The Low Hours', type: 'Band · 3 members', genre: 'Indie rock', releases: 1, contract: 'Band agreement · Signed', income: toCents(3262.4), open: 'Rue Sato’s tax form expires Dec 1', href: '/money/payouts' },
-  { id: 'art_marco', name: 'Marco Dela', type: 'Producer and writer', genre: 'R&B', releases: 0, contract: 'Producer agreement · Waiting on you', income: toCents(211.4), open: 'Producer agreement needs your eyes', href: '/approvals/apr_producer' },
+  { id: 'art_kesi', name: 'Kesi Vale', type: 'Solo artist', genre: 'R&B', releases: 3, contract: 'Artist agreement · Signed', income: toCents(11024), open: 'Glasshouse release in 17 weeks', href: '/releases/rel_glasshouse' },
+  { id: 'art_lowhours', name: 'The Low Hours', type: 'Band · 3 members', genre: 'Indie rock', releases: 1, contract: 'Band agreement · Signed', income: toCents(3262.4), open: 'Theo Lind’s tax form expires Dec 31', href: '/money/payouts' },
+  { id: 'art_marco', name: 'Marco Dela', type: 'Producer and writer', genre: 'R&B', releases: 0, contract: 'Producer agreement · Waiting on you', income: 0, open: 'Producer agreement needs your eyes', href: '/approvals/apr_producer' },
 ];

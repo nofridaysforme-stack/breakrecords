@@ -100,7 +100,7 @@ export const OPS_STATES: Record<Key, StateCopy> = {
   roster: {
     empty: { title: 'No artists yet', text: 'Add an artist and I’ll set up their profile, contract and payee details.', action: { label: 'Draft an artist agreement', href: '/contracts/templates/artist' } },
     working: { agent: 'Roster Agent', task: 'loading your roster', note: 'Income is from the latest statements.' },
-    blocked: { title: 'Rue Sato’s tax form expires Dec 1', text: <>Payments to Rue stop after that until a new form is in. <strong>Owner: Rue Sato.</strong></>, action: { label: 'Open payouts', href: '/money/payouts' } },
+    blocked: { title: 'Theo Lind’s tax form expires Dec 31', text: <>Payments to Theo stop after that until a new W-8BEN is in. <strong>Owner: Theo Lind.</strong></>, action: { label: 'Open payouts', href: '/money/payouts' } },
     error: { title: 'October income didn’t load', text: <>Figures below are from September. <strong>No money moved.</strong></>, meta: 'Error RS-220 · Nov 6, 8:29 · Audit AUD-7F3K-2304', retry: 'Retry' },
     partial: { text: <><strong>Marco Dela has no payee details.</strong> His income waits until he adds them.</>, action: 'Ask Marco' },
   },

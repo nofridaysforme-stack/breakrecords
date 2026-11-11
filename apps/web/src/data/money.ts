@@ -17,9 +17,9 @@ export const royalties = {
     { name: 'Sync', amount: toCents(200) }, { name: 'Bandcamp', amount: toCents(41.4) },
   ],
   byArtist: [
-    { name: 'Kesi Vale', meta: 'Glasshouse and 2 catalog singles', amount: toCents(10812.6) },
+    // Low Light (Marco Dela's, not released) earns nothing; its October lines were Paper Moons.
+    { name: 'Kesi Vale', meta: 'Velvet Hours and Paper Moons', amount: toCents(11024) },
     { name: 'The Low Hours', meta: 'Night Bus EP', amount: toCents(3262.4) },
-    { name: 'Marco Dela', meta: 'Producer and writer income', amount: toCents(211.4) },
   ],
   unmatched: {
     count: 27, value: toCents(41.12), note: 'Royalties Agent thinks 24 are a typo in "Night Bus" metadata.',
@@ -41,47 +41,60 @@ export type Statement = {
 };
 
 const marcoOct = runWaterfall([
-  { kind: 'start', label: 'Glasshouse income', rule: 'Distributor, all stores', amount: toCents(10000), source: 'DS-1026' },
+  { kind: 'start', label: 'Velvet Hours income', rule: 'Distributor, all stores', amount: toCents(10000), source: 'DS-1026' },
   { kind: 'step', label: 'Platform fee', rule: '5% of gross', amount: toCents(-500), source: 'DS-1026' },
   { kind: 'subtotal', label: 'Producer royalty base' },
-  { kind: 'step', label: 'Everything except your 3 points', rule: '97% stays in the waterfall', amount: toCents(-9215), source: 'SPL-v4' },
+  { kind: 'step', label: 'Everything except your 3 points', rule: '97% stays in the waterfall', amount: toCents(-9215), source: 'SPL-VH-v1' },
   { kind: 'step', label: 'Withholding', rule: 'W-9 on file', amount: 0, source: 'TAX-MD' },
 ]);
 
 export const statements: Record<string, Statement> = {
   'ST-2026-10-KV': {
-    id: 'ST-2026-10-KV', payee: 'Kesi Vale', payeeId: 'kesi-vale', release: 'Glasshouse', period: 'October 2026', split: 'split v4',
+    id: 'ST-2026-10-KV', payee: 'Kesi Vale', payeeId: 'kesi-vale', release: 'Velvet Hours', period: 'October 2026', split: 'split v1',
     pays: 'Jan 15 on the quarterly artist run', rows: glasshouseWaterfall, net: toCents(2346.75), auditId: 'AUD-7F3K-2302',
     simple: [
-      { label: 'Glasshouse income', amount: toCents(10000) }, { label: 'Fees, producer and costs', amount: toCents(-4785) },
+      { label: 'Velvet Hours income', amount: toCents(10000) }, { label: 'Fees, producer and costs', amount: toCents(-4785) },
       { label: 'Label share', amount: toCents(-2607.5) }, { label: 'Feature, Ari Monroe', amount: toCents(-260.75) },
     ],
     qa: [
-      { question: 'Why is this lower than September?', answer: 'October income was higher, but this is the month Glasshouse recouped. The last $4,000.00 of recording costs came out before the split. From November, nothing is deducted for costs, so the same income would net about $4,146.75.', basis: 'Based on statements DS-0926 and DS-1026. I’m confident in the math; the November figure is an estimate.' },
+      { question: 'Why is this lower than September?', answer: 'October income was higher, but this is the month Velvet Hours recouped. The last $4,000.00 of recording costs came out before the split. From November, nothing is deducted for costs, so the same income would net about $4,146.75.', basis: 'Based on statements DS-0926 and DS-1026. I’m confident in the math; the November figure is an estimate.' },
       { question: 'What are platform fees?', answer: 'The platform takes 5% of gross income before any split. On $10,000.00 that was $500.00. Your distributor charges nothing on this plan.', basis: 'From your plan terms and statement DS-1026.' },
-      { question: 'Show the costs', answer: 'Glasshouse had $4,000.00 of recoupable costs: recording $2,200.00, mix and master $800.00, artwork $400.00 and half of the $1,200.00 marketing spend. All of it was recouped this month.', basis: 'From recoupment record RC-GH.' },
+      { question: 'Show the costs', answer: 'Velvet Hours had $4,000.00 of recoupable costs: recording $2,200.00, mix and master $800.00, artwork $400.00 and half of the $1,200.00 marketing spend. All of it was recouped this month.', basis: 'From recoupment record RC-VH.' },
     ],
   },
   'ST-2026-10-MD': {
-    id: 'ST-2026-10-MD', payee: 'Marco Dela', payeeId: 'marco-dela', release: 'Glasshouse', period: 'October 2026', split: 'split v4',
+    id: 'ST-2026-10-MD', payee: 'Marco Dela', payeeId: 'marco-dela', release: 'Velvet Hours', period: 'October 2026', split: 'split v1',
     pays: 'Nov 10', rows: marcoOct, net: toCents(285), auditId: 'AUD-7F3K-2291',
     simple: [
-      { label: 'Glasshouse income', amount: toCents(10000) }, { label: 'Less platform fee', amount: toCents(-500) },
+      { label: 'Velvet Hours income', amount: toCents(10000) }, { label: 'Less platform fee', amount: toCents(-500) },
       { label: 'Your 3 points of $9,500.00', amount: toCents(285) }, { label: 'Tax withheld', amount: 0 },
+    ],
+  },
+  // Ari's 10% of Kesi's artist share, from the same Velvet Hours waterfall (ST-2026-10-KV).
+  'ST-2026-10-AM': {
+    id: 'ST-2026-10-AM', payee: 'Ari Monroe', payeeId: 'ari-monroe', release: 'Velvet Hours', period: 'October 2026', split: 'split v1',
+    pays: 'Nov 10', net: toCents(260.75), auditId: 'AUD-7F3K-2293',
+    rows: runWaterfall([
+      { kind: 'start', label: 'Artist share', rule: 'Kesi Vale’s 50% of net profit, after costs', amount: toCents(2607.5), source: 'ST-2026-10-KV' },
+      { kind: 'step', label: 'Everything except your 10%', rule: '90% stays with Kesi', amount: toCents(-2346.75), source: 'SPL-VH-v1' },
+      { kind: 'step', label: 'Withholding', rule: 'W-9 on file', amount: 0, source: 'TAX-AM' },
+    ]),
+    simple: [
+      { label: 'Kesi’s artist share', amount: toCents(2607.5) }, { label: 'Your 10% of it', amount: toCents(260.75) }, { label: 'Tax withheld', amount: 0 },
     ],
   },
   // ASSUMED: September lines; only the $312.60 total is in frame 4g.
   'ST-2026-09-MD': {
-    id: 'ST-2026-09-MD', payee: 'Marco Dela', payeeId: 'marco-dela', release: 'Glasshouse', period: 'September 2026', split: 'split v4',
+    id: 'ST-2026-09-MD', payee: 'Marco Dela', payeeId: 'marco-dela', release: 'Velvet Hours', period: 'September 2026', split: 'split v1',
     pays: 'Oct 10', net: toCents(312.6), auditId: 'AUD-7F3K-2190',
     rows: runWaterfall([
-      { kind: 'start', label: 'Glasshouse income', rule: 'Distributor, all stores', amount: toCents(10968.42), source: 'DS-0926' },
+      { kind: 'start', label: 'Velvet Hours income', rule: 'Distributor, all stores', amount: toCents(10968.42), source: 'DS-0926' },
       { kind: 'step', label: 'Platform fee', rule: '5% of gross', amount: toCents(-548.42), source: 'DS-0926' },
       { kind: 'subtotal', label: 'Producer royalty base' },
-      { kind: 'step', label: 'Everything except your 3 points', rule: '97% stays in the waterfall', amount: toCents(-10107.4), source: 'SPL-v4' },
+      { kind: 'step', label: 'Everything except your 3 points', rule: '97% stays in the waterfall', amount: toCents(-10107.4), source: 'SPL-VH-v1' },
     ]),
     simple: [
-      { label: 'Glasshouse income', amount: toCents(10968.42) }, { label: 'Less platform fee', amount: toCents(-548.42) },
+      { label: 'Velvet Hours income', amount: toCents(10968.42) }, { label: 'Less platform fee', amount: toCents(-548.42) },
       { label: 'Your 3 points of $10,420.00', amount: toCents(312.6) }, { label: 'Tax withheld', amount: 0 },
     ],
   },
@@ -94,7 +107,7 @@ export const payouts: Payouts = {
   minimum: toCents(25),
   batches: [
     { id: 'pb-2026-10', name: 'October 2026', payees: 6, total: payoutBatch.total, status: 'awaiting' as BatchStatus, note: '2 carried forward', approvalId: 'apr_payout_oct' },
-    { id: 'pb-2026-q3', name: 'Q3 artist run', payees: 2, total: toCents(6904.15), status: 'draft' as BatchStatus, note: 'Opens Jan 15' },
+    { id: 'pb-2026-q3', name: 'Q4 artist run', payees: 2, total: toCents(6904.15), status: 'draft' as BatchStatus, note: 'Opens Jan 15' },
     { id: 'pb-2026-09', name: 'September 2026', payees: 5, total: toCents(1018.44), status: 'sent' as BatchStatus, note: 'Sent Oct 10' },
     { id: 'pb-2026-08', name: 'August 2026', payees: 5, total: toCents(934.02), status: 'failed' as BatchStatus, note: 'Theo Lind, bank details', failed: { payeeId: 'theo-lind', name: 'Theo Lind', reason: 'bank details' } },
     { id: 'pb-2026-07', name: 'July 2026', payees: 4, total: toCents(822.7), status: 'sent' as BatchStatus, note: 'Sent Aug 10' },
@@ -102,8 +115,9 @@ export const payouts: Payouts = {
   taxForms: [
     { payeeId: 'marco-dela', name: 'Marco Dela', form: 'W-9', status: 'ok' as const, label: 'On file' },
     { payeeId: 'ari-monroe', name: 'Ari Monroe', form: 'W-9', status: 'ok' as const, label: 'On file' },
-    { payeeId: 'theo-lind', name: 'Theo Lind', form: 'W-8BEN', status: 'ok' as const, label: 'On file' },
-    { payeeId: 'rue-sato', name: 'Rue Sato', form: 'W-9', status: 'expiring' as const, label: 'Expires Dec 1', fix: 'Request new' },
+    // A W-8BEN lasts until the end of the third year after signing (Theo signed in 2023); a W-9 doesn't expire.
+    { payeeId: 'theo-lind', name: 'Theo Lind', form: 'W-8BEN', status: 'expiring' as const, label: 'Expires Dec 31', fix: 'Request new' },
+    { payeeId: 'rue-sato', name: 'Rue Sato', form: 'W-9', status: 'ok' as const, label: 'On file' },
     { payeeId: 'jules-arden', name: 'Jules Arden', form: 'None', status: 'missing' as const, label: 'Missing', fix: 'Request form' },
   ],
   carryForward: [
@@ -120,12 +134,15 @@ export type Recoup = {
   costs: { category: string; cost: Cents; shareBp: number }[];
 };
 export const recoupment: Recoup[] = [
-  { id: 'rel_glasshouse', title: 'Glasshouse', artist: 'Kesi Vale · label-funded single', advance: 0, recouped: toCents(4000), recoupedIn: 'Oct 2026',
+  // Velvet Hours recouped its last $4,000 in October. Glasshouse isn't out yet, so nothing is recouped.
+  { id: 'rel_velvet', title: 'Velvet Hours', artist: 'Kesi Vale · label-funded single', advance: 0, recouped: toCents(4000), recoupedIn: 'Oct 2026',
     costs: [
       { category: 'Recording', cost: toCents(2200), shareBp: 10000 }, { category: 'Mix and master', cost: toCents(800), shareBp: 10000 },
       { category: 'Artwork', cost: toCents(400), shareBp: 10000 },
       { category: 'Marketing', cost: toCents(1200), shareBp: 5000 }, // ASSUMED full cost; 4e shows the $600 recoupable half
     ] },
+  { id: 'rel_glasshouse', title: 'Glasshouse', artist: 'Kesi Vale · releases Mar 5, 2027', advance: 0, recouped: 0, projected: 'Jun 2027',
+    costs: [{ category: 'Recording', cost: toCents(1200), shareBp: 10000 }, { category: 'Artwork', cost: toCents(400), shareBp: 10000 }] },
   { id: 'rel_nightbus', title: 'Night Bus EP', artist: 'The Low Hours · $5,000 advance', advance: toCents(5000), recouped: toCents(3050), projected: 'Aug 2027',
     costs: [
       { category: 'Recording', cost: toCents(1800), shareBp: 10000 }, { category: 'Mix and master', cost: toCents(650), shareBp: 10000 },
@@ -148,7 +165,7 @@ export const splitTree = [{
   id: 'northline', label: 'Northline Records', children: [
     { id: 'kesi', label: 'Kesi Vale', children: [{ id: 'glasshouse', label: 'Glasshouse (single)', children: [
       { id: 'gh-rec', label: 'Recording income', override: true }, { id: 'gh-song', label: 'Song income' }, { id: 'gh-sync', label: 'Sync' },
-    ] }] },
+    ] }, { id: 'velvet', label: 'Velvet Hours (single)', children: [{ id: 'vh-rec', label: 'Recording income' }] }] },
     { id: 'low-hours', label: 'The Low Hours', children: [{ id: 'night-bus', label: 'Night Bus EP', children: [{ id: 'nb-rec', label: 'Recording income' }] }] },
     { id: 'marco', label: 'Marco Dela', children: [{ id: 'marco-prod', label: 'Production credits' }] },
   ],
@@ -178,11 +195,12 @@ export type Payee = {
 export const payees: Record<string, Payee> = {
   'marco-dela': {
     id: 'marco-dela', first: 'Marco', name: 'Marco Dela', label: 'Northline Records', labelShort: 'Northline',
-    earned: toCents(1146.3), paid: toCents(861.3), next: { amount: toCents(285), date: 'Nov 10', from: 'From Glasshouse, October. 3 points.' },
+    earned: toCents(1146.3), paid: toCents(861.3), next: { amount: toCents(285), date: 'Nov 10', from: 'From Velvet Hours, October. 3 points.' },
     tax: { ok: true, label: 'W-9 on file', form: 'W-9', expires: 'No expiry' },
     bank: { last4: '4821', name: 'Checking' }, // ASSUMED
     statementIds: ['ST-2026-10-MD', 'ST-2026-09-MD'],
     splits: [
+      { title: 'Velvet Hours', meta: 'Kesi Vale', terms: '3 points', status: 'signed', note: 'signed v1' },
       { title: 'Glasshouse', meta: 'Kesi Vale', terms: '3 points', status: 'signed', note: 'signed v4' },
       { title: 'Glasshouse (song)', meta: 'writer', terms: '25%', status: 'signed', note: 'signed' },
       { title: 'Glasshouse', meta: 'v5 draft', terms: '', status: 'waiting', note: 'Waiting for you to sign', v5: true },
@@ -192,11 +210,12 @@ export const payees: Record<string, Payee> = {
   // Frame 4h shows Kesi's statement, so Kesi has a portal too. ASSUMED: earned and paid totals.
   'kesi-vale': {
     id: 'kesi-vale', first: 'Kesi', name: 'Kesi Vale', label: 'Northline Records', labelShort: 'Northline',
-    earned: toCents(2346.75), paid: 0, next: { amount: toCents(2346.75), date: 'Jan 15', from: 'From Glasshouse, October. 50% of net profit, less feature.' },
+    earned: toCents(2346.75), paid: 0, next: { amount: toCents(2346.75), date: 'Jan 15', from: 'From Velvet Hours, October. 50% of net profit, less feature.' },
     tax: { ok: true, label: 'W-9 on file', form: 'W-9', expires: 'No expiry' },
     bank: { last4: '0917', name: 'Checking' },
     statementIds: ['ST-2026-10-KV'],
     splits: [
+      { title: 'Velvet Hours', meta: 'Northline Records', terms: '43.65%', status: 'signed', note: 'signed v1' },
       { title: 'Glasshouse', meta: 'Northline Records', terms: '43.65%', status: 'signed', note: 'signed v4' },
       { title: 'Glasshouse (song)', meta: 'writer', terms: '75%', status: 'signed', note: 'signed' },
       { title: 'Glasshouse', meta: 'v5 draft', terms: '', status: 'waiting', note: 'Waiting for you to sign', v5: true },

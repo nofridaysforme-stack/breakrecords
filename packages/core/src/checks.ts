@@ -10,7 +10,7 @@
 //  * A rule whose facts aren't recorded anywhere yet reports "Can't check yet". It never blocks:
 //    a rule that can't be satisfied would make the card impossible to approve.
 import { daysBetween, short } from './dates';
-import { deriveShares, type DealTerms } from './dealSplit';
+import type { DealTerms } from './dealSplit';
 import { formatMoney } from './money';
 import type { ApprovalKind } from './approvals';
 
@@ -48,8 +48,10 @@ export type PayeeFact = {
   bankOnFile: boolean;
   /** Their most recent payout before this batch failed. */
   lastFailed: boolean;
-  /** Their share in the split version in effect, for recomputing the amount. */
+  /** Their share in the split version in effect, if a split names them. */
   split: { node: string; version: number; terms: DealTerms; role: 'producer' | 'label' | 'artist' | 'feature' } | null;
+  /** What their issued statement for the period says they're owed, if they have one. */
+  statementNetCents: number | null;
 };
 
 export type PayoutFacts = {
@@ -111,7 +113,8 @@ const ROYALTIES: Rule<PayoutFacts>[] = [
     id: 'ROY-01', title: 'Signed agreements', appliesTo: ['money'], facts: 'payout', severity: 'block',
     fix: { label: 'Open contracts', href: '/contracts' },
     check: (f) => {
-      const pending = paid(f).filter((p) => p.pendingAgreements.length);
+      // A payee covered by a signed split or agreement passes, whatever else is still being signed.
+      const pending = paid(f).filter((p) => !p.covered && p.pendingAgreements.length);
       const none = paid(f).filter((p) => !p.covered && !p.pendingAgreements.length);
       const inputs = paid(f).map((p) => `${p.name}: ${p.covered ? 'signed' : p.pendingAgreements.length ? `waiting on ${p.pendingAgreements.join(', ')}` : 'nothing signed'}`);
       if (!pending.length && !none.length) return pass('Every payee has a signed agreement or split.', inputs);
@@ -172,31 +175,17 @@ const ROYALTIES: Rule<PayoutFacts>[] = [
     },
   },
   {
-    id: 'ROY-06', title: 'Amounts match the splits', appliesTo: ['money'], facts: 'payout', severity: 'block',
-    fix: { label: 'Open splits', href: '/splits' },
+    id: 'ROY-06', title: 'Amounts match the statements', appliesTo: ['money'], facts: 'payout', severity: 'block',
+    fix: { label: 'Open statements', href: '/money/statements' },
     check: (f) => {
-      // Payees on the same split version are paid from the same income, so amount ÷ share must
-      // be the same for each of them.
-      const groups = new Map<string, { p: PayeeFact; bp: number }[]>();
-      for (const p of paid(f)) {
-        if (!p.split) continue;
-        const shares = deriveShares(p.split.terms);
-        const bp = shares[p.split.role];
-        if (!bp) continue;
-        const key = `${p.split.node} v${p.split.version}`;
-        groups.set(key, [...(groups.get(key) ?? []), { p, bp }]);
-      }
-      const inputs = [...groups.entries()].flatMap(([k, g]) => g.map(({ p, bp }) => `${k}: ${p.name} ${pct(bp)}, ${formatMoney(p.amountCents)}`));
-      const off: string[] = [];
-      for (const [key, g] of groups) {
-        if (g.length < 2) continue;
-        const base = (x: { p: PayeeFact; bp: number }) => (x.p.amountCents * 10000) / x.bp;
-        const ref = base(g[0]);
-        if (g.every((x) => Math.abs(base(x) - ref) <= Math.max(100, ref * 0.005))) continue;
-        off.push(`${g.map(({ p, bp }) => `${p.name} (${pct(bp)}) is paid ${formatMoney(p.amountCents)}`).join(', but ')}. Those amounts don’t follow split ${key.split(' ')[1]}.`);
-      }
-      if (!groups.size) return unknown('No payee in this batch has a split share to recompute from.');
-      return off.length ? fail(off.join(' '), inputs) : pass('Each amount follows the split version in effect for the period.', inputs);
+      // Each statement works the amount out from net receipts, costs and the split version in
+      // effect (a checked waterfall). The payout must pay exactly what the statement says.
+      const withStatement = paid(f).filter((p) => p.statementNetCents != null);
+      const inputs = paid(f).map((p) => `${p.name}: paid ${formatMoney(p.amountCents)}, statement ${p.statementNetCents == null ? 'none' : formatMoney(p.statementNetCents)}`);
+      if (!withStatement.length) return unknown('No payee in this batch has an issued statement to recompute from.');
+      const off = withStatement.filter((p) => p.amountCents !== p.statementNetCents);
+      if (!off.length) return pass(`${names(withStatement.map((p) => p.name))} ${withStatement.length === 1 ? 'is' : 'are'} paid exactly what ${withStatement.length === 1 ? 'their statement says' : 'their statements say'}.`, inputs);
+      return fail(off.map((p) => `${p.name} is paid ${formatMoney(p.amountCents)}, but their statement says ${formatMoney(p.statementNetCents!)}.`).join(' '), inputs);
     },
   },
   {

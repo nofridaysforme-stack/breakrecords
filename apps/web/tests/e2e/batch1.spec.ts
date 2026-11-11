@@ -183,20 +183,21 @@ test.describe('phone only', () => {
   });
 });
 
-test('checks: cards that fail their checks sit under Can’t approve yet, and Approve stays off with the reasons shown', async ({ page }) => {
+test('checks: a card that fails its checks sits under Can’t approve yet, and Approve stays off with the reasons shown', async ({ page }) => {
   await page.goto('/approvals');
   const stuck = page.getByRole('region', { name: /Can't approve yet/ }).filter({ visible: true });
-  await expect(stuck.getByRole('article', { name: 'Payout batch for October' })).toContainText('6 checks failed.');
-  await expect(stuck.getByRole('article', { name: 'MLC registration for 3 songs' })).toBeVisible();
-  await expect(stuck.getByRole('article', { name: /arts council/i })).toBeVisible();
-  await expect(page.getByRole('article', { name: /Producer agreement/ })).toBeVisible(); // passes its checks
-  await stuck.getByRole('article', { name: 'Payout batch for October' }).getByRole('button', { name: 'See why' }).click();
-  await expect(page).toHaveURL(/apr_payout_oct/);
+  await expect(stuck.getByRole('article', { name: /arts council/i })).toContainText('1 check failed.');
+  await expect(stuck.getByRole('article')).toHaveCount(1);
+  await stuck.getByRole('article', { name: /arts council/i }).getByRole('button', { name: 'See why' }).click();
+  await expect(page).toHaveURL(/apr_grant/);
   const checks = page.getByRole('region', { name: 'Checks' });
-  await expect(checks).toContainText('Can’t approve yet: 6 checks failed.');
-  await expect(checks).toContainText('Glasshouse earns $10,000.00 before its Mar 5, 2027 release.');
-  await expect(checks.getByRole('link', { name: 'Open activity' })).toHaveAttribute('href', '/activity');
-  await expect(page.getByRole('button', { name: /^Approve and send/ })).toBeDisabled();
+  await expect(checks).toContainText('Can’t approve yet: 1 check failed.');
+  await expect(checks).toContainText('was last checked on Oct 28');
+  await expect(checks.getByRole('link', { name: 'Open funding' })).toHaveAttribute('href', '/funding');
+  await expect(page.getByRole('button', { name: 'Approve and submit' })).toBeDisabled();
+  // The October payout passes every check.
+  await page.goto('/approvals/apr_payout_oct');
+  await expect(page.getByRole('region', { name: 'Checks' })).toContainText('All 9 checks passed.');
   await page.goto('/approvals/apr_mlc');
   await expect(page.getByRole('region', { name: 'Checks' })).toContainText('Can’t check yet');
 });

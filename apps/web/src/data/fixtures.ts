@@ -44,8 +44,8 @@ export const homeNumbers = {
   unclaimed: toCents(312.4), // unclaimedFound_assumed
 };
 export const homeNumberNotes = {
-  period: 'Oct', income: 'Glasshouse, Oct', owed: '6 payees', owedApprovalId: 'apr_payout_oct' as string | null,
-  recouped: 'Glasshouse fully recouped', cash90: 'Forecast, after payouts', unclaimed: '2 sources to claim',
+  period: 'Oct', income: 'Velvet Hours, Oct', owed: '6 payees', owedApprovalId: 'apr_payout_oct' as string | null,
+  recouped: 'Velvet Hours fully recouped', cash90: 'Forecast, after payouts', unclaimed: '2 sources to claim',
 };
 
 // ---------- Approval details (2e, 2f; filing and application bodies are undrawn) ----------
@@ -53,11 +53,11 @@ const byId = Object.fromEntries(approvals.map((a) => [a.id, a]));
 
 // Payee sources and tax status from frame 2e.
 const PAYEE_SOURCE: Record<string, [string, string, 'ok' | 'expiring']> = {
-  'Marco Dela': ['Glasshouse · Distributor Oct', 'W-9 on file', 'ok'],
-  'Ari Monroe': ['Glasshouse · Distributor Oct', 'W-9 on file', 'ok'],
+  'Marco Dela': ['Velvet Hours · Distributor Oct', 'W-9 on file', 'ok'],
+  'Ari Monroe': ['Velvet Hours · Distributor Oct', 'W-9 on file', 'ok'],
   'Dana Okafor': ['Night Bus · Distributor Oct', 'W-9 on file', 'ok'],
-  'Theo Lind': ['Night Bus · Distributor Oct', 'W-8BEN on file', 'ok'],
-  'Rue Sato': ['Night Bus · Distributor Oct', 'Expires Dec 1', 'expiring'],
+  'Theo Lind': ['Night Bus · Distributor Oct', 'W-8BEN, expires Dec 31', 'expiring'],
+  'Rue Sato': ['Night Bus · Distributor Oct', 'W-9 on file', 'ok'],
   'Ines Pardo': ['Night Bus · SoundExchange Q3', 'W-9 on file', 'ok'],
 };
 
@@ -83,7 +83,7 @@ export const approvalDetails: Record<string, ApprovalDetail> = {
       inputs: [
         { label: 'Distributor statement, Oct', ref: 'DS-1026', href: '/money/royalties' },
         { label: 'SoundExchange, Q3', ref: 'SX-Q3-26', href: '/money/royalties' },
-        { label: 'Glasshouse splits', ref: 'v4 signed', href: '/splits/gh-rec' },
+        { label: 'Velvet Hours splits', ref: 'v1 signed', href: '/splits/vh-rec' },
         { label: 'Night Bus splits', ref: 'v2 signed', href: '/splits/nb-rec' },
       ],
       steps: ['Imported 1,231 statement lines', 'Matched 1,204 lines to recordings', 'Applied split versions in effect Oct 1 to 31', 'Checked tax forms for 8 payees'],
@@ -127,7 +127,7 @@ export const approvalDetails: Record<string, ApprovalDetail> = {
     body: {
       kind: 'contract',
       plain: [
-        ['Marco gets', '3 points (3% of recording income), paid after costs are recouped'],
+        ['Marco gets', '3 points (3% of recording income), paid from the first dollar'],
         ['Advance', '$1,500 against his royalties'],
         ['Credit', '"Produced by Marco Dela" on all platforms'],
         ['Who owns the master', 'Northline Records'],
@@ -143,7 +143,7 @@ export const approvalDetails: Record<string, ApprovalDetail> = {
         page: 'page 2 of 9',
         blocks: [
           { kind: 'heading', text: '4. Royalties' },
-          { kind: 'clause', text: '4.1 Producer shall receive a royalty of three percent (3%) of net receipts from exploitation of the Master, payable following recoupment of recording costs at the Artist’s net rate.' },
+          { kind: 'clause', text: '4.1 Producer shall receive a royalty of three percent (3%) of net receipts from exploitation of the Master, payable from the first dollar, before recoupment of recording costs.' },
           { kind: 'clause', text: '4.2 The Advance of One Thousand Five Hundred Dollars ($1,500) shall be non-recoupable.', flagRef: 'f42' },
           { kind: 'heading', text: '5. Credit and approvals' },
           { kind: 'clause', text: '5.1 Producer shall be credited as "Produced by Marco Dela" in all metadata.' },
@@ -162,9 +162,9 @@ export const approvalDetails: Record<string, ApprovalDetail> = {
     rejectLabel: 'Reject with reason',
     evidence: {
       whyLabel: 'Why this filing',
-      why: 'Glasshouse needs an MLC registration before release so first-week streams pay the writers. Two catalog songs were never registered, which is likely why their mechanicals are missing. I haven’t confirmed that with the MLC yet.',
+      why: 'These 3 catalog songs were never registered with the MLC, which is likely why their US streaming mechanicals are missing. I haven’t confirmed that with the MLC yet. Glasshouse follows once Marco signs its split sheet.',
       inputs: [
-        { label: 'Glasshouse split sheet', ref: 'v4 signed', href: '/splits/gh-rec' },
+        { label: 'Split sheets', ref: '3 of 3 signed', href: '/contracts' },
         { label: 'Catalog songs', ref: '3 works', href: '/catalog/songs' },
         { label: 'MLC search', ref: 'no matches', href: '/rights/registrations' },
       ],
@@ -174,10 +174,11 @@ export const approvalDetails: Record<string, ApprovalDetail> = {
     body: {
       kind: 'filing',
       org: 'MLC',
-      // Frame 5c: the 3 MLC filings that need you are Glasshouse, Night Bus and Static Hymn (ISRCs from 5a).
+      // Frame 5c lists Glasshouse, Night Bus and Static Hymn. Glasshouse's split sheet still waits on
+      // Marco, so it can't be filed yet (PUB-01); Velvet Hours, also unregistered, goes in its place.
       // ASSUMED: The Low Hours' writer shares.
       works: [
-        { title: 'Glasshouse', writers: 'Kesi Vale 75%, Marco Dela 25%', isrc: 'USNL12600014', iswc: 'Assigned after filing' }, // 25% per frame 4f
+        { title: 'Velvet Hours', writers: 'Kesi Vale 100%', isrc: 'USNL12400007', iswc: 'Assigned after filing' },
         { title: 'Night Bus', writers: 'Dana Okafor 34%, Theo Lind 33%, Rue Sato 33%', isrc: 'USNL12500031', iswc: 'Assigned after filing' },
         { title: 'Static Hymn', writers: 'Dana Okafor 34%, Theo Lind 33%, Rue Sato 33%', isrc: 'USNL12500032', iswc: 'Assigned after filing' },
       ],
@@ -191,7 +192,7 @@ export const approvalDetails: Record<string, ApprovalDetail> = {
 
   apr_grant: {
     ...byId.apr_grant,
-    breadcrumb: 'Plan',
+    breadcrumb: 'Filing',
     outcome: { text: 'If you approve, I submit the arts council application asking for up to $5,000 for Glasshouse.' },
     primaryLabel: 'Approve and submit',
     rejectLabel: 'Reject with reason',
@@ -237,7 +238,7 @@ export const releases: Record<string, Release> = {
       ] },
       { name: '6 weeks out', iso: '2027-01-22', status: 'future', tasks: [
         { title: 'Masters accepted', owner: 'Distribution Agent', state: 'locked', gate: { owner: 'Distribution Agent' } },
-        { title: 'ISRC and UPC assigned', owner: 'Metadata Agent', state: 'waiting' },
+        { title: 'ISRC and UPC assigned', owner: 'Metadata Agent', state: 'done' }, // Glasshouse has both (MET-02)
       ] },
       { name: '4 weeks out', iso: '2027-02-05', status: 'future', tasks: [
         { title: 'Metadata complete', owner: 'Metadata Agent', state: 'locked', gate: { owner: 'Metadata Agent' } },

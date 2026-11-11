@@ -16,16 +16,16 @@ const CONTEXTS: [prefix: string, ctx: ScreenContext][] = [
     { q: 'What does AI use mean here?', a: 'Stores ask you to declare any AI in the audio, lyrics or art. Low Light declares AI-made stems.', basis: 'The AI use field.' },
   ] }],
   ['/money/statements', { title: 'Statements', summary: 'October statements are ready for Kesi Vale and Marco Dela. Every line links back to its source.', qa: [
-    { q: 'Why is Kesi’s share lower this month?', a: 'Split v5 isn’t signed yet, so October pays under v4. Her share changes only once everyone signs v5.', basis: 'Split versions for Glasshouse.' },
+    { q: 'Why is Kesi’s share lower this month?', a: 'October is the month Velvet Hours recouped its last $4,000.00 of costs, so less was left to split. From November nothing comes off for costs.', basis: 'Velvet Hours recoupment and split v1.' },
   ] }],
   ['/money', { title: 'Money', summary: 'October income is $14,286.40, up 18% on September. The payout batch of $1,240.18 waits on your approval.', qa: [
-    { q: 'Why can’t I pay Rue Sato?', a: 'Her tax form expires Dec 1. You can still pay the others now and ask Rue for a new form.', basis: 'Payee tax forms.' },
+    { q: 'Whose tax form needs renewing?', a: 'Theo Lind’s W-8BEN expires Dec 31. W-8 forms last until the end of the third year after signing; W-9s don’t expire. Ask Theo for a new one before January.', basis: 'Payee tax forms.' },
     { q: 'What’s the $312.40 unclaimed?', a: 'SoundExchange and the MLC are holding royalties for “Night Bus”. Each needs one claim.', basis: 'Rights Agent’s weekly search.' },
   ] }],
   ['/splits', { title: 'Splits', summary: 'Glasshouse recording income uses v4. Draft v5 is 5% short of 100%, so it can’t be sent for signatures yet.', qa: [
     { q: 'Where did the 5% go?', a: 'In v5 the label’s share of net profit is 40% and Kesi’s side is 55%, so 5% is unassigned. Set the label to 45% to reach exactly 100%.', basis: 'Split v5 draft and its edit history.' },
   ] }],
-  ['/contracts', { title: 'Contracts', summary: '7 active agreements. The Glasshouse producer agreement waits on you, and the band agreement’s audit window closes Jan 9.', qa: [
+  ['/contracts', { title: 'Contracts', summary: '8 active agreements. The Glasshouse producer agreement waits on you, and the band agreement’s audit window closes Jan 9.', qa: [
     { q: 'Which terms in Marco’s agreement need me?', a: 'Clause 4.2 makes the $1,500 advance non-recoupable, and clause 5.2 gives Marco approval over remixes. Your playbook says the advance is recoupable from his royalties and he gets credit on remixes, not approval.', basis: 'Legal Agent’s review against your playbook.' },
   ] }],
   ['/rights', { title: 'Rights', summary: '3 MLC filings need you, and $312.40 is waiting to be claimed for “Night Bus”.', qa: [
@@ -44,8 +44,8 @@ const CONTEXTS: [prefix: string, ctx: ScreenContext][] = [
   ['/settings', { title: 'Settings', summary: 'Every money, signature, filing and public action routes to Jana. Accounting’s connection has expired.', qa: [
     { q: 'Can someone else approve filings?', a: 'Yes. Filings already route to you or the Rights lead. Change it under Approval routing.', basis: 'Your approval routing.' },
   ] }],
-  ['/roster', { title: 'Roster', summary: '3 artists and collaborators. Kesi Vale earned $10,812.60 in October.', qa: [
-    { q: 'Who needs something from me?', a: 'Marco Dela, for the producer agreement. Rue Sato needs a new tax form before Dec 1.', basis: 'Open approvals and payee tax forms.' },
+  ['/roster', { title: 'Roster', summary: '3 artists and collaborators. Kesi Vale earned $11,024.00 in October.', qa: [
+    { q: 'Who needs something from me?', a: 'Marco Dela, for the producer agreement. Theo Lind needs a new W-8BEN before Dec 31.', basis: 'Open approvals and payee tax forms.' },
   ] }],
   ['/plan', { title: 'Plan preview', summary: 'This is a first draft from your goal. Nothing starts until you approve it.', qa: [
     { q: 'What happens when I approve?', a: 'I create the goal and a runbook with tasks per department. Anything that moves money, signs, files or goes public still comes back to you.', basis: 'How plans work.' },

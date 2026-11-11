@@ -13,10 +13,20 @@ export const dayMonth = (d: string | Date) => { const x = toDate(d); return `${M
 export const dayMonthYear = (d: string | Date) => `${dayMonth(d)}, ${toDate(d).getUTCFullYear()}`;
 
 export type TaxState = { status: 'ok' | 'expiring' | 'missing'; label: string };
-/** A form expiring within 60 days needs replacing before it lapses; no form means no payout. */
+/**
+ * A W-8BEN or W-8BEN-E stays in effect until the last day of the third calendar year after the
+ * year it was signed (signed Mar 4, 2023: valid through Dec 31, 2026). A W-9 doesn't expire.
+ */
+export function w8ExpiresOn(signedOn: string | Date): string {
+  return `${toDate(signedOn).getUTCFullYear() + 3}-12-31`;
+}
+/**
+ * A W-8 expiring within 60 days needs replacing before it lapses; no form means no payout.
+ * A W-9 never expires, so an expiry date stored against one is ignored.
+ */
 export function taxState(form: string | null, expiresOn: string | Date | null, today: string | Date): TaxState {
   if (!form) return { status: 'missing', label: 'Missing' };
-  if (expiresOn) {
+  if (expiresOn && form !== 'W-9') {
     const days = (toDate(expiresOn).getTime() - toDate(today).getTime()) / 86_400_000;
     if (days < 0) return { status: 'missing', label: `Expired ${dayMonth(expiresOn)}` };
     if (days <= 60) return { status: 'expiring', label: `Expires ${dayMonth(expiresOn)}` };

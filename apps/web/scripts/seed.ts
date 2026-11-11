@@ -242,6 +242,8 @@ async function seedSplits(tx: Tx, tenant: string) {
   const ghRec = await node('gh-rec', 'Recording income', gh, 0, glasshouseDeal.dealTerms);
   await node('gh-song', 'Song income', gh, 1);
   await node('gh-sync', 'Sync', gh, 2);
+  const vh = await node('velvet', 'Velvet Hours (single)', kesi, 1);
+  const vhRec = await node('vh-rec', 'Recording income', vh, 0, glasshouseDeal.dealTerms);
   const lh = await node('low-hours', 'The Low Hours', root, 1);
   const nb = await node('night-bus', 'Night Bus EP', lh, 0);
   const nbRec = await node('nb-rec', 'Recording income', nb, 0, [['Type', 'Net profit, 50/50'], ['Funded by', 'Label'], ['Advance', '$5,000, recoupable'], ['Term', '3 years from release']]);
@@ -268,6 +270,12 @@ async function seedSplits(tx: Tx, tenant: string) {
       const at = ver.signed?.[role] ?? (ver.status === 'superseded' ? ver.from : null);
       await tx`INSERT INTO split_parties (tenant_id, version_id, role, party_id, signed_at) VALUES (${tenant}, ${row.id}, ${role}, ${id}, ${at})`;
     }
+  }
+  // Velvet Hours recording income: the same deal, v1, signed by everyone before release. ASSUMED.
+  const [vhv] = await tx`INSERT INTO split_versions (tenant_id, node_id, version, status, terms, effective_from)
+    VALUES (${tenant}, ${vhRec}, 1, 'in_effect', ${tx.json(v4 as never)}, '2024-09-01') RETURNING id`;
+  for (const [role, id] of Object.entries(who)) {
+    await tx`INSERT INTO split_parties (tenant_id, version_id, role, party_id, signed_at) VALUES (${tenant}, ${vhv.id}, ${role}, ${id}, '2024-08-20')`;
   }
   // Night Bus recording income, v2, signed. ASSUMED: no producer points; the band shares the artist side.
   const band = await party('the-low-hours');
@@ -301,11 +309,11 @@ const STORES = ['Spotify', 'Apple Music', 'YouTube Music', 'Amazon Music', 'Tida
 const TERRITORIES = ['US', 'GB', 'CA', 'DE', 'AU', 'FR', 'SE', 'NL', 'BR', 'JP'];
 const INCOME: IncomeStatement[] = [
   { ref: 'DS-1026', source: 'distributor', period: '2026-10-01', received: '2026-11-03', buckets: [
-    { subject: ['rec', 'glasshouse'], lines: 724, cents: 1000000, units: 'streams' },
-    { subject: ['rec', 'velvet-hours'], lines: 120, cents: 38000, units: 'streams' },
+    // Glasshouse isn't out until Mar 5, 2027, so it earns nothing yet; Velvet Hours carries October.
+    { subject: ['rec', 'velvet-hours'], lines: 844, cents: 1038000, units: 'streams' },
     { subject: ['rec', 'paper-moons'], lines: 90, cents: 25000, units: 'streams' },
     { subject: ['rec', 'night-bus'], lines: 160, cents: 109928, units: 'streams' },
-    { subject: ['rec', 'low-light'], lines: 40, cents: 15000, units: 'streams' },
+    { subject: ['rec', 'paper-moons'], lines: 40, cents: 15000, units: 'streams' },
     { subject: ['rec', 'static-hymn'], lines: 12, cents: 0, units: 688 },
     { subject: ['rec', 'night-bus-demo'], lines: 6, cents: 0, units: 412 },
     { subject: ['raw', 'USNL1250031', 'Night Bus'], lines: 24, cents: 3840, units: 'streams' },
@@ -317,7 +325,7 @@ const INCOME: IncomeStatement[] = [
     { subject: ['rec', 'night-bus'], lines: 12, cents: 99160 },
   ] },
   { ref: 'MLC-1026', source: 'mlc', period: '2026-10-01', received: '2026-11-05', buckets: [
-    { subject: ['work', 'velvet-hours'], lines: 4, cents: 7000 }, { subject: ['work', 'low-light'], lines: 3, cents: 6140 },
+    { subject: ['work', 'velvet-hours'], lines: 7, cents: 13140 },
     { subject: ['work', 'night-bus'], lines: 6, cents: 48690 },
   ] },
   { ref: 'PRO-1026', source: 'pro', period: '2026-10-01', received: '2026-11-05', buckets: [
@@ -326,11 +334,10 @@ const INCOME: IncomeStatement[] = [
   { ref: 'SYNC-1026', source: 'sync', period: '2026-10-01', received: '2026-10-21', buckets: [{ subject: ['rec', 'night-bus'], lines: 1, cents: 20000 }] },
   { ref: 'BC-1026', source: 'bandcamp', period: '2026-10-01', received: '2026-11-01', buckets: [{ subject: ['rec', 'night-bus'], lines: 3, cents: 4140, units: 'sales' }] },
   { ref: 'DS-0926', source: 'distributor', period: '2026-09-01', received: '2026-10-03', buckets: [
-    { subject: ['rec', 'glasshouse'], lines: 300, cents: 1096842, units: 'streams' },
-    { subject: ['rec', 'velvet-hours'], lines: 40, cents: 30000, units: 'streams' },
+    { subject: ['rec', 'velvet-hours'], lines: 340, cents: 1126842, units: 'streams' },
     { subject: ['rec', 'paper-moons'], lines: 30, cents: 20000, units: 'streams' },
     { subject: ['rec', 'night-bus'], lines: 60, cents: 50000, units: 'streams' },
-    { subject: ['rec', 'low-light'], lines: 10, cents: 13870, units: 'streams' },
+    { subject: ['rec', 'paper-moons'], lines: 10, cents: 13870, units: 'streams' },
   ] },
 ];
 
@@ -377,14 +384,15 @@ async function insertIncome(tx: Tx, tenant: string, st: IncomeStatement) {
 const PAYS: Record<string, { on: string; run: string | null; party: string; period: string }> = {
   'ST-2026-10-KV': { on: '2027-01-15', run: 'quarterly artist run', party: 'kesi-vale', period: '2026-10-01' },
   'ST-2026-10-MD': { on: '2026-11-10', run: null, party: 'marco-dela', period: '2026-10-01' },
+  'ST-2026-10-AM': { on: '2026-11-10', run: null, party: 'ari-monroe', period: '2026-10-01' },
   'ST-2026-09-MD': { on: '2026-10-10', run: null, party: 'marco-dela', period: '2026-09-01' },
 };
 
 /** Northline's income for September and October, and the three payee statements issued from it. */
 async function seedStatements(tx: Tx, tenant: string) {
   for (const st of INCOME) await insertIncome(tx, tenant, st);
-  const [rel] = await tx`SELECT id FROM releases WHERE tenant_id = ${tenant} AND slug = 'rel_glasshouse'`;
-  const [ver] = await tx`SELECT v.id FROM split_versions v JOIN split_nodes n ON n.id = v.node_id WHERE n.tenant_id = ${tenant} AND n.slug = 'gh-rec' AND v.version = 4`;
+  const [rel] = await tx`SELECT id FROM releases WHERE tenant_id = ${tenant} AND slug = 'rel_velvet'`;
+  const [ver] = await tx`SELECT v.id FROM split_versions v JOIN split_nodes n ON n.id = v.node_id WHERE n.tenant_id = ${tenant} AND n.slug = 'vh-rec' AND v.version = 1`;
   for (const st of Object.values(payeeStatements)) {
     const problem = checkStatement(st.rows, st.net);
     if (problem) throw new Error(`Sample statement ${st.id} fails its check: ${problem}`);
@@ -412,11 +420,11 @@ async function seedHarborStatements(tx: Tx, tenant: string) {
 type Line = [party: string, role: string, dollars: number, status?: 'included' | 'carried' | 'paid' | 'failed', statement?: string];
 const BATCHES: { slug: string; name: string; cadence: 'monthly' | 'quarterly'; period: string; pays: string; status: 'draft' | 'awaiting' | 'sent' | 'failed'; approval?: string; sent?: string; lines: Line[] }[] = [
   { slug: 'pb-2026-10', name: 'October 2026', cadence: 'monthly', period: '2026-10-01', pays: '2026-11-10', status: 'awaiting', approval: 'apr_payout_oct', lines: [
-    ['marco-dela', 'Producer, 3 points', 285, 'included', 'ST-2026-10-MD'], ['ari-monroe', 'Feature, 10% of artist share', 260.75],
+    ['marco-dela', 'Producer, 3 points', 285, 'included', 'ST-2026-10-MD'], ['ari-monroe', 'Feature, 10% of artist share', 260.75, 'included', 'ST-2026-10-AM'],
     ['dana-okafor', 'The Low Hours', 214.2], ['theo-lind', 'The Low Hours', 214.2], ['rue-sato', 'The Low Hours', 214.2], ['ines-pardo', 'Mix engineer, 1 point', 51.83],
     ['jules-arden', 'Session bass', 18.4, 'carried'], ['pia-novak', 'Artwork, 0.5 pt', 9.12, 'carried'],
   ] },
-  { slug: 'pb-2026-q3', name: 'Q3 artist run', cadence: 'quarterly', period: '2026-10-01', pays: '2027-01-15', status: 'draft', lines: [
+  { slug: 'pb-2026-q3', name: 'Q4 artist run', cadence: 'quarterly', period: '2026-10-01', pays: '2027-01-15', status: 'draft', lines: [
     ['kesi-vale', 'Artist, 50% of net profit', 2346.75, 'included', 'ST-2026-10-KV'], ['the-low-hours', 'Artist, 50% of net profit', 4557.4],
   ] },
   { slug: 'pb-2026-09', name: 'September 2026', cadence: 'monthly', period: '2026-09-01', pays: '2026-10-10', status: 'sent', sent: '2026-10-10', lines: [
@@ -433,11 +441,12 @@ const BATCHES: { slug: string; name: string; cadence: 'monthly' | 'quarterly'; p
   ] },
 ];
 // Tax forms from 4d; everyone else on file with a W-9.
-const PAYEES: { slug: string; name: string; cadence?: 'quarterly'; form: string | null; expires?: string; bank: [string, string] | null; openingEarned?: number }[] = [
+const PAYEES: { slug: string; name: string; cadence?: 'quarterly'; form: string | null; signed?: string; expires?: string; treaty?: [string, string, number]; bank: [string, string] | null; openingEarned?: number }[] = [
   { slug: 'marco-dela', name: 'Marco Dela', form: 'W-9', bank: ['4821', 'Checking'], openingEarned: 548.7 }, // Jul and Aug, before statements were on the platform
   { slug: 'ari-monroe', name: 'Ari Monroe', form: 'W-9', bank: ['3310', 'Checking'] },
-  { slug: 'theo-lind', name: 'Theo Lind', form: 'W-8BEN', bank: ['7702', 'Checking'] },
-  { slug: 'rue-sato', name: 'Rue Sato', form: 'W-9', expires: '2026-12-01', bank: ['1184', 'Checking'] },
+  // Theo lives in the UK: a W-8BEN signed Mar 4, 2023 (valid to Dec 31, 2026) with the UK treaty's 0% on royalties.
+  { slug: 'theo-lind', name: 'Theo Lind', form: 'W-8BEN', signed: '2023-03-04', expires: '2026-12-31', treaty: ['GB', 'Article 12', 0], bank: ['7702', 'Checking'] },
+  { slug: 'rue-sato', name: 'Rue Sato', form: 'W-9', bank: ['1184', 'Checking'] }, // a W-9 doesn't expire
   { slug: 'jules-arden', name: 'Jules Arden', form: null, bank: null },
   { slug: 'kesi-vale', name: 'Kesi Vale', cadence: 'quarterly', form: 'W-9', bank: ['0917', 'Checking'] },
   { slug: 'the-low-hours', name: 'The Low Hours', cadence: 'quarterly', form: 'W-9', bank: ['5530', 'Business checking'] },
@@ -453,8 +462,9 @@ async function seedPayouts(tx: Tx, tenant: string) {
     const [row] = await tx`INSERT INTO parties (tenant_id, slug, name) VALUES (${tenant}, ${p.slug}, ${p.name})
       ON CONFLICT (tenant_id, slug) DO UPDATE SET name = EXCLUDED.name RETURNING id`;
     party[p.slug] = row.id;
-    await tx`INSERT INTO payees (tenant_id, party_id, cadence, tax_form, tax_expires_on, bank_last4, bank_name, opening_earned_cents)
-      VALUES (${tenant}, ${row.id}, ${p.cadence ?? 'monthly'}, ${p.form}, ${p.expires ?? null}, ${p.bank?.[0] ?? null}, ${p.bank?.[1] ?? null}, ${Math.round((p.openingEarned ?? 0) * 100)})`;
+    await tx`INSERT INTO payees (tenant_id, party_id, cadence, tax_form, tax_signed_on, tax_expires_on, treaty_country, treaty_article, treaty_rate_bp, bank_last4, bank_name, opening_earned_cents)
+      VALUES (${tenant}, ${row.id}, ${p.cadence ?? 'monthly'}, ${p.form}, ${p.signed ?? null}, ${p.expires ?? null}, ${p.treaty?.[0] ?? null}, ${p.treaty?.[1] ?? null}, ${p.treaty?.[2] ?? null},
+              ${p.bank?.[0] ?? null}, ${p.bank?.[1] ?? null}, ${Math.round((p.openingEarned ?? 0) * 100)})`;
   }
   for (const b of BATCHES) {
     const history = b.status === 'sent' || b.status === 'failed';
@@ -468,8 +478,11 @@ async function seedPayouts(tx: Tx, tenant: string) {
   }
   // 4e. Glasshouse recouped its $4,000.00 in October (the 4c waterfall); Night Bus is still recouping.
   const RECOUP = [
-    { release: 'rel_glasshouse', advance: 0, projected: null, costs: [['Recording', 2200, 10000], ['Mix and master', 800, 10000], ['Artwork', 400, 10000], ['Marketing', 1200, 5000]],
+    // Velvet Hours recouped its last $4,000 in October. Glasshouse isn't out yet: its costs wait for income.
+    { release: 'rel_velvet', advance: 0, projected: null, costs: [['Recording', 2200, 10000], ['Mix and master', 800, 10000], ['Artwork', 400, 10000], ['Marketing', 1200, 5000]],
       entries: [['2026-10-01', 4000, 'DS-1026']] },
+    { release: 'rel_glasshouse', advance: 0, projected: '2027-06-01', costs: [['Recording', 1200, 10000], ['Artwork', 400, 10000]],
+      entries: [] },
     { release: 'rel_nightbus', advance: 5000, projected: '2027-08-01', costs: [['Recording', 1800, 10000], ['Mix and master', 650, 10000], ['Video', 1000, 5000], ['Tour support', 250, 10000]],
       entries: [['2025-09-01', 900, 'DS-0925'], ['2026-01-01', 850, 'DS-0126'], ['2026-06-01', 700, 'DS-0626'], ['2026-10-01', 600, 'DS-1026']] },
   ] as const;
@@ -535,6 +548,7 @@ const AGREEMENTS: { slug: string; template?: string; edits?: number; thirdParty?
   { slug: 'ct_band', template: 'artist', parties: [['the-low-hours', 3, '2025-01-09']], key: ['2027-01-09', 'Audit window closes'] },
   { slug: 'ct_feature', template: 'feature', parties: [['ari-monroe', 1, '2026-09-30']] },
   { slug: 'ct_split_gh', template: 'split', work: 'glasshouse' },
+  { slug: 'ct_mix_nb', template: 'producer', edits: 1, parties: [['ines-pardo', 1, '2025-04-02']] },
   { slug: 'ct_distribution', thirdParty: true, parties: [['distributor', 1, '2026-08-01']], key: ['2027-08-01', 'Renewal'] },
   { slug: 'ct_split_nb', template: 'split', work: 'night-bus' },
 ];
@@ -602,10 +616,12 @@ async function seedActivity(tx: Tx, tenant: string) {
     await tx`INSERT INTO agent_events (tenant_id, id, occurred_at, kind, text, who, dept, inputs, reasoning, output)
       VALUES (${tenant}, ${e.id}, ${at}, ${e.kind}, ${e.text}, ${e.who}, ${e.dept}, ${e.inputs}, ${e.reasoning}, ${e.output})`;
   }
-  // The Audit Agent's open flag (RUN-88119): Night Bus's October income stays out of payouts (ROY-07).
+  // The Audit Agent's flag (RUN-88119). While open, Night Bus's income would stay out of payouts (ROY-07).
   await tx`DELETE FROM audit_flags WHERE tenant_id = ${tenant}`;
-  await tx`INSERT INTO audit_flags (tenant_id, recording_id, kind, note, event_id)
-    SELECT ${tenant}, id, 'stream_spike', 'unusual stream spike on Oct 28', 'RUN-88119' FROM recordings WHERE tenant_id = ${tenant} AND slug = 'night-bus'`;
+  // Resolved: the distributor's stream report showed a playlist add, so the income is paid as normal.
+  await tx`INSERT INTO audit_flags (tenant_id, recording_id, kind, note, event_id, resolved_at, resolution)
+    SELECT ${tenant}, id, 'stream_spike', 'unusual stream spike on Oct 28', 'RUN-88119', '2026-11-08T16:00:00Z', 'Distributor report: a playlist add, real listeners'
+    FROM recordings WHERE tenant_id = ${tenant} AND slug = 'night-bus'`;
   // Team members: the user row and membership the allowlist would create, with a name and title.
   for (const [email, name, role, title] of [['jana@northline.example', 'Jana', 'owner', 'Owner'], ['priya@northline.example', 'Priya Shah', 'team', 'Rights lead']] as const) {
     const [u] = await tx`INSERT INTO users (email, name) VALUES (${email}, ${name}) ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id`;

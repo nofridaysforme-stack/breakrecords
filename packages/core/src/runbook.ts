@@ -41,3 +41,12 @@ export function releaseStatus(phases: { iso: string; tasks: { state: TaskState }
 export function deliveryBlockers(tasks: { state: TaskState; blocksDelivery: string | null }[]): string[] {
   return tasks.filter((t) => t.state !== 'done' && t.blocksDelivery).map((t) => t.blocksDelivery!);
 }
+
+/**
+ * Runbook tasks follow the catalog (rule MET-02): a code task is done the moment the codes
+ * exist, whoever added them, so the runbook never asks for something already there.
+ */
+export function syncTaskState(title: string, state: TaskState, catalog: { codesAssigned: boolean }): TaskState {
+  if (/\bISRC\b.*\bUPC\b|\bUPC\b.*\bISRC\b/i.test(title) && catalog.codesAssigned) return 'done';
+  return state;
+}
