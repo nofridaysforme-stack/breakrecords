@@ -1,11 +1,13 @@
 import 'server-only';
-import type { ApprovalState, ApprovalSummary, Decision, Proposal } from '@breakrecords/contract';
+import type { ApprovalChecksResponse, ApprovalState, ApprovalSummary, Decision, Proposal } from '@breakrecords/contract';
+import { gate, runChecks, type CheckResult } from '@breakrecords/core/checks';
 import { bulkApprove, decide, propose, undo, type ApprovalsState, type Outcome } from '@breakrecords/core/approvals';
 import { withTenant, type Tx } from '@breakrecords/db/client';
 import type { ApprovalDetail } from '@/data/types';
 import { sql } from '../db';
 import type { RequestContext } from '../context';
 import type { ApprovalsBackend } from '../approvals';
+import { liveFacts, todayIso } from './checks';
 
 type Row = {
   id: string; origin: 'agent' | 'user'; type: ApprovalSummary['type']; title: string; agent: string; due: string; impact: string;
@@ -52,10 +54,13 @@ function mutate(ctx: RequestContext, run: (state: ApprovalsState<Proposal>, rule
     await tx`SELECT pg_advisory_xact_lock(hashtext(${ctx.tenantId}))`;
     const { state, all } = await readState(tx);
     const byId = new Map(all.map((r) => [r.id, r]));
+    // The checks run again now, inside this transaction, on today's data.
+    const checks = await checksIn(tx, all);
     const out = run(state, {
       find: (id) => byId.get(id) ?? state.proposals.find((p) => p.id === id),
       now: Date.now(), by: ctx.userId, newAuditId,
       executed: new Set(all.filter((r) => r.executed_at).map((r) => r.id)),
+      checks: (id) => checks[id] ?? [],
     });
     if (!out.ok) return out;
     const next = out.state;
@@ -86,14 +91,41 @@ function mutate(ctx: RequestContext, run: (state: ApprovalsState<Proposal>, rule
       if (state.decisions[id]) await tx`DELETE FROM approval_decisions WHERE approval_id = ${id}`;
       await tx`INSERT INTO approval_decisions (tenant_id, approval_id, status, reason, decided_by, decided_at, audit_id)
         VALUES (${ctx.tenantId}, ${id}, ${d.status}, ${d.reason ?? null}, ${ctx.userId}, ${new Date(d.at)}, ${d.auditId!})`;
-      await audit(d.auditId!, `approval.${d.status}`, id, d.reason ? { reason: d.reason } : {});
+      // Every rule result goes into the log with the decision, with the inputs it read.
+      const results = checks[id] ?? [];
+      await audit(d.auditId!, `approval.${d.status}`, id, {
+        ...(d.reason ? { [d.status === 'approved' ? 'acceptedWarnings' : 'reason']: d.reason } : {}),
+        ...(results.length ? { checks: results.map((r) => ({ id: r.id, status: r.status, severity: r.severity, message: r.message, inputs: r.inputs })) } : {}),
+      });
     }
     return { ok: true, state: (await readState(tx)).state, auditIds: out.auditIds };
   });
 }
 
+/** Each open agent card's checks, keyed by approval id. */
+async function checksIn(tx: Tx, all: Row[]): Promise<Record<string, CheckResult[]>> {
+  const facts = await liveFacts(tx);
+  const today = todayIso();
+  return Object.fromEntries(all.filter((r) => facts[r.id]).map((r) => [r.id, runChecks(r.type, facts[r.id], today)]));
+}
+
+export function liveChecks(ctx: RequestContext): Promise<ApprovalChecksResponse> {
+  return withTenant(sql, ctx, async (tx) => {
+    const all = await rows(tx);
+    const checks = await checksIn(tx, all);
+    return {
+      today: todayIso(),
+      items: Object.fromEntries(Object.entries(checks).map(([id, results]) => {
+        const g = gate(results);
+        return [id, { results, canApprove: !g.blocks.length, needsReason: g.warns.length > 0 }];
+      })),
+    };
+  });
+}
+
 export function liveApprovals(ctx: RequestContext): ApprovalsBackend {
   return {
+    checks: () => liveChecks(ctx),
     state: () => withTenant(sql, ctx, async (tx) => (await readState(tx)).state satisfies ApprovalState),
     decide: (id, cmd) => mutate(ctx, (s, r) => decide(s, id, cmd, r)),
     bulkApprove: (ids) => mutate(ctx, (s, r) => bulkApprove(s, ids, r)),

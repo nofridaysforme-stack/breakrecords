@@ -1,6 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
+/** The sample cards fail their checks on purpose; tests of the approve flow itself turn checks off. */
+const checksOff = (page: Page, baseURL?: string) => page.context().addCookies([{ name: 'br_checks', value: 'off', url: baseURL ?? 'http://localhost:3100' }]);
+
 
 /** The Approvals count in the sidebar (desktop) or tab bar (phone). */
 async function badge(page: Page) {
@@ -35,7 +38,8 @@ test('onboarding runs start to finish and lands on Home with the goal box', asyn
   await expect(page.getByLabel('Your goal')).toBeVisible();
 });
 
-test('approving from Home lowers the count everywhere, and Undo restores it', async ({ page }) => {
+test('approving from Home lowers the count everywhere, and Undo restores it', async ({ page, baseURL }) => {
+    await checksOff(page, baseURL);
   await page.goto('/');
   await expect.poll(() => badge(page)).toBe(4);
   await page.getByRole('article', { name: 'Payout batch for October' }).getByRole('button', { name: 'Approve' }).click();
@@ -53,7 +57,8 @@ test('approving from Home lowers the count everywhere, and Undo restores it', as
 test.describe('desktop only', () => {
   test.beforeEach(({ page }) => test.skip(isPhone(page), 'Desktop layout'));
 
-  test('bulk approve takes low-risk items only, never signatures', async ({ page }) => {
+  test('bulk approve takes low-risk items only, never signatures', async ({ page, baseURL }) => {
+    await checksOff(page, baseURL);
     await page.goto('/approvals');
     await expect(page.getByRole('checkbox', { name: /Producer agreement/ })).toBeDisabled();
     await page.getByRole('checkbox', { name: /Payout batch/ }).check();
@@ -86,7 +91,8 @@ test.describe('desktop only', () => {
     await expect.poll(() => badge(page)).toBe(3);
   });
 
-  test('keyboard A approves on the detail page; typing in a field does not', async ({ page }) => {
+  test('keyboard A approves on the detail page; typing in a field does not', async ({ page, baseURL }) => {
+    await checksOff(page, baseURL);
     await page.goto('/approvals/apr_payout_oct');
     await page.getByRole('heading', { level: 1 }).click();
     await page.keyboard.press('a');
@@ -100,7 +106,8 @@ test.describe('desktop only', () => {
     await expect(page.getByLabel(/Why are you rejecting this/)).toHaveCount(0);
   });
 
-  test('a filing cannot be approved until every fact is confirmed', async ({ page }) => {
+  test('a filing cannot be approved until every fact is confirmed', async ({ page, baseURL }) => {
+    await checksOff(page, baseURL);
     await page.goto('/approvals/apr_mlc');
     const approve = page.getByRole('button', { name: 'Approve and file' });
     await expect(approve).toBeDisabled();
@@ -140,7 +147,8 @@ test.describe('desktop only', () => {
     await expect(page.getByRole('heading', { name: '8 weeks out' }).locator('..')).toContainText('Jan 22');
   });
 
-  test('keyboard only: inbox, review, approve', async ({ page }) => {
+  test('keyboard only: inbox, review, approve', async ({ page, baseURL }) => {
+    await checksOff(page, baseURL);
     await page.goto('/approvals');
     const review = page.getByRole('article', { name: 'MLC registration for 3 songs' }).getByRole('link', { name: 'Review' });
     for (let i = 0; i < 60 && !(await review.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press('Tab');
@@ -163,7 +171,8 @@ test.describe('desktop only', () => {
 test.describe('phone only', () => {
   test.beforeEach(({ page }) => test.skip(!isPhone(page), 'Phone layout'));
 
-  test('phone inbox: chips filter, big buttons, one more below', async ({ page }) => {
+  test('phone inbox: chips filter, big buttons, one more below', async ({ page, baseURL }) => {
+    await checksOff(page, baseURL);
     await page.goto('/approvals');
     const approve = page.getByRole('article', { name: 'Payout batch for October' }).getByRole('button', { name: 'Approve' });
     expect((await approve.boundingBox())!.height).toBeGreaterThanOrEqual(46);
@@ -172,4 +181,22 @@ test.describe('phone only', () => {
     await page.getByRole('button', { name: 'Sign 1' }).click();
     await expect(page.getByRole('article')).toHaveCount(1);
   });
+});
+
+test('checks: cards that fail their checks sit under Can’t approve yet, and Approve stays off with the reasons shown', async ({ page }) => {
+  await page.goto('/approvals');
+  const stuck = page.getByRole('region', { name: /Can't approve yet/ }).filter({ visible: true });
+  await expect(stuck.getByRole('article', { name: 'Payout batch for October' })).toContainText('6 checks failed.');
+  await expect(stuck.getByRole('article', { name: 'MLC registration for 3 songs' })).toBeVisible();
+  await expect(stuck.getByRole('article', { name: /arts council/i })).toBeVisible();
+  await expect(page.getByRole('article', { name: /Producer agreement/ })).toBeVisible(); // passes its checks
+  await stuck.getByRole('article', { name: 'Payout batch for October' }).getByRole('button', { name: 'See why' }).click();
+  await expect(page).toHaveURL(/apr_payout_oct/);
+  const checks = page.getByRole('region', { name: 'Checks' });
+  await expect(checks).toContainText('Can’t approve yet: 6 checks failed.');
+  await expect(checks).toContainText('Glasshouse earns $10,000.00 before its Mar 5, 2027 release.');
+  await expect(checks.getByRole('link', { name: 'Open activity' })).toHaveAttribute('href', '/activity');
+  await expect(page.getByRole('button', { name: /^Approve and send/ })).toBeDisabled();
+  await page.goto('/approvals/apr_mlc');
+  await expect(page.getByRole('region', { name: 'Checks' })).toContainText('Can’t check yet');
 });

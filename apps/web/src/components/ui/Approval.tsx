@@ -23,10 +23,12 @@ type CardProps = {
   onApprove?: (id: string) => void;
   /** Phone layout: "home" puts the due date in the eyebrow (2h), "inbox" after the impact (2i). */
   phone?: 'home' | 'inbox';
+  /** A failed check blocks it: no Approve here, only the way to see why. */
+  cantApprove?: boolean;
 };
 
 /** Default card (2c). Signature cards send you to the agreement instead of approving in place. */
-export function ApprovalCard({ approval: a, reviewHref, onApprove, phone = 'home' }: CardProps) {
+export function ApprovalCard({ approval: a, reviewHref, onApprove, phone = 'home', cantApprove = false }: CardProps) {
   const titleId = `apr-${a.id}-title`;
   const sig = a.type === 'signature';
   return (
@@ -39,7 +41,9 @@ export function ApprovalCard({ approval: a, reviewHref, onApprove, phone = 'home
       <p className={s.meta}>{a.agent} · due {a.due}</p>
       <p className={s.impact}>{a.impact}<span className={s.impactDue}> · due {a.due}</span></p>
       <div className={s.actions}>
-        {sig ? (
+        {cantApprove ? (
+          <ButtonLink href={reviewHref} variant="primary">Can&apos;t approve yet · See why</ButtonLink>
+        ) : sig ? (
           <>
             {/* Signatures are never approved from a card: review the agreement first. */}
             <ButtonLink href={reviewHref} variant="primary">Review</ButtonLink>

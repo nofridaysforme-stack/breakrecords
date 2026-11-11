@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ApprovalError, CodesResponse, DocumentsResponse, ApprovalState, ContractsResponse, OnboardingResponse, DepartmentError, DepartmentsResponse, ENDPOINTS, SettingsError, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
+import { ApprovalChecksResponse, ApprovalError, CodesResponse, DocumentsResponse, ApprovalState, ContractsResponse, OnboardingResponse, DepartmentError, DepartmentsResponse, ENDPOINTS, SettingsError, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, PayoutError, PayoutsResponse, ProfileClaimsResponse, Recording, RecoupmentResponse, RoyaltiesResponse, SplitError, SplitNodeResponse, StatementError } from '@breakrecords/contract';
 
 // The API contract over HTTP. Any server behind the UI, mock or live, must pass this file.
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
@@ -19,14 +19,33 @@ test.describe('approval writes', () => {
 
   test('approve, then undo', async ({ request }) => {
     expect((await state(request)).decisions).toEqual({});
-    const res = await request.post('/api/approvals/apr_mlc/decision', { data: { action: 'approve' } });
+    const res = await request.post('/api/approvals/apr_producer/decision', { data: { action: 'approve' } });
     expect(res.status()).toBe(200);
     const s = ApprovalState.parse(await res.json());
-    expect(s.decisions.apr_mlc).toMatchObject({ status: 'approved', by: 'you' });
-    expect(s.decisions.apr_mlc.auditId).toMatch(/^AUD-/);
-    expect((await state(request)).decisions.apr_mlc.status).toBe('approved');
-    const undone = await request.delete('/api/approvals/apr_mlc/decision');
-    expect(ApprovalState.parse(await undone.json()).decisions.apr_mlc).toBeUndefined();
+    expect(s.decisions.apr_producer).toMatchObject({ status: 'approved', by: 'you' });
+    expect(s.decisions.apr_producer.auditId).toMatch(/^AUD-/);
+    expect((await state(request)).decisions.apr_producer.status).toBe('approved');
+    const undone = await request.delete('/api/approvals/apr_producer/decision');
+    expect(ApprovalState.parse(await undone.json()).decisions.apr_producer).toBeUndefined();
+  });
+
+  test('checks: the October payout, the MLC filing and the grant can’t be approved yet, with named reasons', async ({ request }) => {
+    const c = ApprovalChecksResponse.parse(await (await request.get('/api/approvals/checks')).json());
+    const failed = (id: string) => c.items[id].results.filter((r) => r.status === 'fail' && r.severity === 'block').map((r) => r.id);
+    expect(c.items.apr_payout_oct.canApprove).toBe(false);
+    expect(failed('apr_payout_oct')).toEqual(['ROY-01', 'ROY-03', 'ROY-04', 'ROY-05', 'ROY-06', 'ROY-07']);
+    expect(c.items.apr_payout_oct.results.find((r) => r.id === 'ROY-04')?.message).toContain('Glasshouse earns $10,000.00 before its Mar 5, 2027 release');
+    expect(c.items.apr_mlc.canApprove).toBe(false);
+    expect(failed('apr_mlc')).toEqual(['PUB-01', 'PUB-03']);
+    expect(c.items.apr_mlc.results.find((r) => r.id === 'PUB-02')?.status).toBe('unknown'); // can't check yet, never blocks
+    expect(c.items.apr_grant.canApprove).toBe(false);
+    expect(failed('apr_grant')).toEqual(['FUN-03']);
+    expect(c.items.apr_producer).toMatchObject({ canApprove: true, needsReason: false });
+    // The server refuses too, whatever the screen shows.
+    const res = await request.post('/api/approvals/apr_payout_oct/decision', { data: { action: 'approve' } });
+    expect(res.status()).toBe(409);
+    expect(ApprovalError.parse(await res.json())).toMatchObject({ error: 'blocked', ids: ['apr_payout_oct'] });
+    expect((await state(request)).decisions).toEqual({});
   });
 
   test('a rejection without a reason is refused', async ({ request }) => {
@@ -42,8 +61,13 @@ test.describe('approval writes', () => {
     expect(res.status()).toBe(409);
     expect(ApprovalError.parse(await res.json())).toMatchObject({ error: 'not_bulk_approvable', ids: ['apr_producer'] });
     expect((await state(request)).decisions).toEqual({});
-    const ok = await request.post('/api/approvals/decisions', { data: { action: 'approve', ids: ['apr_payout_oct', 'apr_mlc'] } });
-    expect(Object.keys(ApprovalState.parse(await ok.json()).decisions).sort()).toEqual(['apr_mlc', 'apr_payout_oct']);
+    // Cards with failed checks are never bulk approved either.
+    const stuck = await request.post('/api/approvals/decisions', { data: { action: 'approve', ids: ['apr_payout_oct', 'apr_mlc'] } });
+    expect(ApprovalError.parse(await stuck.json())).toMatchObject({ error: 'blocked', ids: ['apr_payout_oct', 'apr_mlc'] });
+    const plan = (id: string) => ({ id, type: 'plan', title: id, agent: 'Label Head', due: 'Jan 22', impact: 'x', risk: 'low', href: '/releases/rel_glasshouse' });
+    for (const id of ['plan_a', 'plan_b']) await request.post('/api/approvals', { data: { proposal: plan(id) } });
+    const ok = await request.post('/api/approvals/decisions', { data: { action: 'approve', ids: ['plan_a', 'plan_b'] } });
+    expect(Object.keys(ApprovalState.parse(await ok.json()).decisions).sort()).toEqual(['plan_a', 'plan_b']);
   });
 
   test('unknown ids and malformed bodies are refused with the contract error shape', async ({ request }) => {
@@ -69,7 +93,7 @@ test.describe('approval writes', () => {
     const a = await playwright.request.newContext({ baseURL });
     const b = await playwright.request.newContext({ baseURL });
     await a.get('/api/approvals/state');
-    await a.post('/api/approvals/apr_mlc/decision', { data: { action: 'approve' } });
+    expect((await a.post('/api/approvals/apr_producer/decision', { data: { action: 'approve' } })).status()).toBe(200);
     expect((await state(b)).decisions).toEqual({});
     await a.dispose(); await b.dispose();
   });

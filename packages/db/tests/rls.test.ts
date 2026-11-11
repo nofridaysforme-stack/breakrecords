@@ -644,6 +644,19 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       await expect(app`SELECT app_workspace_defaults(${ids.a}, 'x')`).rejects.toThrow(/permission denied/);
     });
   });
+  describe('audit flags', () => {
+    it('the label’s owners and team read and raise flags; payees and other labels can’t; resolving is the only change', async () => {
+      const [rec] = await owner`INSERT INTO recordings (tenant_id, slug, title, artist_id) VALUES (${ids.a}, 'flagged', 'Flagged',
+        (SELECT id FROM parties WHERE tenant_id = ${ids.a} LIMIT 1)) RETURNING id`;
+      await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`INSERT INTO audit_flags (tenant_id, recording_id, kind, note) VALUES (${ids.a}, ${rec.id}, 'stream_spike', 'spike')`);
+      expect(await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`SELECT note FROM audit_flags`)).toEqual([{ note: 'spike' }]);
+      expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT 1 FROM audit_flags`)).toHaveLength(0);
+      expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT 1 FROM audit_flags`)).toHaveLength(0);
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`UPDATE audit_flags SET note = 'changed'`)).rejects.toThrow(/permission denied/);
+      await expect(withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`DELETE FROM audit_flags`)).rejects.toThrow(/permission denied/);
+      await withTenant(app, { userId: ids.ua, tenantId: ids.a }, (tx) => tx`UPDATE audit_flags SET resolved_at = now(), resolved_by = ${ids.ua}, resolution = 'Distributor confirmed'`);
+    });
+  });
   describe('ISRC and UPC prefixes', () => {
     let partyA2 = '';
     beforeAll(async () => {

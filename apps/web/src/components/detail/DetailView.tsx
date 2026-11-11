@@ -13,6 +13,7 @@ import { approvalTypeLabel, RiskFlag, TypeGlyph } from '@/components/ui/Status';
 import { Eyebrow } from '@/components/type/Type';
 import { cx } from '@/components/ui/cx';
 import { useDecisions } from '@/data/decisions';
+import { ChecksPanel } from './ChecksPanel';
 import type { ApplicationBody, ApprovalDetail, ContractBody, FilingBody, PayoutBody } from '@/data/types';
 import { formatMoney } from '@breakrecords/core/money';
 import s from './Detail.module.css';
@@ -23,8 +24,13 @@ const isTyping = (el: EventTarget | null) =>
   el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
 
 export function DetailView({ detail: d, next }: Props) {
-  const { decisions, approve, reject, undo } = useDecisions();
+  const { decisions, approve, reject, undo, checks } = useDecisions();
   const decision = decisions[d.id];
+  const mine = checks?.[d.id];
+  const [accepting, setAccepting] = useState(false);
+  const [acceptReason, setAcceptReason] = useState('');
+  const [acceptError, setAcceptError] = useState(false);
+  const acceptRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState('');
@@ -42,17 +48,30 @@ export function DetailView({ detail: d, next }: Props) {
   // ----- what can be approved right now -----
   let blockReason: string | null = null;
   let primary = d.primaryLabel;
-  if (d.body.kind === 'filing' && facts.some((f) => !f)) blockReason = `Confirm all ${facts.length} facts to file.`;
+  // The precondition engine: a failed Block check keeps Approve off, whatever else is true.
+  const failed = mine?.results.filter((r) => r.status === 'fail' && r.severity === 'block').length ?? 0;
+  if (mine && !mine.canApprove) blockReason = `Can’t approve yet: ${failed} ${failed === 1 ? 'check' : 'checks'} failed. See Checks.`;
+  else if (d.body.kind === 'filing' && facts.some((f) => !f)) blockReason = `Confirm all ${facts.length} facts to file.`;
   // 2f keeps Approve enabled; any term you haven't decided goes out as drafted, and we say so.
   const undecided = d.body.kind === 'contract' ? d.body.flags.filter((f) => !choices[f.id]).length : 0;
   if (d.body.kind === 'payout') {
     const body = d.body;
     const total = body.payees.filter((p) => !held.has(p.name)).reduce((a, p) => a + p.net, 0);
     if (held.size) primary = `Approve and send ${formatMoney(total)}`;
-    if (held.size === body.payees.length) blockReason = 'Every payee is on hold. Release at least one to send.';
+    if (!blockReason && held.size === body.payees.length) blockReason = 'Every payee is on hold. Release at least one to send.';
   }
 
-  const doApprove = useCallback(() => { if (!blockReason && !decision) approve([d.id]); }, [blockReason, decision, approve, d.id]);
+  const needsReason = Boolean(mine?.needsReason);
+  const doApprove = useCallback(() => {
+    if (blockReason || decision) return;
+    // Failed Warn checks: approving needs a typed reason, kept in the activity log.
+    if (needsReason) { setAccepting(true); setTimeout(() => acceptRef.current?.focus(), 0); return; }
+    approve([d.id]);
+  }, [blockReason, decision, needsReason, approve, d.id]);
+  const submitAccept = () => {
+    if (!acceptReason.trim()) { setAcceptError(true); acceptRef.current?.focus(); return; }
+    approve([d.id], acceptReason); setAccepting(false);
+  };
   const openReject = useCallback(() => { setRejecting(true); setTimeout(() => reasonRef.current?.focus(), 0); }, []);
   const submitReject = () => {
     if (!reason.trim()) { setReasonError(true); reasonRef.current?.focus(); return; }
@@ -63,7 +82,7 @@ export function DetailView({ detail: d, next }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === 'Escape') { setRejecting(false); return; }
+      if (e.key === 'Escape') { setRejecting(false); setAccepting(false); return; }
       if (isTyping(e.target) || decision) return;
       const k = e.key.toLowerCase();
       if (k === 'a') { e.preventDefault(); doApprove(); }
@@ -123,6 +142,20 @@ export function DetailView({ detail: d, next }: Props) {
         {next && <ButtonLink href={`/approvals/${next.id}`} variant="primary">Next: {next.title}</ButtonLink>}
       </div>
     </div>
+  ) : accepting ? (
+    <form className={s.rejectForm} onSubmit={(e) => { e.preventDefault(); submitAccept(); }} aria-label="Accept warnings with a reason">
+      <label className={s.label} htmlFor="accept-reason">Why are you approving despite the {mine?.results.filter((r) => r.status === 'fail' && r.severity === 'warn').map((r) => r.id).join(', ')} warning? It’s kept with your decision.</label>
+      <textarea
+        id="accept-reason" ref={acceptRef} className={s.textarea} value={acceptReason}
+        onChange={(e) => { setAcceptReason(e.target.value); setAcceptError(false); }}
+        aria-invalid={acceptError} aria-describedby={acceptError ? 'accept-error' : undefined}
+      />
+      {acceptError && <p id="accept-error" className={s.error} role="alert">! A reason is required to accept a warning.</p>}
+      <div className={s.rejectRow}>
+        <Button type="submit" variant="primary" size="lg" style={{ marginLeft: 0 }}>{primary}</Button>
+        <Button size="lg" onClick={() => { setAccepting(false); setAcceptError(false); }}>Cancel</Button>
+      </div>
+    </form>
   ) : rejecting ? (
     <form className={s.rejectForm} onSubmit={(e) => { e.preventDefault(); submitReject(); }} aria-label="Reject with reason">
       <label className={s.label} htmlFor="reason">Why are you rejecting this? {d.agent} uses your reason to redo it.</label>
@@ -199,6 +232,7 @@ export function DetailView({ detail: d, next }: Props) {
             <dl className={s.plainGrid}>{body.plain.map(([k, v]) => <div key={k} style={{ display: 'contents' }}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
           </section>
           <ContractFlags body={body} choices={choices} setChoices={setChoices} />
+          {mine && <ChecksPanel results={mine.results} />}
           {editNote}
           {actions}
         </div>
@@ -225,6 +259,7 @@ export function DetailView({ detail: d, next }: Props) {
         {d.body.kind === 'payout' && <PayoutBodyView body={d.body} editing={mode === 'edit' && !decision} held={held} setHeld={setHeld} />}
         {d.body.kind === 'filing' && <FilingBodyView body={d.body} facts={facts} setFacts={setFacts} locked={Boolean(decision)} />}
         {d.body.kind === 'application' && <ApplicationBodyView body={d.body} editing={mode === 'edit' && !decision} />}
+        {mine && <ChecksPanel results={mine.results} />}
         {editNote}
         {actions}
       </div>

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 import { MAILBOX } from '../../playwright.live.config';
@@ -34,22 +34,60 @@ test('Northline sees its own approvals and none of Harbor Sound’s', async ({ p
 
 test('a decision is saved for the label: a teammate sees it, and it survives sign-out', async ({ page, browser }) => {
   await signIn(page, USERS.owner);
-  await page.goto('/approvals/apr_mlc');
-  // A filing can't be approved until each fact is confirmed.
-  for (const box of await page.getByRole('main').getByRole('checkbox').all()) await box.check();
-  await page.getByRole('button', { name: 'Approve and file' }).click();
-  await expect.poll(async () => ApprovalState.parse(await (await page.request.get('/api/approvals/state')).json()).decisions.apr_mlc?.status).toBe('approved');
+  await page.request.delete('/api/approvals/apr_producer/decision');
+  await page.goto('/approvals/apr_producer');
+  await page.getByRole('button', { name: 'Approve and send for signature' }).click();
+  await expect.poll(async () => ApprovalState.parse(await (await page.request.get('/api/approvals/state')).json()).decisions.apr_producer?.status).toBe('approved');
 
   const other = await browser.newContext();
   const jana = await other.newPage();
   await signIn(jana, USERS.jana);
   const state = ApprovalState.parse(await (await jana.request.get('/api/approvals/state')).json());
-  expect(state.decisions.apr_mlc).toMatchObject({ status: 'approved' });
-  expect(state.decisions.apr_mlc.auditId).toMatch(/^AUD-[0-9A-F]{4}-\d{4}$/);
+  expect(state.decisions.apr_producer).toMatchObject({ status: 'approved' });
+  expect(state.decisions.apr_producer.auditId).toMatch(/^AUD-[0-9A-F]{4}-\d{4}$/);
   // Undo from the teammate's session clears it for everyone.
-  expect((await jana.request.delete('/api/approvals/apr_mlc/decision')).status()).toBe(200);
+  expect((await jana.request.delete('/api/approvals/apr_producer/decision')).status()).toBe(200);
   await other.close();
-  expect(ApprovalState.parse(await (await page.request.get('/api/approvals/state')).json()).decisions.apr_mlc).toBeUndefined();
+  expect(ApprovalState.parse(await (await page.request.get('/api/approvals/state')).json()).decisions.apr_producer).toBeUndefined();
+});
+
+test('checks: the October payout, MLC filing and grant can’t be approved yet; the server refuses; fixing the data clears a rule', async ({ page }) => {
+  await signIn(page, USERS.owner);
+  const checks = async () => ApprovalChecksResponse.parse(await (await page.request.get('/api/approvals/checks')).json());
+  const c = await checks();
+  const failed = (id: string) => c.items[id].results.filter((r) => r.status === 'fail' && r.severity === 'block').map((r) => r.id);
+  expect(c.today).toBe(new Date().toISOString().slice(0, 10)); // the real date, not the sample's
+  expect(failed('apr_payout_oct')).toEqual(['ROY-01', 'ROY-03', 'ROY-04', 'ROY-05', 'ROY-06', 'ROY-07']);
+  const msg = (id: string, rule: string) => c.items[id].results.find((r) => r.id === rule)!.message;
+  expect(msg('apr_payout_oct', 'ROY-01')).toContain('Marco Dela’s producer agreement, Glasshouse isn’t signed yet.');
+  expect(msg('apr_payout_oct', 'ROY-06')).toContain('Marco Dela (3%) is paid $285.00, but Ari Monroe (4.85%) is paid $260.75');
+  expect(msg('apr_payout_oct', 'ROY-07')).toContain('Night Bus has an open audit flag');
+  expect(failed('apr_mlc')).toEqual(['PUB-01', 'PUB-03']);
+  expect(msg('apr_mlc', 'PUB-01')).toContain('Glasshouse’s split sheet has 1 of 2 signatures.');
+  expect(failed('apr_grant')).toEqual(['FUN-03']);
+  expect(c.items.apr_producer.canApprove).toBe(true);
+
+  // Refused on the server, whatever the screen shows, and nothing is recorded.
+  const res = await page.request.post('/api/approvals/apr_payout_oct/decision', { data: { action: 'approve' } });
+  expect(res.status()).toBe(409);
+  expect(ApprovalError.parse(await res.json())).toMatchObject({ error: 'blocked', ids: ['apr_payout_oct'] });
+  await page.goto('/approvals');
+  await expect(page.getByRole('region', { name: /Can't approve yet/ }).filter({ visible: true }).getByRole('article', { name: 'Payout batch for October' })).toBeVisible();
+
+  // Resolving the audit flag clears ROY-07 on the next run; the rest still hold.
+  const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+  await db`UPDATE audit_flags SET resolved_at = now(), resolution = 'Distributor confirmed the streams'`;
+  const after = await checks();
+  expect(after.items.apr_payout_oct.results.find((r) => r.id === 'ROY-07')!.status).toBe('pass');
+  await db`UPDATE audit_flags SET resolved_at = NULL, resolution = NULL`;
+
+  // An approval is logged with every rule result and the inputs it read.
+  await page.request.delete('/api/approvals/apr_producer/decision');
+  expect((await page.request.post('/api/approvals/apr_producer/decision', { data: { action: 'approve' } })).status()).toBe(200);
+  const [ev] = await db<{ data: { checks: { id: string; status: string; inputs: string[] }[] } }[]>`SELECT data FROM audit_events WHERE kind = 'approval.approved' AND ref = 'apr_producer' ORDER BY id DESC LIMIT 1`;
+  await db.end();
+  expect(ev.data.checks).toEqual([expect.objectContaining({ id: 'LEG-06', status: 'pass' })]);
+  await page.request.delete('/api/approvals/apr_producer/decision');
 });
 
 test('cross-tenant: Harbor Sound can’t read or decide Northline’s approvals', async ({ page }) => {
@@ -87,7 +125,7 @@ test('payees only see the portal and cannot decide', async ({ page }) => {
   await signIn(page, USERS.payee, { into: 'Northline Records' });
   await page.goto('/approvals');
   await expect(page).toHaveURL(/\/portal/);
-  const res = await page.request.post('/api/approvals/apr_mlc/decision', { data: { action: 'approve' } });
+  const res = await page.request.post('/api/approvals/apr_producer/decision', { data: { action: 'approve' } });
   expect(res.status()).toBe(403);
 });
 

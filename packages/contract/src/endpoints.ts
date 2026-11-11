@@ -1,7 +1,7 @@
 // Every GET the UI makes, with the schema its response must satisfy. The same list runs against
 // the mock server now and the live server later (strategy: "Contract tests").
 import type { z } from 'zod';
-import { ApprovalState, ApprovalsResponse } from './approvals';
+import { ApprovalChecksResponse, ApprovalState, ApprovalsResponse } from './approvals';
 import * as R from './read';
 
 export type Endpoint = { path: string; schema: z.ZodType; module: Module };
@@ -14,6 +14,7 @@ export const ENDPOINTS: Endpoint[] = [
   { path: '/api/home', schema: R.HomeResponse, module: 'approvals' },
   { path: '/api/approvals', schema: ApprovalsResponse, module: 'approvals' },
   { path: '/api/approvals/state', schema: ApprovalState, module: 'approvals' },
+  { path: '/api/approvals/checks', schema: ApprovalChecksResponse, module: 'approvals' },
   { path: '/api/approvals/apr_payout_oct', schema: R.ApprovalDetailResponse, module: 'approvals' },
   { path: '/api/approvals/apr_producer', schema: R.ApprovalDetailResponse, module: 'approvals' },
   { path: '/api/approvals/apr_mlc', schema: R.ApprovalDetailResponse, module: 'approvals' },
