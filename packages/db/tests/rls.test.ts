@@ -421,6 +421,16 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       await owner`DELETE FROM split_nodes WHERE id = ${n}`;
     });
 
+    it('an imported file is recorded once per workspace, and only the team sees imports', async () => {
+      const sha = 'a'.repeat(64);
+      await asOwner((tx) => tx`INSERT INTO statement_files (tenant_id, file_sha256, file_name, provider, imported_by) VALUES (${ids.a}, ${sha}, 'x.csv', 'DistroKid', ${ids.ua})`);
+      await expect(asOwner((tx) => tx`INSERT INTO statement_files (tenant_id, file_sha256, file_name, provider) VALUES (${ids.a}, ${sha}, 'y.csv', 'DistroKid')`)).rejects.toThrow(/duplicate key/);
+      expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT 1 FROM statement_files`)).toHaveLength(0);
+      expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT 1 FROM statement_files`)).toHaveLength(0);
+      // Another workspace can import the same file for itself.
+      await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`INSERT INTO statement_files (tenant_id, file_sha256, file_name, provider) VALUES (${ids.b}, ${sha}, 'x.csv', 'DistroKid')`);
+    });
+
     it('another label sees none of it and can’t point at it', async () => {
       for (const t of ['payout_batches', 'payout_lines', 'payees', 'recoupment_accounts']) {
         expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx.unsafe(`SELECT 1 FROM ${t}`))).toHaveLength(0);

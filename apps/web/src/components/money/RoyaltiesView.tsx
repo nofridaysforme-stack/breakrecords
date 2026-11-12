@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { CircleAlert, X } from 'lucide-react';
 import { PageTitle } from '@/components/type/Type';
@@ -45,7 +46,7 @@ export function RoyaltiesView({ data: initial }: { data: typeof R }) {
   return (
     <>
       <div className={s.head}>
-        <div><PageTitle>Royalties</PageTitle><p className={s.sub}>{data.period} · {artist === 'All' ? 'all artists' : artist}</p></div>
+        <div><PageTitle>Royalties</PageTitle><p className={s.sub}>{data.period} · {artist === 'All' ? 'all artists' : artist} · <Link href="/money/import" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>Import a statement</Link></p></div>
         <div className={s.filters}>
           <Filter label="Period" value="Oct 2026" options={['Oct 2026']} onChange={() => undefined} />
           <Filter label="Artist" value={artist} options={['All', ...data.byArtist.map((x) => x.name)]} onChange={setArtist} />

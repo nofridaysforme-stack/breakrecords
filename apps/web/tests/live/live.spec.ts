@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse, SplitVersionsResponse } from '@breakrecords/contract';
+import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse, SplitVersionsResponse, ImportsResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 import { MAILBOX } from '../../playwright.live.config';
@@ -1320,5 +1320,45 @@ test.describe('your own music and splits (live)', () => {
     await signIn(harbor, USERS.harbor);
     expect((await harbor.request.get(`/api/splits/${node}/versions`)).status()).toBe(404);
     expect((await harbor.request.delete('/api/catalog/releases/harbor-lights')).status()).toBe(404);
+  });
+});
+
+test.describe('statement imports (live)', () => {
+  test('a file becomes one statement per month that reconciles to the cent; catalog ISRCs match; once only; team only', async ({ page, browser }) => {
+    await signIn(page, USERS.owner);
+    const file = [
+      'Sales Period\tStore Name\tCountry Of Sale\tArtist\tSong Title\tISRC\t# Units Sold\tTotal Earned',
+      '2025-01\tSpotify\tUS\tKesi Vale\tGlasshouse\tUSNL12600014\t1000\t0.333333',
+      '2025-01\tSpotify\tUS\tKesi Vale\tGlasshouse\tUSNL12600014\t1000\t0.333333',
+      '2025-01\tTidal\tNO\tNobody\tStray\tQZZZZ2500009\t5\t0.333334',
+      '2025-02\tSpotify\tUS\tKesi Vale\tGlasshouse\tUSNL12600014\t10\t1.005',
+    ].join('\n');
+    const res = await page.request.post('/api/money/imports/preview', { data: { provider: 'tunecore', fileName: 'tunecore.tsv', text: file } });
+    const preview = await res.json();
+    expect(preview.mapping).toMatchObject({ title: 'Song Title', amount: 'Total Earned', period: 'Sales Period', isrc: 'ISRC', units: '# Units Sold' });
+    expect(preview.months.map((m: { period: string; total: number; matched: number }) => [m.period, m.total, m.matched])).toEqual([['2025-01-01', 100, 2], ['2025-02-01', 101, 1]]);
+
+    const done = await page.request.post('/api/money/imports', { data: { provider: 'tunecore', fileName: 'tunecore.tsv', text: file, mapping: preview.mapping } });
+    expect(done.status()).toBe(200);
+    const { refs } = (await done.json()) as { refs: string[] };
+    expect(refs).toHaveLength(2);
+    const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+    const rows = await db<{ ref: string; total: string; lines: string; matched: string; source: string; provider: string }[]>`
+      SELECT s.ref, s.total_cents AS total, sum(l.amount_cents) AS lines, count(l.recording_id) AS matched, s.source::text AS source, s.provider
+      FROM income_statements s JOIN income_lines l ON l.statement_id = s.id WHERE s.ref = ANY(${refs}) GROUP BY s.id ORDER BY s.period`;
+    await db.end();
+    expect(rows.map((r) => [Number(r.total), Number(r.lines), Number(r.matched), r.source, r.provider])).toEqual([[100, 100, 2, 'distributor', 'TuneCore'], [101, 101, 1, 'distributor', 'TuneCore']]);
+    expect((await page.request.post('/api/money/imports', { data: { provider: 'tunecore', fileName: 'again.tsv', text: file, mapping: preview.mapping } })).status()).toBe(409);
+    const list = ImportsResponse.parse(await (await page.request.get('/api/money/imports')).json());
+    expect(list.items.slice(0, 2).map((i) => [i.period, i.lines, i.matched, i.total])).toEqual([['February 2025', 1, 1, 101], ['January 2025', 3, 2, 100]]);
+
+    // A payee can't import or see imports; another label sees none of them.
+    const payee = await (await browser.newContext()).newPage();
+    await signIn(payee, USERS.payee, { into: 'Northline Records' });
+    expect((await payee.request.post('/api/money/imports', { data: { provider: 'tunecore', fileName: 'p.tsv', text: file.replace('0.333334', '0.4'), mapping: preview.mapping } })).status()).toBe(403);
+    expect((await payee.request.get('/api/money/imports')).status()).toBe(403);
+    const harbor = await (await browser.newContext()).newPage();
+    await signIn(harbor, USERS.harbor);
+    expect(ImportsResponse.parse(await (await harbor.request.get('/api/money/imports')).json()).items).toEqual([]);
   });
 });
