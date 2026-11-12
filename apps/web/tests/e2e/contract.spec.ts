@@ -19,7 +19,7 @@ test.describe('approval writes', () => {
 
   test('approve, then undo', async ({ request }) => {
     expect((await state(request)).decisions).toEqual({});
-    const res = await request.post('/api/approvals/apr_producer/decision', { data: { action: 'approve' } });
+    const res = await request.post('/api/approvals/apr_producer/decision', { data: { action: 'approve', acceptWarnings: 'Playbook differences reviewed' } });
     expect(res.status()).toBe(200);
     const s = ApprovalState.parse(await res.json());
     expect(s.decisions.apr_producer).toMatchObject({ status: 'approved', by: 'you' });
@@ -29,7 +29,7 @@ test.describe('approval writes', () => {
     expect(ApprovalState.parse(await undone.json()).decisions.apr_producer).toBeUndefined();
   });
 
-  test('checks: the October payout, the MLC filing and the producer agreement pass; the grant can’t be approved until its deadline is re-checked', async ({ request }) => {
+  test('checks: the October payout and the MLC filing pass, the producer agreement needs a reason; the grant can’t be approved until its deadline is re-checked', async ({ request }) => {
     const c = ApprovalChecksResponse.parse(await (await request.get('/api/approvals/checks')).json());
     const failed = (id: string) => c.items[id].results.filter((r) => r.status === 'fail' && r.severity === 'block').map((r) => r.id);
     expect(failed('apr_payout_oct')).toEqual([]);
@@ -38,13 +38,33 @@ test.describe('approval writes', () => {
     expect(failed('apr_mlc')).toEqual([]);
     expect(c.items.apr_mlc.results.find((r) => r.id === 'PUB-02')?.message).toBe('Every writer has a signed, current publishing or admin agreement with you.');
     expect(c.items.apr_mlc.results.find((r) => r.id === 'PUB-06')?.status).toBe('unknown'); // can't check yet, never blocks
-    expect(c.items.apr_producer).toMatchObject({ canApprove: true, needsReason: false });
+    // LEG-01 warns: §4.2 and §5.2 differ from the playbook, so approving needs a reason. LEG-03 and LEG-04 pass.
+    expect(c.items.apr_producer).toMatchObject({ canApprove: true, needsReason: true });
+    expect(c.items.apr_producer.results.filter((r) => r.status === 'fail').map((r) => r.id)).toEqual(['LEG-01']);
+    expect(c.items.apr_producer.results.find((r) => r.id === 'LEG-04')?.status).toBe('pass');
+    expect((await request.post('/api/approvals/apr_producer/decision', { data: { action: 'approve' } })).status()).toBe(400);
     expect(failed('apr_grant')).toEqual(['FUN-03']);
     // The server refuses the grant too, whatever the screen shows.
     const res = await request.post('/api/approvals/apr_grant/decision', { data: { action: 'approve' } });
     expect(res.status()).toBe(409);
     expect(ApprovalError.parse(await res.json())).toMatchObject({ error: 'blocked', ids: ['apr_grant'] });
     expect((await state(request)).decisions).toEqual({});
+  });
+
+  test('checks on proposals: a release date move passes REL-01 to 03; accepting the advance is blocked by FUN-04', async ({ request }) => {
+    const plan = { id: 'plan_move', type: 'plan', title: 'Move Glasshouse', agent: 'Label Head', due: 'Jan 22', impact: 'x', risk: 'dueSoon', href: '/releases/rel_glasshouse', releaseId: 'rel_glasshouse', newDate: '2027-04-16' };
+    const offer = { id: 'offer_advance_accept', type: 'money', title: 'Accept advance', agent: 'Finance Agent', due: 'Dec 1', impact: 'x', risk: 'needsEyes', href: '/funding/offers/compare' };
+    for (const proposal of [plan, offer]) expect((await request.post('/api/approvals', { data: { proposal } })).status()).toBe(200);
+    const c = ApprovalChecksResponse.parse(await (await request.get('/api/approvals/checks')).json());
+    const rows = (id: string) => c.items[id].results.map((r) => [r.id, r.status]);
+    expect(rows('plan_move')).toEqual([['REL-01', 'pass'], ['REL-02', 'pass'], ['REL-03', 'pass']]);
+    expect(c.items.plan_move.canApprove).toBe(true);
+    // The comparison assumes $13,200 a year; the label's statements say far more, so the numbers can't be trusted yet.
+    expect(rows('offer_advance_accept')).toEqual([['FUN-04', 'fail'], ['FUN-05', 'unknown']]);
+    expect(c.items.offer_advance_accept.canApprove).toBe(false);
+    const res = await request.post('/api/approvals/offer_advance_accept/decision', { data: { action: 'approve' } });
+    expect(res.status()).toBe(409);
+    expect(ApprovalError.parse(await res.json())).toMatchObject({ error: 'blocked', ids: ['offer_advance_accept'] });
   });
 
   test('a rejection without a reason is refused', async ({ request }) => {
@@ -90,7 +110,7 @@ test.describe('approval writes', () => {
     const a = await playwright.request.newContext({ baseURL });
     const b = await playwright.request.newContext({ baseURL });
     await a.get('/api/approvals/state');
-    expect((await a.post('/api/approvals/apr_producer/decision', { data: { action: 'approve' } })).status()).toBe(200);
+    expect((await a.post('/api/approvals/apr_producer/decision', { data: { action: 'approve', acceptWarnings: 'Playbook differences reviewed' } })).status()).toBe(200);
     expect((await state(b)).decisions).toEqual({});
     await a.dispose(); await b.dispose();
   });

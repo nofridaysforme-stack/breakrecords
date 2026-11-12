@@ -86,7 +86,43 @@ export type FilingFacts = {
   }[];
 };
 
-export type SignatureFacts = { kind: 'signature' };
+export type SignatureFacts = {
+  kind: 'signature';
+  /** Clauses that differ from the playbook ("§4.2"), which the person decides on the card. */
+  playbookDifferences?: string[];
+  /** Who signs on the other side, and whether the label knows them. */
+  counterparties?: { name: string; legalName: string | null; email: string | null; known: boolean }[];
+  /** Producer points in the draft and the playbook's allowed range, when the deal has points. */
+  points?: number | null;
+  pointsRange?: [number, number] | null;
+  /** When points start: from the first dollar or after recoupment, in the template and in the draft. */
+  royaltyBase?: { template: 'first_dollar' | 'after_recoupment' | null; draft: 'first_dollar' | 'after_recoupment' | null };
+};
+
+/** A plan to move a release date. */
+export type ReleasePlanFacts = {
+  kind: 'release_plan';
+  release: string;
+  newDate: string;
+  /** Days between the editorial pitch and the release, once the plan moves everything. */
+  pitchLeadDays: number | null;
+  /** Gate tasks that keep their place relative to the release (every one, when the plan moves them all). */
+  gatesMoved: boolean;
+  budgetCents: number;
+  spentCents: number;
+};
+
+/** Accepting a funding offer. */
+export type OfferFacts = {
+  kind: 'offer';
+  offer: string;
+  /** The yearly income the offer's projections assume, and what statements show for the last 12 months. */
+  assumedAnnualCents: number;
+  actualAnnualCents: number | null;
+  months: number;
+  /** Repaid from income the label shares with artists, so they should agree first. */
+  sharedWithArtists: boolean;
+};
 
 export type GrantFacts = {
   kind: 'grant';
@@ -95,7 +131,7 @@ export type GrantFacts = {
   fields: { label: string; value: string; limit: number }[];
 };
 
-export type ApprovalFacts = PayoutFacts | FilingFacts | SignatureFacts | GrantFacts;
+export type ApprovalFacts = PayoutFacts | FilingFacts | SignatureFacts | GrantFacts | ReleasePlanFacts | OfferFacts;
 
 // ---------- the registry ----------
 
@@ -106,7 +142,8 @@ type Rule<F extends ApprovalFacts = ApprovalFacts> = {
   facts: F['kind'];
   severity: Severity;
   fix?: { label: string; href: string };
-  check: (f: F, today: string) => { status: CheckStatus; message: string; inputs: string[] };
+  /** A result may soften the rule's severity (REL-01: under 7 days blocks, under 21 warns). */
+  check: (f: F, today: string) => { status: CheckStatus; message: string; inputs: string[]; severity?: Severity };
 };
 
 const names = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
@@ -307,10 +344,100 @@ const PUBLISHING: Rule<FilingFacts>[] = [
   },
 ];
 
+const BASE = { first_dollar: 'from the first dollar', after_recoupment: 'after recoupment' } as const;
 const LEGAL: Rule<SignatureFacts>[] = [
+  {
+    id: 'LEG-01', title: 'Playbook differences decided', appliesTo: ['signature'], facts: 'signature', severity: 'warn',
+    check: (f) => {
+      const d = f.playbookDifferences ?? [];
+      if (!d.length) return pass('Every clause matches your playbook.', []);
+      // Decided on the card: each one goes out with the playbook's wording or as drafted, with a reason.
+      return fail(`${d.length === 1 ? `${d[0]} differs` : `${names(d)} differ`} from your playbook. Choose the playbook wording or keep the draft, and say why.`, d);
+    },
+  },
+  {
+    id: 'LEG-02', title: 'Matches its template', appliesTo: ['signature'], facts: 'signature', severity: 'warn',
+    fix: { label: 'Open contracts', href: '/contracts' },
+    check: (f) => {
+      const b = f.royaltyBase;
+      if (!b?.template || !b.draft) return unknown('The template or the draft doesn’t say when points start, so they can’t be compared.');
+      const inputs = [`template: ${BASE[b.template]}`, `draft: ${BASE[b.draft]}`];
+      return b.template === b.draft ? pass(`The draft and its template both pay ${BASE[b.draft]}.`, inputs)
+        : fail(`The template pays ${BASE[b.template]}, but the draft pays ${BASE[b.draft]}.`, inputs);
+    },
+  },
+  {
+    id: 'LEG-03', title: 'Counterparty details', appliesTo: ['signature'], facts: 'signature', severity: 'block',
+    fix: { label: 'Open roster', href: '/roster' },
+    check: (f) => {
+      const c = f.counterparties ?? [];
+      if (!c.length) return unknown('The agreement doesn’t name anyone on the other side yet.');
+      const inputs = c.map((x) => `${x.name}: legal name ${x.legalName ?? 'missing'}, email ${x.email ? 'on file' : 'missing'}, ${x.known ? 'on the roster or invited' : 'unknown to the label'}`);
+      const bad = c.flatMap((x) => [!x.legalName && `${x.name} has no legal name`, !x.email && `${x.name} has no email`, !x.known && `${x.name} isn’t on your roster or invited`].filter(Boolean) as string[]);
+      return bad.length ? fail(`${bad.join('. ')}.`, inputs) : pass(`${names(c.map((x) => x.name))} ${c.length === 1 ? 'is' : 'are'} on file with a legal name and email.`, inputs);
+    },
+  },
+  {
+    id: 'LEG-04', title: 'Terms within the playbook', appliesTo: ['signature'], facts: 'signature', severity: 'warn',
+    check: (f) => {
+      if (f.points == null || !f.pointsRange) return pass('No numeric terms in this agreement have a playbook range.', []);
+      const [lo, hi] = f.pointsRange;
+      const inputs = [`points: ${f.points}`, `playbook: ${lo} to ${hi}`];
+      return f.points >= lo && f.points <= hi ? pass(`${f.points} points is within your playbook’s ${lo} to ${hi}.`, inputs)
+        : fail(`${f.points} points is outside your playbook’s ${lo} to ${hi}.`, inputs);
+    },
+  },
+  {
+    id: 'LEG-05', title: 'No conflict with signed agreements', appliesTo: ['signature'], facts: 'signature', severity: 'warn',
+    check: () => unknown('Approval rights, exclusivity and option dates in your other signed agreements aren’t compared yet.'),
+  },
   {
     id: 'LEG-06', title: 'Approved one at a time', appliesTo: ['signature'], facts: 'signature', severity: 'block',
     check: () => pass('Signatures are never approved in bulk. This one is approved on its own.'),
+  },
+];
+
+const RELEASE: Rule<ReleasePlanFacts>[] = [
+  {
+    id: 'REL-01', title: 'Editorial pitch in time', appliesTo: ['plan'], facts: 'release_plan', severity: 'block',
+    fix: { label: 'Open the release', href: '/releases' },
+    check: (f) => {
+      if (f.pitchLeadDays == null) return unknown(`${f.release} has no pitch step in its runbook yet.`);
+      const inputs = [`pitch ${f.pitchLeadDays} days before release`];
+      if (f.pitchLeadDays < 7) return fail(`The editorial pitch goes in ${f.pitchLeadDays} days before release. Spotify needs at least 7.`, inputs);
+      if (f.pitchLeadDays < 21) return { ...fail(`The editorial pitch goes in ${f.pitchLeadDays} days before release. Aim for 21 to 28.`, inputs), severity: 'warn' as const };
+      return pass(`The editorial pitch goes in ${f.pitchLeadDays} days before release.`, inputs);
+    },
+  },
+  {
+    id: 'REL-02', title: 'Within the release budget', appliesTo: ['plan'], facts: 'release_plan', severity: 'block',
+    check: (f) => {
+      const inputs = [`budget ${formatMoney(f.budgetCents)}`, `spent ${formatMoney(f.spentCents)}`];
+      return f.spentCents <= f.budgetCents ? pass(`${formatMoney(f.spentCents)} of the ${formatMoney(f.budgetCents)} budget is spent.`, inputs)
+        : fail(`Spending is ${formatMoney(f.spentCents - f.budgetCents)} over the ${formatMoney(f.budgetCents)} budget. Raising it is its own plan.`, inputs);
+    },
+  },
+  {
+    id: 'REL-03', title: 'Every gate date moves', appliesTo: ['plan'], facts: 'release_plan', severity: 'block',
+    check: (f) => (f.gatesMoved ? pass('Every gate and task after today moves with the new date, and each owner is told.', []) : fail('Some gates would keep their old dates.', [])),
+  },
+];
+
+const OFFERS: Rule<OfferFacts>[] = [
+  {
+    id: 'FUN-04', title: 'Projections from real income', appliesTo: ['money', 'plan'], facts: 'offer', severity: 'block',
+    fix: { label: 'Open the comparison', href: '/funding/offers/compare' },
+    check: (f) => {
+      if (f.actualAnnualCents == null) return unknown('There are no statements yet to check the projection against.');
+      const inputs = [`assumed ${formatMoney(f.assumedAnnualCents)} a year`, `statements: ${formatMoney(f.actualAnnualCents)} a year (${f.months} month${f.months === 1 ? '' : 's'})`];
+      const off = Math.abs(f.assumedAnnualCents - f.actualAnnualCents) / Math.max(1, f.actualAnnualCents);
+      return off <= 0.25 ? pass(`The projection assumes ${formatMoney(f.assumedAnnualCents)} a year, in line with your statements.`, inputs)
+        : fail(`The projection assumes ${formatMoney(f.assumedAnnualCents)} a year, but your statements show about ${formatMoney(f.actualAnnualCents)} a year. Update the assumption and re-compare before accepting.`, inputs);
+    },
+  },
+  {
+    id: 'FUN-05', title: 'Artists agree first', appliesTo: ['money', 'plan'], facts: 'offer', severity: 'block',
+    check: (f) => (f.sharedWithArtists ? unknown('This is repaid from income you share with artists. Their consent isn’t recorded in the app yet; get it in writing first.') : pass('Repaid only from the label’s own share.', [])),
   },
 ];
 
@@ -346,7 +473,7 @@ const FUNDING: Rule<GrantFacts>[] = [
   },
 ];
 
-export const RULES: Rule[] = [...ROYALTIES, ...PUBLISHING, ...LEGAL, ...FUNDING] as Rule[];
+export const RULES: Rule[] = [...ROYALTIES, ...PUBLISHING, ...LEGAL, ...RELEASE, ...OFFERS, ...FUNDING] as Rule[];
 
 /** Every rule that applies to this card, with its result. No facts means no rules apply. */
 export function runChecks(type: ApprovalKind, facts: ApprovalFacts | null | undefined, today: string): CheckResult[] {

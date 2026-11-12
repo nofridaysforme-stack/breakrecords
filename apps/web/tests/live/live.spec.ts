@@ -36,6 +36,10 @@ test('a decision is saved for the label: a teammate sees it, and it survives sig
   await signIn(page, USERS.owner);
   await page.request.delete('/api/approvals/apr_producer/decision');
   await page.goto('/approvals/apr_producer');
+  // The two flagged terms are decided on the card, so those choices are the reason LEG-01 asks for.
+  const terms = page.getByRole('button', { name: 'Use playbook wording' });
+  await expect(terms).toHaveCount(2);
+  for (const b of await terms.all()) await b.click();
   await page.getByRole('button', { name: 'Approve and send for signature' }).click();
   await expect.poll(async () => ApprovalState.parse(await (await page.request.get('/api/approvals/state')).json()).decisions.apr_producer?.status).toBe('approved');
 
@@ -94,10 +98,11 @@ test('checks: the clean demo passes, the grant waits on a deadline check, and br
 
   // An approval is logged with every rule result and the inputs it read.
   await page.request.delete('/api/approvals/apr_producer/decision');
-  expect((await page.request.post('/api/approvals/apr_producer/decision', { data: { action: 'approve' } })).status()).toBe(200);
-  const [ev] = await db<{ data: { checks: { id: string; status: string; inputs: string[] }[] } }[]>`SELECT data FROM audit_events WHERE kind = 'approval.approved' AND ref = 'apr_producer' ORDER BY id DESC LIMIT 1`;
+  expect((await page.request.post('/api/approvals/apr_producer/decision', { data: { action: 'approve', acceptWarnings: 'Playbook differences reviewed' } })).status()).toBe(200);
+  const [ev] = await db<{ data: { checks: { id: string; status: string; inputs: string[] }[]; acceptedWarnings?: string } }[]>`SELECT data FROM audit_events WHERE kind = 'approval.approved' AND ref = 'apr_producer' ORDER BY id DESC LIMIT 1`;
   await db.end();
-  expect(ev.data.checks).toEqual([expect.objectContaining({ id: 'LEG-06', status: 'pass' })]);
+  expect(ev.data.checks.map((r) => [r.id, r.status])).toEqual([['LEG-01', 'fail'], ['LEG-02', 'pass'], ['LEG-03', 'pass'], ['LEG-04', 'pass'], ['LEG-05', 'unknown'], ['LEG-06', 'pass']]);
+  expect(ev.data).toMatchObject({ acceptedWarnings: 'Playbook differences reviewed' });
   await page.request.delete('/api/approvals/apr_producer/decision');
 });
 
@@ -130,6 +135,29 @@ test('a proposal made in the app is stored and approvable', async ({ page }) => 
   await expect.poll(async () => ApprovalState.parse(await (await page.request.get('/api/approvals/state')).json()).proposals.map((p) => p.id)).toContain('offer_advance_accept');
   await page.goto('/approvals');
   await expect(page.getByText('Accept $8,000 royalty advance').first()).toBeVisible();
+});
+
+test('checks on proposals: a date plan reads the runbook; accepting the advance is blocked until its projection matches real income', async ({ page }) => {
+  await signIn(page, USERS.owner);
+  const plan = { id: 'plan_checks', type: 'plan', title: 'Move Glasshouse', agent: 'Label Head', due: 'Jan 22', impact: 'x', risk: 'dueSoon', href: '/releases/rel_glasshouse', releaseId: 'rel_glasshouse', newDate: '2027-04-16' };
+  const offer = { id: 'offer_advance_accept', type: 'money', title: 'Accept $8,000 royalty advance', agent: 'Finance Agent', due: 'Dec 1', impact: 'x', risk: 'needsEyes', href: '/funding/offers/compare' };
+  for (const proposal of [plan, offer]) expect((await page.request.post('/api/approvals', { data: { proposal } })).status()).toBe(200);
+  const c = ApprovalChecksResponse.parse(await (await page.request.get('/api/approvals/checks')).json());
+  const rows = (id: string) => c.items[id].results.map((r) => [r.id, r.status]);
+  expect(rows('plan_checks')).toEqual([['REL-01', 'pass'], ['REL-02', 'pass'], ['REL-03', 'pass']]);
+  expect(rows('offer_advance_accept')).toEqual([['FUN-04', 'fail'], ['FUN-05', 'unknown']]);
+  const res = await page.request.post('/api/approvals/offer_advance_accept/decision', { data: { action: 'approve' } });
+  expect(res.status()).toBe(409);
+  expect(ApprovalError.parse(await res.json())).toMatchObject({ error: 'blocked', ids: ['offer_advance_accept'] });
+  // A pitch that moves too close to the release blocks the plan: shrink the pitch phase's lead to 5 days.
+  const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+  const [before] = await db<{ offset_days: number }[]>`SELECT p.offset_days FROM runbook_phases p JOIN releases r ON r.id = p.release_id WHERE r.slug = 'rel_glasshouse' AND EXISTS (SELECT 1 FROM runbook_tasks t WHERE t.phase_id = p.id AND t.title ILIKE '%pitch%')`;
+  await db`UPDATE runbook_phases p SET offset_days = -5 FROM releases r WHERE r.id = p.release_id AND r.slug = 'rel_glasshouse' AND EXISTS (SELECT 1 FROM runbook_tasks t WHERE t.phase_id = p.id AND t.title ILIKE '%pitch%')`;
+  const late = ApprovalChecksResponse.parse(await (await page.request.get('/api/approvals/checks')).json());
+  await db`UPDATE runbook_phases p SET offset_days = ${before.offset_days} FROM releases r WHERE r.id = p.release_id AND r.slug = 'rel_glasshouse' AND EXISTS (SELECT 1 FROM runbook_tasks t WHERE t.phase_id = p.id AND t.title ILIKE '%pitch%')`;
+  await db.end();
+  expect(late.items.plan_checks.results.find((r) => r.id === 'REL-01')).toMatchObject({ status: 'fail', severity: 'block' });
+  expect(late.items.plan_checks.canApprove).toBe(false);
 });
 
 test('payees only see the portal and cannot decide', async ({ page }) => {
@@ -476,7 +504,7 @@ test.describe('releases (live)', () => {
     expect(r).toMatchObject({ title: 'Glasshouse', kind: 'Single', artist: 'Kesi Vale', date: '2027-03-05', status: 'onTrack', budget: 300000, spent: 186000 });
     expect(r.phases.map((p) => [p.name, p.iso, p.status])).toEqual([
       ['Now', '2026-11-06', 'now'], ['8 weeks out', '2027-01-08', 'future'], ['6 weeks out', '2027-01-22', 'future'], ['4 weeks out', '2027-02-05', 'future'],
-      ['2 weeks out', '2027-02-19', 'future'], ['Release week', '2027-03-05', 'future'], ['After release', '2027-06-03', 'future'],
+      ['Release week', '2027-03-05', 'future'], ['After release', '2027-06-03', 'future'],
     ]);
     expect(r.phases[1].tasks[0]).toEqual({ title: 'Split sheets signed (2 of 3)', owner: 'Legal', state: 'locked', gate: { owner: 'Legal', waitingOn: 'Marco Dela' } });
     expect(r.assets.map((a) => [a.name, a.ready])).toEqual([['Cover art', true], ['Master WAV', false], ['Instrumental', false], ['Lyrics', true], ['Press photo', true], ['Credits', true]]);
@@ -541,7 +569,7 @@ test.describe('contracts (live)', () => {
   test('approving the producer agreement signs for the label; it then waits on Marco', async ({ page }) => {
     await signIn(page, USERS.owner);
     await page.request.delete('/api/approvals/apr_producer/decision');
-    expect((await page.request.post('/api/approvals/apr_producer/decision', { data: { action: 'approve' } })).status()).toBe(200);
+    expect((await page.request.post('/api/approvals/apr_producer/decision', { data: { action: 'approve', acceptWarnings: 'Playbook differences reviewed' } })).status()).toBe(200);
     const c = await contracts(page);
     expect(c.contracts[0]).toMatchObject({ id: 'ct_producer', sig: '0 of 1 signed', sigState: 'partial', date: null });
     expect(c.summary).toBe('10 active · 0 waiting on signatures · next key date Jan 9');
@@ -604,7 +632,7 @@ test.describe('roster (live)', () => {
   test('once the producer agreement is approved, Marco’s card moves on', async ({ page }) => {
     await signIn(page, USERS.owner);
     await page.request.delete('/api/approvals/apr_producer/decision');
-    await page.request.post('/api/approvals/apr_producer/decision', { data: { action: 'approve' } });
+    await page.request.post('/api/approvals/apr_producer/decision', { data: { action: 'approve', acceptWarnings: 'Playbook differences reviewed' } });
     expect((await roster(page))[2]).toMatchObject({ contract: 'Producer agreement · 0 of 1 signed', open: 'Nothing open' });
     await page.request.delete('/api/approvals/apr_producer/decision');
   });

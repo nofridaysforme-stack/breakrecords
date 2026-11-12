@@ -202,6 +202,23 @@ test('checks: a card that fails its checks sits under Can’t approve yet, and A
   await expect(page.getByRole('region', { name: 'Checks' })).toContainText('Can’t check yet');
 });
 
+test('checks: the producer agreement differs from the playbook, so Approve asks for a reason until every flagged term is decided', async ({ page }) => {
+  await page.goto('/approvals/apr_producer');
+  const approve = page.getByRole('button', { name: 'Approve and send for signature' });
+  await approve.click();
+  await expect(page.getByLabel(/Why are you approving despite the LEG-01 warning/)).toBeFocused();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  // Deciding each flagged term answers LEG-01: the choices are kept as the reason.
+  const terms = page.getByRole('button', { name: 'Use playbook wording' });
+  await expect(terms).toHaveCount(2);
+  for (const b of await terms.all()) await b.click();
+  await approve.click();
+  await expect(page.getByText(/Approved\. Nothing is sent before/)).toBeVisible();
+  // The server kept it (the screen shows a decision at once, before the server answers).
+  await expect.poll(async () => (await (await page.request.get('/api/approvals/state')).json()).decisions.apr_producer?.reason)
+    .toMatch(/^Flagged terms decided: .*set to playbook/);
+});
+
 test('setup: profiles say what they start with, the songwriting step sets who publishes, and Finish only claims what happened', async ({ page }) => {
   await page.goto('/onboarding/profile');
   await expect(page.getByText('Your pick sets your starting point. Every tool is always available.')).toBeVisible();

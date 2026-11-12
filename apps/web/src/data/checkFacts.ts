@@ -1,4 +1,9 @@
+import type { Proposal } from '@breakrecords/contract';
 import type { ApprovalFacts } from '@breakrecords/core/checks';
+import { daysBetween } from '@breakrecords/core/dates';
+import { releases } from './fixtures';
+import { royalties } from './money';
+import { offerAssumptions } from './ops';
 
 // What the approval checks read for the sample label's four cards. Taken from the live seed
 // (scripts/seed.ts) so sample data and live data give the same results: the payout, the MLC
@@ -177,21 +182,6 @@ export const mockFacts: Record<string, ApprovalFacts> = {
         }
       },
       {
-        "name": "Theo Lind",
-        "amountCents": 21420,
-        "status": "included",
-        "covered": true,
-        "pendingAgreements": [],
-        "taxForm": "W-8BEN",
-        "withheldCents": 0,
-        "treaty": true,
-        "taxExpiresOn": "2026-12-31",
-        "statementNetCents": null,
-        "bankOnFile": true,
-        "lastFailed": false,
-        "split": null
-      },
-      {
         "name": "Rue Sato",
         "amountCents": 21420,
         "status": "included",
@@ -216,6 +206,21 @@ export const mockFacts: Record<string, ApprovalFacts> = {
         "withheldCents": 0,
         "treaty": false,
         "taxExpiresOn": null,
+        "statementNetCents": null,
+        "bankOnFile": true,
+        "lastFailed": false,
+        "split": null
+      },
+      {
+        "name": "Theo Lind",
+        "amountCents": 21420,
+        "status": "included",
+        "covered": true,
+        "pendingAgreements": [],
+        "taxForm": "W-8BEN",
+        "withheldCents": 0,
+        "treaty": true,
+        "taxExpiresOn": "2026-12-31",
         "statementNetCents": null,
         "bankOnFile": true,
         "lastFailed": false,
@@ -290,6 +295,43 @@ export const mockFacts: Record<string, ApprovalFacts> = {
     "flags": []
   },
   "apr_producer": {
-    "kind": "signature"
+    "kind": "signature",
+    "playbookDifferences": [
+      "§4.2",
+      "§5.2"
+    ],
+    "counterparties": [
+      {
+        "name": "Marco Dela",
+        "legalName": "Marco Delacroix",
+        "email": "marco@northline.example",
+        "known": true
+      }
+    ],
+    "points": 3,
+    "pointsRange": [
+      2,
+      4
+    ],
+    "royaltyBase": {
+      "template": "first_dollar",
+      "draft": "first_dollar"
+    }
   }
 };
+
+/** Facts for a proposal made in the app: moving a release date, or accepting a funding offer. */
+export function mockProposalFacts(p: Proposal): ApprovalFacts | null {
+  if (p.releaseId && p.newDate) {
+    const r = releases[p.releaseId];
+    if (!r) return null;
+    const pitch = r.phases.find((ph) => ph.tasks.some((t) => /pitch/i.test(t.title)));
+    return { kind: 'release_plan', release: r.title, newDate: p.newDate, pitchLeadDays: pitch ? daysBetween(pitch.iso, r.date) : null, gatesMoved: true, budgetCents: r.budget, spentCents: r.spent };
+  }
+  if (p.id.startsWith('offer_')) {
+    // October and September statements, annualized (Up 18% on September: $12,107.12).
+    const months = [royalties.stats.income, 1210712];
+    return { kind: 'offer', offer: p.id, assumedAnnualCents: offerAssumptions.annualIncome, actualAnnualCents: Math.round((months.reduce((a, b) => a + b, 0) * 12) / months.length), months: months.length, sharedWithArtists: true };
+  }
+  return null;
+}

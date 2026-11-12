@@ -71,8 +71,8 @@ export function draftPlan(text: string, todayIso: string): DraftPlan {
         { name: 'Now', date: short(todayIso), tasks: [{ title: 'Confirm budget and date', owner: 'You' }, { title: 'Draft split sheets', owner: 'Legal Agent' }] },
         { name: '8 weeks out', date: at(8), tasks: [{ title: 'Split sheets signed', owner: 'Legal Agent' }, { title: 'Masters delivered', owner: 'Artist' }] },
         { name: '6 weeks out', date: at(6), tasks: [{ title: 'ISRC and UPC assigned', owner: 'Metadata Agent' }, { title: 'Cover art final', owner: 'Release Agent' }] },
-        { name: '4 weeks out', date: at(4), tasks: [{ title: 'Deliver to distributor', owner: 'Distribution Agent' }] },
-        { name: '2 weeks out', date: at(2), tasks: [{ title: 'Pitch to playlists', owner: 'Release Agent' }] },
+        // Editorial pitches go in 21 to 28 days before release (rule REL-01).
+        { name: '4 weeks out', date: at(4), tasks: [{ title: 'Deliver to distributor', owner: 'Distribution Agent' }, { title: 'Pitch to playlists', owner: 'Release Agent' }] },
         { name: 'Release week', date: short(date), tasks: [{ title: 'Release goes live', owner: 'Distribution Agent' }, { title: 'Register with PRO, MLC and SoundExchange', owner: 'Publishing Agent' }] },
       ],
     };
