@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gate, runChecks, RULES, type FilingFacts, type GrantFacts, type PayeeFact, type PayoutFacts } from '../src/checks';
+import { gate, runChecks, RULES, type FilingFacts, type GrantFacts, type OfferFacts, type PayeeFact, type PayoutFacts, type ReleasePlanFacts, type SignatureFacts } from '../src/checks';
 import { decide, bulkApprove } from '../src/approvals';
 
 // The demo label as it is today (it fails several rules), and the same label with every fact
@@ -140,6 +140,39 @@ describe('approval checks', () => {
     expect(r(withDeals('we_administer', 'administration', 'writers_own')).message).toMatch(/^Marco Dela handles their own publishing/);
     expect(r(withDeals('writers_own', null)).status).toBe('fail');
     expect(r(withDeals(null, null)).status).toBe('unknown');
+  });
+
+  it('signatures: playbook differences need a decision, the counterparty must be known, terms stay in range', () => {
+    const producer: SignatureFacts = {
+      kind: 'signature', playbookDifferences: ['§4.2', '§5.2'],
+      counterparties: [{ name: 'Marco Dela', legalName: 'Marco Delacroix', email: 'marco@example.com', known: true }],
+      points: 3, pointsRange: [2, 4], royaltyBase: { template: 'first_dollar', draft: 'first_dollar' },
+    };
+    const r = byId(runChecks('signature', producer, '2026-11-12'));
+    expect(r['LEG-01']).toMatchObject({ status: 'fail', severity: 'warn', message: '§4.2 and §5.2 differ from your playbook. Choose the playbook wording or keep the draft, and say why.' });
+    expect([r['LEG-02'].status, r['LEG-03'].status, r['LEG-04'].status, r['LEG-05'].status, r['LEG-06'].status]).toEqual(['pass', 'pass', 'pass', 'unknown', 'pass']);
+    expect(gate(Object.values(r))).toMatchObject({ blocks: [], warns: [expect.objectContaining({ id: 'LEG-01' })] });
+    const off = byId(runChecks('signature', { ...producer, playbookDifferences: [], points: 5, royaltyBase: { template: 'first_dollar', draft: 'after_recoupment' },
+      counterparties: [{ name: 'Marco Dela', legalName: null, email: null, known: false }] }, '2026-11-12'));
+    expect(off['LEG-02'].message).toBe('The template pays from the first dollar, but the draft pays after recoupment.');
+    expect(off['LEG-03']).toMatchObject({ status: 'fail', message: 'Marco Dela has no legal name. Marco Dela has no email. Marco Dela isn’t on your roster or invited.' });
+    expect(off['LEG-04'].message).toBe('5 points is outside your playbook’s 2 to 4.');
+  });
+
+  it('release date plans: the pitch lead blocks under 7 days and warns under 21; budget and gates hold', () => {
+    const plan = (lead: number | null, spent = 186000): ReleasePlanFacts => ({ kind: 'release_plan', release: 'Glasshouse', newDate: '2027-03-19', pitchLeadDays: lead, gatesMoved: true, budgetCents: 300000, spentCents: spent });
+    expect(byId(runChecks('plan', plan(28), '2026-11-12'))['REL-01'].status).toBe('pass');
+    expect(byId(runChecks('plan', plan(14), '2026-11-12'))['REL-01']).toMatchObject({ status: 'fail', severity: 'warn' });
+    expect(byId(runChecks('plan', plan(5), '2026-11-12'))['REL-01']).toMatchObject({ status: 'fail', severity: 'block' });
+    expect(byId(runChecks('plan', plan(28, 310000), '2026-11-12'))['REL-02'].message).toBe('Spending is $100.00 over the $3,000.00 budget. Raising it is its own plan.');
+  });
+
+  it('offers: projections must match real income; consent from artists can’t be checked yet', () => {
+    const offer = (assumed: number, actual: number | null): OfferFacts => ({ kind: 'offer', offer: 'advance', assumedAnnualCents: assumed, actualAnnualCents: actual, months: 2, sharedWithArtists: true });
+    const r = byId(runChecks('money', offer(1320000, 15836112), '2026-11-12'));
+    expect(r['FUN-04'].message).toBe('The projection assumes $13,200.00 a year, but your statements show about $158,361.12 a year. Update the assumption and re-compare before accepting.');
+    expect(r['FUN-05'].status).toBe('unknown');
+    expect(byId(runChecks('money', offer(15000000, 15836112), '2026-11-12'))['FUN-04'].status).toBe('pass');
   });
 
   it('a card with no facts has no checks', () => {

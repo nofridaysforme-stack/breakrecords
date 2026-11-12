@@ -47,8 +47,9 @@ export function DecisionsProvider({ children }: { children: ReactNode }) {
     try {
       const [res, chk] = await Promise.all([fetch('/api/approvals/state', { cache: 'no-store' }), fetch('/api/approvals/checks', { cache: 'no-store' })]);
       if (res.ok) setState(await res.json());
-      if (chk.ok) setChecks(((await chk.json()) as ApprovalChecksResponse).items);
-    } catch { /* offline: keep what we have */ }
+      // A failed checks read ends the wait anyway: the server runs the checks again on every decision.
+      setChecks(chk.ok ? ((await chk.json()) as ApprovalChecksResponse).items : (c) => c ?? {});
+    } catch { setChecks((c) => c ?? {}); /* offline: keep what we have */ }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
 

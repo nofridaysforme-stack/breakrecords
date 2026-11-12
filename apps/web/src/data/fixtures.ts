@@ -243,8 +243,9 @@ export const releases: Record<string, Release> = {
       { name: '4 weeks out', iso: '2027-02-05', status: 'future', tasks: [
         { title: 'Metadata complete', owner: 'Metadata Agent', state: 'locked', gate: { owner: 'Metadata Agent' } },
         { title: 'Deliver to distributor', owner: 'Distribution Agent', state: 'waiting' },
+        // REL-01: editorial pitches go in 21 to 28 days ahead, never under 7.
+        { title: 'Pitch submitted to playlists', owner: 'Release Agent', state: 'waiting' },
       ] },
-      { name: '2 weeks out', iso: '2027-02-19', status: 'future', tasks: [{ title: 'Pitch submitted to playlists', owner: 'Release Agent', state: 'waiting' }] },
       { name: 'Release week', iso: '2027-03-05', status: 'future', tasks: [{ title: 'Release goes live', owner: 'Distribution Agent', state: 'waiting' }] },
       { name: 'After release', iso: '2027-06-03', until: true, status: 'future', tasks: [
         { title: 'First statement reconciled', owner: 'Royalties Agent', state: 'waiting' },

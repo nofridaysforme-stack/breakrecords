@@ -50,7 +50,9 @@ export function DetailView({ detail: d, next }: Props) {
   let primary = d.primaryLabel;
   // The precondition engine: a failed Block check keeps Approve off, whatever else is true.
   const failed = mine?.results.filter((r) => r.status === 'fail' && r.severity === 'block').length ?? 0;
-  if (mine && !mine.canApprove) blockReason = `Can’t approve yet: ${failed} ${failed === 1 ? 'check' : 'checks'} failed. See Checks.`;
+  // Until the checks are in, the screen can't know whether Approve needs a reason or is refused.
+  if (!checks && !decision) blockReason = 'Running the checks for this card.';
+  else if (mine && !mine.canApprove) blockReason = `Can’t approve yet: ${failed} ${failed === 1 ? 'check' : 'checks'} failed. See Checks.`;
   else if (d.body.kind === 'filing' && facts.some((f) => !f)) blockReason = `Confirm all ${facts.length} facts to file.`;
   // 2f keeps Approve enabled; any term you haven't decided goes out as drafted, and we say so.
   const undecided = d.body.kind === 'contract' ? d.body.flags.filter((f) => !choices[f.id]).length : 0;
@@ -65,9 +67,19 @@ export function DetailView({ detail: d, next }: Props) {
   const doApprove = useCallback(() => {
     if (blockReason || decision) return;
     // Failed Warn checks: approving needs a typed reason, kept in the activity log.
+    // LEG-01 (terms differ from the playbook) is answered by deciding each flagged term:
+    // once every flag has a choice, those choices are the reason, kept in the log.
+    if (needsReason && d.body.kind === 'contract' && undecided === 0) {
+      const warns = mine?.results.filter((r) => r.status === 'fail' && r.severity === 'warn') ?? [];
+      if (warns.every((r) => r.id === 'LEG-01')) {
+        const body = d.body;
+        approve([d.id], `Flagged terms decided: ${body.flags.map((f) => `${f.title} ${choices[f.id] === 'playbook' ? 'set to playbook' : 'kept as drafted'}`).join('; ')}.`);
+        return;
+      }
+    }
     if (needsReason) { setAccepting(true); setTimeout(() => acceptRef.current?.focus(), 0); return; }
     approve([d.id]);
-  }, [blockReason, decision, needsReason, approve, d.id]);
+  }, [blockReason, decision, needsReason, approve, d.id, d.body, undecided, mine, choices]);
   const submitAccept = () => {
     if (!acceptReason.trim()) { setAcceptError(true); acceptRef.current?.focus(); return; }
     approve([d.id], acceptReason); setAccepting(false);

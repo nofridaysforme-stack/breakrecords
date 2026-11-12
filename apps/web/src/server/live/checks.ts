@@ -101,21 +101,89 @@ async function filingFacts(tx: Tx, org: string, titles: string[]): Promise<Appro
   return { kind: 'filing', org, works, publishingMode: settings?.publishing_mode ?? null };
 }
 
-/** Facts for every agent-prepared card, keyed by approval id. Cards without facts have no checks. */
+type Base = 'first_dollar' | 'after_recoupment' | null;
+/** When points start, read from clause text: "from the first dollar" or "following recoupment". */
+const baseOf = (text: string): Base => (/first dollar/i.test(text) ? 'first_dollar' : /recoup/i.test(text) ? 'after_recoupment' : null);
+
+type Detail = { body?: { kind?: string; org?: string; works?: { title: string }[]; fields?: { label: string; value: string; limit: number }[];
+  flags?: { ref: string }[]; document?: { blocks?: { text: string }[] } } } | null;
+
+async function signatureFacts(tx: Tx, approvalId: string, detail: Detail): Promise<ApprovalFacts> {
+  const [a] = await tx<{ id: string; terms: string | null; clauses: { title: string; text: string }[] | null; playbook: string[] | null }[]>`
+    SELECT a.id, a.terms, t.clauses, t.playbook FROM agreements a LEFT JOIN contract_templates t ON t.id = a.template_id WHERE a.approval_id = ${approvalId}`;
+  if (!a) return { kind: 'signature', playbookDifferences: (detail?.body?.flags ?? []).map((f) => f.ref) };
+  const people = await tx<{ name: string; legal_name: string | null; email: string | null; known: boolean }[]>`
+    SELECT p.name, p.legal_name, p.email,
+      EXISTS (SELECT 1 FROM roster_members r WHERE r.party_id = p.id) OR EXISTS (SELECT 1 FROM allowlist l WHERE l.party_slug = p.slug)
+        OR EXISTS (SELECT 1 FROM memberships m WHERE m.party_id = p.id) AS known
+    FROM agreement_parties ap JOIN parties p ON p.id = ap.party_id WHERE ap.agreement_id = ${a.id} ORDER BY ap.position`;
+  const points = /(\d+(?:\.\d+)?)\s*points?/i.exec(a.terms ?? '')?.[1];
+  const range = (a.playbook ?? []).map((l) => /points?.*?between (\d+) and (\d+)/i.exec(l)).find(Boolean);
+  const royalty = (a.clauses ?? []).find((c) => /royalt/i.test(c.title));
+  const draft = (detail?.body?.document?.blocks ?? []).map((b) => b.text).filter((t) => /royalty|points?|percent/i.test(t)).join(' ');
+  return {
+    kind: 'signature',
+    playbookDifferences: (detail?.body?.flags ?? []).map((f) => f.ref),
+    counterparties: people.map((p) => ({ name: p.name, legalName: p.legal_name, email: p.email, known: p.known })),
+    points: points ? Number(points) : null,
+    pointsRange: range ? [Number(range[1]), Number(range[2])] : null,
+    royaltyBase: { template: royalty ? baseOf(royalty.text) : null, draft: draft ? baseOf(draft) : null },
+  };
+}
+
+/** A plan to move a release: the pitch's lead and the budget, after every gate moves with the date. */
+async function releasePlanFacts(tx: Tx, releaseSlug: string, newDate: string): Promise<ApprovalFacts | null> {
+  const [r] = await tx<{ id: string; title: string }[]>`SELECT id, title FROM releases WHERE slug = ${releaseSlug}`;
+  if (!r) return null;
+  const [pitch] = await tx<{ offset_days: number | null }[]>`
+    SELECT ph.offset_days FROM runbook_phases ph JOIN runbook_tasks t ON t.phase_id = ph.id
+    WHERE ph.release_id = ${r.id} AND t.title ~* 'pitch' ORDER BY ph.position LIMIT 1`;
+  const [money] = await tx<{ planned: string; spent: string }[]>`
+    SELECT coalesce(sum(planned_cents), 0) AS planned, coalesce(sum(spent_cents), 0) AS spent FROM release_budget_lines WHERE release_id = ${r.id}`;
+  return {
+    kind: 'release_plan', release: r.title, newDate,
+    // Phases are set as days from the release, so moving the date moves every one of them.
+    pitchLeadDays: pitch?.offset_days == null ? null : -pitch.offset_days, gatesMoved: true,
+    budgetCents: Number(money.planned), spentCents: Number(money.spent),
+  };
+}
+
+/** Accepting a funding offer: what its projection assumes against what statements show. */
+async function offerFacts(tx: Tx, offer: string): Promise<ApprovalFacts> {
+  const [a] = await tx<{ annual: string | null }[]>`SELECT annual_income_cents AS annual FROM funding_assumptions`;
+  const [h] = await tx<{ total: string | null; months: number }[]>`
+    SELECT sum(l.amount_cents) AS total, count(DISTINCT s.period)::int AS months
+    FROM income_lines l JOIN income_statements s ON s.id = l.statement_id
+    WHERE s.period > (SELECT max(period) FROM income_statements) - interval '12 months'`;
+  return {
+    kind: 'offer', offer, assumedAnnualCents: Number(a?.annual ?? 0),
+    actualAnnualCents: h.months ? Math.round((Number(h.total) * 12) / h.months) : null, months: h.months,
+    // An advance against streaming income is repaid from money the label splits with its artists.
+    sharedWithArtists: true,
+  };
+}
+
+/** Facts for every open card, keyed by approval id. Cards without facts have no checks. */
 export async function liveFacts(tx: Tx): Promise<Record<string, ApprovalFacts>> {
-  const cards = await tx<{ id: string; type: string; detail: { body?: { kind?: string; org?: string; works?: { title: string }[]; fields?: { label: string; value: string; limit: number }[] } } | null }[]>`
-    SELECT id, type::text, detail FROM approvals WHERE origin = 'agent' AND executed_at IS NULL`;
+  const cards = await tx<{ id: string; origin: string; type: string; release_id: string | null; new_date: string | null; detail: Detail }[]>`
+    SELECT id, origin::text, type::text, release_id, to_char(new_date, 'YYYY-MM-DD') AS new_date, detail FROM approvals WHERE executed_at IS NULL`;
   const batches = await tx<{ id: string; approval_id: string }[]>`SELECT id, approval_id FROM payout_batches WHERE approval_id IS NOT NULL AND status NOT IN ('sent', 'failed')`;
   const grants = await tx<{ approval_id: string; deadline: Date; verified_on: Date }[]>`SELECT approval_id, deadline, verified_on FROM funding_opportunities WHERE approval_id IS NOT NULL`;
   const out: Record<string, ApprovalFacts> = {};
   for (const c of cards) {
     const body = c.detail?.body;
+    if (c.origin === 'user') {
+      // Proposals made in the app: a release date plan, or accepting a funding offer.
+      if (c.release_id && c.new_date) { const f = await releasePlanFacts(tx, c.release_id, c.new_date); if (f) out[c.id] = f; }
+      else if (c.id.startsWith('offer_')) out[c.id] = await offerFacts(tx, c.id);
+      continue;
+    }
     const batch = batches.find((b) => b.approval_id === c.id);
     const grant = grants.find((g) => g.approval_id === c.id);
     if (batch) out[c.id] = await payoutFacts(tx, batch.id);
     else if (grant) out[c.id] = { kind: 'grant', deadline: iso(grant.deadline)!, verifiedOn: iso(grant.verified_on)!, fields: body?.fields ?? [] };
     else if (body?.kind === 'filing' && body.works?.length) out[c.id] = await filingFacts(tx, body.org ?? 'registry', body.works.map((w) => w.title));
-    else if (c.type === 'signature') out[c.id] = { kind: 'signature' };
+    else if (c.type === 'signature') out[c.id] = await signatureFacts(tx, c.id, c.detail);
   }
   return out;
 }
