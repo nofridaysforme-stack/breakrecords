@@ -11,7 +11,7 @@ import { approvalDetails, home, homeNumberNotes, homeNumbers, releases, TODAY } 
 import type { ApprovalDetail, Release, Scenario } from './types';
 import type { ApprovalSummary } from '@/components/ui/Approval';
 import * as ops from './ops';
-import type { Module, SplitNodeResponse, SplitTreeNode, TaxYearResponse } from '@breakrecords/contract';
+import type { Module, ReservesResponse, SplitNodeResponse, SplitTreeNode, TaxYearResponse } from '@breakrecords/contract';
 import { advance, baselineIncome, sale, type AdvanceOffer, type OfferAssumptions, type SaleOffer } from '@breakrecords/core/offers';
 
 export { TODAY };
@@ -41,7 +41,22 @@ export async function getHome(scenario: Scenario = 'default') {
     numbers: live?.numbers ?? homeNumbers,
     numberNotes: live?.notes ?? homeNumberNotes,
     approvals: scenario === 'empty' ? [] : await approvalItems(),
+    // Income held by audit flags waiting on a decision (AUD-02).
+    reserves: scenario === 'empty' ? [] : await getHomeReserves(),
   };
+}
+
+async function getHomeReserves() {
+  const ctx = await liveCtx('payouts');
+  if (!ctx) return (await import('@/server/mockReserves')).mockHomeReserves();
+  if (ctx.role === 'payee') return [];
+  return (await import('@/server/live/reserves')).liveHomeReserves(ctx);
+}
+/** Audit flags and their reserves. */
+export async function getReserves(): Promise<ReservesResponse> {
+  const ctx = await liveCtx('payouts');
+  if (!ctx) return (await import('@/server/mockReserves')).mockReserves();
+  return (await import('@/server/live/reserves')).liveReserves(ctx);
 }
 
 export async function getApprovals(scenario: Scenario = 'default'): Promise<{ scenario: Scenario; items: ApprovalSummary[] }> {
@@ -99,14 +114,14 @@ export async function listStatements(payee?: string): Promise<StatementSummary[]
 
 export async function getStatement(id: string): Promise<Statement | null> {
   const ctx = await liveCtx('statements');
-  if (!ctx) return statements[id] ?? null;
+  if (!ctx) return statements[id] ? (await import('@/server/mockReserves')).mockStatementHeld(statements[id]) : null;
   const { liveStatement } = await import('@/server/live/statements');
   return liveStatement(ctx, id);
 }
 /** Payouts (4d). Live: the tenant's batches, lines, payees and requests. */
 export async function getPayouts(): Promise<typeof payouts> {
   const ctx = await liveCtx('payouts');
-  if (!ctx) return (await import('@/server/mockTax')).mockPayoutsTax(await (await import('@/server/mockPayouts')).mockPayouts());
+  if (!ctx) return (await import('@/server/mockReserves')).mockPayoutsHeld(await (await import('@/server/mockTax')).mockPayoutsTax(await (await import('@/server/mockPayouts')).mockPayouts()));
   return (await import('@/server/live/payouts')).livePayouts(ctx);
 }
 /** Year-end tax forms. Live: payments sent in the year, by payee. */

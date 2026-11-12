@@ -371,6 +371,26 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT 1 FROM tax_filings`)).toHaveLength(0);
     });
 
+    it('a reserve’s outcome is decided once; a release needs its approval card; payees and other labels can’t see or decide it', async () => {
+      const [{ id: rec }] = await owner`INSERT INTO recordings (tenant_id, slug, title, artist_id) VALUES (${ids.a}, 'rsv-rec', 'Flagged', ${kesi}) RETURNING id`;
+      const [{ id: flag }] = await asOwner((tx) => tx`INSERT INTO audit_flags (tenant_id, recording_id, kind, note) VALUES (${ids.a}, ${rec}, 'other', 'spike') RETURNING id`);
+      const [{ id: rsv }] = await asOwner((tx) => tx`INSERT INTO reserves (tenant_id, flag_id, recording_id, amount_cents) VALUES (${ids.a}, ${flag}, ${rec}, 5000) RETURNING id`);
+      // Releasing needs an approval card; changing what it holds is refused.
+      await expect(asOwner((tx) => tx`UPDATE reserves SET outcome = 'release', outcome_note = 'real', decided_at = now() WHERE id = ${rsv}`)).rejects.toThrow(/reserves_check|violates check/);
+      await expect(asOwner((tx) => tx`UPDATE reserves SET amount_cents = 1 WHERE id = ${rsv}`)).rejects.toThrow(/permission denied/);
+      await owner`INSERT INTO approvals (tenant_id, id, origin, type, title, agent, due, impact, risk) VALUES (${ids.a}, 'reserve_x', 'user', 'money', 'Release', 'Royalties Agent', 'Next', '$50', 'needsEyes')`;
+      await asOwner((tx) => tx`UPDATE reserves SET outcome = 'release', outcome_note = 'real', decided_by = ${ids.ua}, decided_at = now(), release_approval_id = 'reserve_x' WHERE id = ${rsv}`);
+      await expect(asOwner((tx) => tx`UPDATE reserves SET outcome = 'forfeit', release_approval_id = NULL WHERE id = ${rsv}`)).rejects.toThrow(/already decided/);
+      await expect(asOwner((tx) => tx`DELETE FROM reserves WHERE id = ${rsv}`)).rejects.toThrow(/permission denied/);
+      expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT 1 FROM reserves`)).toHaveLength(0);
+      expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT 1 FROM reserves`)).toHaveLength(0);
+      await expect(withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`INSERT INTO reserves (tenant_id, flag_id, recording_id, amount_cents) VALUES (${ids.a}, ${flag}, ${rec}, 1)`))
+        .rejects.toThrow(/row-level security|permission denied/);
+      // Another label's holds come back empty.
+      expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT * FROM app_reserve_holds()`)).toHaveLength(0);
+      await owner`DELETE FROM audit_flags WHERE id = ${flag}`; // the audit flag tests below start clean
+    });
+
     it('another label sees none of it and can’t point at it', async () => {
       for (const t of ['payout_batches', 'payout_lines', 'payees', 'recoupment_accounts']) {
         expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx.unsafe(`SELECT 1 FROM ${t}`))).toHaveLength(0);

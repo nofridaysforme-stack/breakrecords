@@ -28,6 +28,7 @@ export const ENDPOINTS: Endpoint[] = [
   { path: '/api/money/payouts', schema: R.PayoutsResponse, module: 'payouts' },
   { path: '/api/money/recoupment', schema: R.RecoupmentResponse, module: 'payouts' },
   { path: '/api/money/tax/2026', schema: R.TaxYearResponse, module: 'payouts' },
+  { path: '/api/money/reserves', schema: R.ReservesResponse, module: 'payouts' },
   { path: '/api/splits', schema: R.SplitTreeResponse, module: 'splits' },
   { path: '/api/splits/gh-rec', schema: R.SplitNodeResponse, module: 'splits' },
   { path: '/api/portal/marco-dela', schema: R.PayeeResponse, module: 'payouts' },

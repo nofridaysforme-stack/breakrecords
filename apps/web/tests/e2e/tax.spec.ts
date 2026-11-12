@@ -7,6 +7,7 @@ const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
 
 test('each payee shows how they’re taxed, and a missing form can pay with 24% withheld instead of holding', async ({ page }) => {
   await page.goto('/money/payouts');
+  await page.waitForLoadState('networkidle'); // the sample session cookie is settled before anything is saved
   const tax = page.getByRole('region', { name: 'Tax forms' }).or(page.locator('section[aria-labelledby="tax"]')).filter({ visible: true });
   await expect(tax).toContainText('0% under the GB treaty, Article 12');
   await expect(tax).toContainText('No tax form: payout held');

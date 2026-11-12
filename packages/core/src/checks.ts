@@ -70,8 +70,8 @@ export type PayoutFacts = {
   payees: PayeeFact[];
   /** Matched income in the period, by recording. */
   income: { recording: string; isrc: string | null; releasedOn: string | null; amountCents: number }[];
-  /** Open audit flags on recordings that earn in this batch. */
-  flags: { recording: string; note: string }[];
+  /** Open audit flags on recordings that earn in this batch, and whether a reserve holds their income. */
+  flags: { recording: string; note: string; held?: boolean; heldCents?: number }[];
 };
 
 export type PublishingMode = 'self' | 'publisher' | 'we_publish' | 'we_administer' | 'writers_own';
@@ -276,9 +276,14 @@ const ROYALTIES: Rule<PayoutFacts>[] = [
     id: 'ROY-07', title: 'No open audit flags', appliesTo: ['money'], facts: 'payout', severity: 'block',
     fix: { label: 'Open activity', href: '/activity' },
     check: (f) => {
-      const inputs = f.flags.map((x) => `${x.recording}: ${x.note}`);
+      const inputs = f.flags.map((x) => `${x.recording}: ${x.note}${x.held ? `, ${formatMoney(x.heldCents ?? 0)} held in reserve` : ''}`);
       if (!f.flags.length) return pass('No recording in this batch has an open audit flag.', inputs);
-      return fail(`${names(f.flags.map((x) => x.recording))} ${f.flags.length === 1 ? 'has' : 'have'} an open audit flag (${f.flags[0].note}). Move that income to reserve until it’s resolved.`, inputs);
+      const loose = f.flags.filter((x) => !x.held);
+      if (!loose.length) {
+        const held = f.flags.reduce((a, x) => a + (x.heldCents ?? 0), 0);
+        return pass(`${names(f.flags.map((x) => x.recording))} ${f.flags.length === 1 ? 'has' : 'have'} an open audit flag. ${formatMoney(held)} of this batch is held in reserve until ${f.flags.length === 1 ? 'it’s' : 'they’re'} resolved.`, inputs);
+      }
+      return fail(`${names(loose.map((x) => x.recording))} ${loose.length === 1 ? 'has' : 'have'} an open audit flag (${loose[0].note}). Move that income to reserve until it’s resolved.`, inputs);
     },
   },
   {

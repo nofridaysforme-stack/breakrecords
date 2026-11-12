@@ -5,7 +5,8 @@ import { STATES } from '@/data/states';
 import { toScenario } from '@/data/types';
 import { MoneyTabs } from '@/components/money/MoneyTabs';
 import { PayoutsView } from '@/components/money/PayoutsView';
-import { getPayouts } from '@/data/api';
+import { getPayouts, getReserves } from '@/data/api';
+import { ReservesView } from '@/components/money/ReservesView';
 
 export const metadata: Metadata = { title: 'Payouts' };
 
@@ -13,5 +14,5 @@ type Props = { searchParams: Promise<{ state?: string }> };
 
 export default async function PayoutsPage({ searchParams }: Props) {
   const scenario = toScenario((await searchParams).state);
-  return <Page><MoneyTabs /><ScreenState scenario={scenario} copy={STATES.payouts} heading="Payouts"><PayoutsView data={await getPayouts()} /></ScreenState></Page>;
+  return <Page><MoneyTabs /><ScreenState scenario={scenario} copy={STATES.payouts} heading="Payouts"><PayoutsView data={await getPayouts()} /><ReservesView data={await getReserves()} /></ScreenState></Page>;
 }

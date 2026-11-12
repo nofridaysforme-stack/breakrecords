@@ -1,5 +1,6 @@
 import 'server-only';
 import { taxFilingFacts } from './tax';
+import { heldLines } from './reserves';
 import type { ApprovalFacts, FilingFacts, PayoutFacts } from '@breakrecords/core/checks';
 import type { DealTerms } from '@breakrecords/core/dealSplit';
 import { w8ExpiresOn } from '@breakrecords/core/payouts';
@@ -50,7 +51,15 @@ async function payoutFacts(tx: Tx, batchId: string): Promise<PayoutFacts> {
       sum(il.amount_cents) AS amount
     FROM income_lines il JOIN income_statements s ON s.id = il.statement_id JOIN recordings r ON r.id = il.recording_id
     WHERE s.period = ${b.period}::date GROUP BY r.id, r.title, r.isrc HAVING sum(il.amount_cents) <> 0 ORDER BY sum(il.amount_cents) DESC`;
-  const flags = await tx<{ recording_id: string; note: string }[]>`SELECT recording_id, note FROM audit_flags WHERE resolved_at IS NULL`;
+  // Open flags, and reserves still holding money (a flag resolved as real listeners holds until its release card is approved).
+  const flags = await tx<{ recording_id: string; note: string; reserved: boolean }[]>`
+    SELECT f.recording_id, f.note, (r.id IS NOT NULL AND r.outcome IS NULL) AS reserved
+    FROM audit_flags f LEFT JOIN reserves r ON r.flag_id = f.id WHERE f.resolved_at IS NULL
+    UNION ALL
+    SELECT r.recording_id, f.note, true FROM reserves r JOIN audit_flags f ON f.id = r.flag_id
+    WHERE f.resolved_at IS NOT NULL AND r.outcome = 'release' AND r.released_at IS NULL AND NOT EXISTS (
+      SELECT 1 FROM approval_decisions d WHERE d.approval_id = r.release_approval_id AND d.status = 'approved')`;
+  const heldHere = (await heldLines(tx)).filter((l) => l.batchId === batchId);
   const titles = new Map(income.map((i) => [i.recording_id, i.title]));
 
   return {
@@ -75,7 +84,10 @@ async function payoutFacts(tx: Tx, batchId: string): Promise<PayoutFacts> {
       };
     }),
     income: income.map((i) => ({ recording: i.title, isrc: i.isrc, releasedOn: iso(i.released_on), amountCents: Number(i.amount) })),
-    flags: flags.filter((f) => titles.has(f.recording_id)).map((f) => ({ recording: titles.get(f.recording_id)!, note: f.note })),
+    flags: flags.filter((f) => titles.has(f.recording_id)).map((f) => {
+      const recording = titles.get(f.recording_id)!;
+      return { recording, note: f.note, held: f.reserved, heldCents: heldHere.filter((l) => l.recordings.includes(recording)).reduce((a, l) => a + l.held, 0) };
+    }),
   };
 }
 

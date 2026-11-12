@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import type { ApprovalChecksResponse, ApprovalError, ApprovalState, Proposal } from '@breakrecords/contract';
 import { bulkApprove, decide, propose, undo, type ApproveCommand, type Outcome } from '@breakrecords/core/approvals';
-import { gate, runChecks } from '@breakrecords/core/checks';
+import { gate, runChecks, type ApprovalFacts } from '@breakrecords/core/checks';
+import { mockReserveFlags } from './mockReserves';
 import { mockFacts, mockProposalFacts } from '@/data/checkFacts';
 import { TODAY } from '@/data/fixtures';
 import { approvals as serverItems } from '@/data/sample';
@@ -29,8 +30,14 @@ export interface ApprovalsBackend {
  * screen. The sample cards fail several checks on purpose; tests of the approve flow itself
  * turn checks off for their browser with the `br_checks=off` cookie (sample data only, never live).
  */
-const mockChecks = (off = false, proposals: Proposal[] = []) => off ? {} : Object.fromEntries([
-  ...serverItems.filter((a) => mockFacts[a.id]).map((a) => [a.id, runChecks(a.type, mockFacts[a.id], TODAY.iso)] as const),
+/** The sample payout card's facts, with any flags opened this session and what their reserves hold. */
+const withReserves = (id: string, f: ApprovalFacts, sessionId: string): ApprovalFacts => {
+  if (f.kind !== 'payout' || id !== 'apr_payout_oct') return f;
+  const flags = mockReserveFlags(sessionId, 'pb-2026-10');
+  return flags.length ? { ...f, flags: [...f.flags, ...flags] } : f;
+};
+const mockChecks = (off = false, proposals: Proposal[] = [], sessionId = '') => off ? {} : Object.fromEntries([
+  ...serverItems.filter((a) => mockFacts[a.id]).map((a) => [a.id, runChecks(a.type, withReserves(a.id, mockFacts[a.id], sessionId), TODAY.iso)] as const),
   // Proposals made in the app (a release date plan, accepting an offer) are checked too.
   ...proposals.flatMap((p) => { const f = mockProposalFacts(p); return f ? [[p.id, runChecks(p.type, f, TODAY.iso)] as const] : []; }),
 ]);
@@ -47,7 +54,7 @@ function mock(sessionId: string, checksOff = false): ApprovalsBackend {
       // The mock never executes anything, so every decision can be undone.
       executed: new Set<string>(),
       newAuditId: () => `AUD-MOCK-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
-      checks: (id: string) => mockChecks(checksOff, s.proposals)[id] ?? [],
+      checks: (id: string) => mockChecks(checksOff, s.proposals, sessionId)[id] ?? [],
     };
   };
   const commit = (o: Outcome<Proposal>) => { if (o.ok) sessions.set(sessionId, o.state); return o; };
@@ -55,7 +62,7 @@ function mock(sessionId: string, checksOff = false): ApprovalsBackend {
     state: async () => read(),
     checks: async () => ({
       today: TODAY.iso,
-      items: Object.fromEntries(Object.entries(mockChecks(checksOff, read().proposals)).map(([id, results]) => {
+      items: Object.fromEntries(Object.entries(mockChecks(checksOff, read().proposals, sessionId)).map(([id, results]) => {
         const g = gate(results);
         return [id, { results, canApprove: !g.blocks.length, needsReason: g.warns.length > 0 }];
       })),

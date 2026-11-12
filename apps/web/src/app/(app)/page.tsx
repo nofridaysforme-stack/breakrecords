@@ -18,7 +18,7 @@ export default async function HomePage({ searchParams }: Props) {
     : <AgentRail feed={data.home.feed} />;
   return (
     <Page rail={rail} railLabel="Agent activity" railOnPhone={false}>
-      <HomeView scenario={scenario} home={data.home} numbers={data.numbers} notes={data.numberNotes} approvals={data.approvals} labelShort={label?.split(' ')[0] ?? 'Northline'} />
+      <HomeView scenario={scenario} home={data.home} numbers={data.numbers} notes={data.numberNotes} approvals={data.approvals} reserves={data.reserves} labelShort={label?.split(' ')[0] ?? 'Northline'} />
     </Page>
   );
 }

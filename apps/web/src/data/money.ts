@@ -38,6 +38,8 @@ export type Statement = {
   /** Short lines for the payee portal (4f). */
   simple: { label: string; amount: Cents }[];
   qa?: { question: string; answer: string; basis: string }[];
+  /** Part of this statement held in reserve while a recording is checked. */
+  held?: { amount: Cents; note: string };
 };
 
 const marcoOct = runWaterfall([

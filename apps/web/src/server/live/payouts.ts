@@ -1,4 +1,5 @@
 import 'server-only';
+import { heldLines } from './reserves';
 import type { DealTerms } from '@breakrecords/core/dealSplit';
 import { formatMoney } from '@breakrecords/core/money';
 import { formatPercent } from '@breakrecords/core/percent';
@@ -26,9 +27,10 @@ const first = (name: string) => name.split(' ')[0];
 async function payoutsIn(tx: Tx): Promise<Payouts> {
   const [policy] = await tx<{ minimum_cents: string; missing_form_policy: MissingFormPolicy }[]>`SELECT minimum_cents, missing_form_policy FROM payout_policies`;
   const missingFormPolicy: MissingFormPolicy = policy?.missing_form_policy ?? 'hold';
-  const batches = await tx<{ slug: string; name: string; status: Payouts['batches'][number]['status']; approval_id: string | null; pays_on: Date; sent_at: Date | null;
+  const held = await heldLines(tx);
+  const batches = await tx<{ id: string; slug: string; name: string; status: Payouts['batches'][number]['status']; approval_id: string | null; pays_on: Date; sent_at: Date | null;
     total: string; payees: number; carried: number; failed: { slug: string; name: string; reason: string } | null }[]>`
-    SELECT b.slug, b.name, b.status::text AS status, b.approval_id, b.pays_on, b.sent_at,
+    SELECT b.id, b.slug, b.name, b.status::text AS status, b.approval_id, b.pays_on, b.sent_at,
            coalesce(sum(l.amount_cents) FILTER (WHERE l.status IN ('included', 'paid', 'failed')), 0) AS total,
            count(DISTINCT l.party_id) FILTER (WHERE l.status IN ('included', 'paid', 'failed'))::int AS payees,
            count(*) FILTER (WHERE l.status = 'carried')::int AS carried,
@@ -55,6 +57,7 @@ async function payoutsIn(tx: Tx): Promise<Payouts> {
     batches: batches.map((b) => ({
       id: b.slug, name: b.name, payees: b.payees, total: n(b.total), status: b.status, note: note(b),
       ...(b.approval_id ? { approvalId: b.approval_id } : {}),
+      ...((h) => (h ? { held: h } : {}))(held.filter((l) => l.batchId === b.id).reduce((a, l) => a + l.held, 0)),
       ...(b.status === 'failed' && b.failed ? { failed: { payeeId: b.failed.slug, name: b.failed.name, reason: b.failed.reason } } : {}),
     })),
     taxForms: payees.map((y) => {

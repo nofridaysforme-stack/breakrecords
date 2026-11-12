@@ -38,6 +38,8 @@ export const HomeResponse = z.object({
     period: z.string(), income: z.string(), owed: z.string(), owedApprovalId: Id.nullable(), recouped: z.string(), cash90: z.string(), unclaimed: z.string(),
   }),
   approvals: z.array(ApprovalSummary),
+  /** Income held by open audit flags (AUD-02): each needs a decision. */
+  reserves: z.array(z.object({ id: Id, recording: z.string(), note: z.string(), held: Cents })).optional(),
 });
 
 // ---------- Approval detail (2e, 2f, filing, grant) ----------
@@ -125,6 +127,8 @@ export const StatementResponse = z.object({
   rows: z.array(WaterfallRow), net: Cents, auditId: z.string(),
   simple: z.array(z.object({ label: z.string(), amount: Cents })),
   qa: z.array(z.object({ question: z.string(), answer: z.string(), basis: z.string() })).optional(),
+  /** Part of this statement held in reserve while a recording is checked; paid once released. */
+  held: z.object({ amount: Cents, note: z.string() }).optional(),
 });
 /** GET /api/statements: every payee statement the signed-in user may read, newest period first. */
 export const StatementSummary = StatementResponse.pick({ id: true, payee: true, payeeId: true, release: true, period: true, net: true, pays: true });
@@ -142,6 +146,8 @@ export const PayoutsResponse = z.object({
     id: Id, name: z.string(), payees: z.number().int(), total: Cents, status: z.enum(['awaiting', 'draft', 'sent', 'failed']), note: z.string(), approvalId: Id.optional(),
     /** The payee whose payment failed in a failed batch, and why. */
     failed: z.object({ payeeId: Id, name: z.string(), reason: z.string() }).optional(),
+    /** Held in reserve from this batch while a recording it pays from is flagged. */
+    held: Cents.optional(),
   })),
   taxForms: z.array(z.object({
     payeeId: Id, name: z.string(), form: z.string(), status: z.enum(['ok', 'expiring', 'missing']), label: z.string(), fix: z.string().optional(),
@@ -173,6 +179,29 @@ export const TaxYearResponse = z.object({
   filing: z.object({ status: z.enum(['none', 'awaiting', 'approved', 'rejected', 'filed']), approvalId: Id.optional(), filedOn: Display.optional() }),
 });
 export const TaxError = z.object({ error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'already_prepared', 'not_approved', 'nothing_to_file']), message: z.string() });
+
+/**
+ * GET /api/money/reserves: audit flags and the income each one holds. Opening a flag holds the
+ * recording's income in periods not yet paid; resolving it releases the money (through an
+ * approval card) or forfeits it.
+ */
+export const ReserveStatus = z.enum(['held', 'releasing', 'released', 'forfeited']);
+export const ReservesResponse = z.object({
+  items: z.array(z.object({
+    id: Id, recording: z.string(), recordingId: Id, note: z.string(), opened: Display,
+    /** Income held when the flag opened, and what that holds from unpaid batches now. */
+    amount: Cents, heldNow: Cents,
+    status: ReserveStatus, outcomeNote: z.string().optional(), approvalId: Id.optional(),
+  })),
+  /** Recordings that can be flagged. */
+  recordings: z.array(z.object({ id: Id, title: z.string() })),
+});
+/** POST /api/money/reserves: flag a recording, which holds its income. Returns the reserves. */
+export const OpenFlagCommand = z.object({ recordingId: Id, note: z.string().trim().min(1).max(200) }).strict();
+/** POST /api/money/reserves/{id}/resolve: real listeners (release, through an approval card) or artificial streams (forfeit). */
+export const ResolveFlagCommand = z.object({ outcome: z.enum(['release', 'forfeit']), note: z.string().trim().min(1).max(500) }).strict();
+export const ReserveError = z.object({ error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'already_flagged', 'already_decided']), message: z.string() });
+export type ReservesResponse = z.infer<typeof ReservesResponse>;
 
 /** POST /api/portal/tax-form: a payee certifies their own tax form. Returns their portal. */
 export const SubmitTaxFormCommand = z.object({

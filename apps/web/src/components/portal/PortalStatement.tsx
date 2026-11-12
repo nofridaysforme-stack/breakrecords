@@ -20,6 +20,7 @@ export function PortalStatement({ st, payeeId }: { st: Statement; payeeId: strin
         <p className={s.stMeta}>{st.release} · {st.period}</p>
         <h1 className={s.stAmount}><Money cents={st.net} /></h1>
         <p className={s.stPays}>Pays {st.pays.split(' on ')[0]}</p>
+        {st.held && <p className={s.note} role="note"><strong><Money cents={st.held.amount} /> of this is held</strong> while a recording is checked for artificial streams. It’s paid to you once released.</p>}
       </div>
       <ul aria-label="Statement lines">
         {st.rows.map((r, i) => (
