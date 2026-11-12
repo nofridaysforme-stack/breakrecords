@@ -476,8 +476,10 @@ async function seedPayouts(tx: Tx, tenant: string) {
       VALUES (${tenant}, ${b.slug}, ${b.name}, ${b.cadence}, ${b.period}, ${b.pays}, ${b.status}, ${b.approval ?? null}, ${history}, ${b.sent ?? null}) RETURNING id`;
     for (const [slug, role, dollars, status = 'included', ref] of b.lines) {
       const st = ref ? (await tx`SELECT id FROM payee_statements WHERE tenant_id = ${tenant} AND ref = ${ref}`)[0].id : null;
-      await tx`INSERT INTO payout_lines (tenant_id, batch_id, party_id, statement_id, role, amount_cents, status, failure)
-        VALUES (${tenant}, ${row.id}, ${party[slug]}, ${st}, ${role}, ${Math.round(dollars * 100)}, ${status}, ${status === 'failed' ? 'bank details' : null})`;
+      // Where the money comes from: the statement's release, or else Night Bus EP (the band, its mix and session players).
+      const [src] = await tx`SELECT coalesce((SELECT release_id FROM payee_statements WHERE id = ${st}), (SELECT id FROM releases WHERE tenant_id = ${tenant} AND slug = 'rel_nightbus')) AS id`;
+      await tx`INSERT INTO payout_lines (tenant_id, batch_id, party_id, statement_id, role, amount_cents, status, failure, source_release_id)
+        VALUES (${tenant}, ${row.id}, ${party[slug]}, ${st}, ${role}, ${Math.round(dollars * 100)}, ${status}, ${status === 'failed' ? 'bank details' : null}, ${src.id})`;
     }
   }
   // 4e. Glasshouse recouped its $4,000.00 in October (the 4c waterfall); Night Bus is still recouping.
@@ -631,9 +633,12 @@ async function seedActivity(tx: Tx, tenant: string) {
   // The Audit Agent's flag (RUN-88119). While open, Night Bus's income would stay out of payouts (ROY-07).
   await tx`DELETE FROM audit_flags WHERE tenant_id = ${tenant}`;
   // Resolved: the distributor's stream report showed a playlist add, so the income is paid as normal.
-  await tx`INSERT INTO audit_flags (tenant_id, recording_id, kind, note, event_id, resolved_at, resolution)
-    SELECT ${tenant}, id, 'stream_spike', 'unusual stream spike on Oct 28', 'RUN-88119', '2026-11-08T16:00:00Z', 'Distributor report: a playlist add, real listeners'
+  await tx`INSERT INTO audit_flags (tenant_id, recording_id, kind, note, event_id, opened_at, resolved_at, resolution)
+    SELECT ${tenant}, id, 'stream_spike', 'unusual stream spike on Oct 28', 'RUN-88119', '2026-11-06T08:40:00Z', '2026-11-08T16:00:00Z', 'Distributor report: a playlist add, real listeners'
     FROM recordings WHERE tenant_id = ${tenant} AND slug = 'night-bus'`;
+  // Its reserve was released when the flag was resolved, before the platform: nothing is held.
+  await tx`INSERT INTO reserves (tenant_id, flag_id, recording_id, amount_cents, opened_at, outcome, outcome_note, decided_at, released_at)
+    SELECT f.tenant_id, f.id, f.recording_id, 109928, f.opened_at, 'release', f.resolution, f.resolved_at, f.resolved_at FROM audit_flags f WHERE f.tenant_id = ${tenant}`;
   // Team members: the user row and membership the allowlist would create, with a name and title.
   for (const [email, name, role, title] of [['jana@northline.example', 'Jana', 'owner', 'Owner'], ['priya@northline.example', 'Priya Shah', 'team', 'Rights lead']] as const) {
     const [u] = await tx`INSERT INTO users (email, name) VALUES (${email}, ${name}) ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id`;

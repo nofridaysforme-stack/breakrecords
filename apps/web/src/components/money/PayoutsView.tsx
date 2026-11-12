@@ -67,7 +67,7 @@ export function PayoutsView({ data: initial }: { data: typeof P }) {
                   <td style={{ color: 'var(--text-2)' }}>{b.payees}</td>
                   <td className={`${s.r} ${s.amountStrong}`} style={{ fontSize: 'var(--fs-body)' }}><Money cents={b.total} /></td>
                   <td><span className={`${s.status} ${st.cls}`}><st.Icon size={13} strokeWidth={2.5} aria-hidden="true" />{st.label}</span></td>
-                  <td className={s.noteCell}>{note}</td>
+                  <td className={s.noteCell}>{note}{b.held ? <span style={{ display: 'block' }}><Money cents={b.held} /> held in reserve</span> : null}</td>
                   <td className={s.r}>
                     {b.status === 'awaiting' && !decided && b.approvalId && <ButtonLink href={`/approvals/${b.approvalId}`} variant="primary" size="sm">Review</ButtonLink>}
                     {b.status === 'failed' && b.failed && !fixAsked && <Button size="sm" onClick={() => request(b.failed!.payeeId, 'bank_details')}>Fix<span className="visually-hidden"> {b.failed.name}’s bank details</span></Button>}

@@ -69,3 +69,6 @@
 }
 .search { color: var(--text); text-align: left; cursor: text; transition: border-color var(--dur-fast) var(--ease); }
 .search:hover { border-color: var(--line-control); }
+
+.reserves { display: flex; flex-direction: column; gap: 10px; }
+.reserve { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px 18px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface); font-size: var(--fs-body); line-height: 1.5; }

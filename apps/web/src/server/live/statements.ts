@@ -1,4 +1,6 @@
 import 'server-only';
+import { heldNote } from '@breakrecords/core/reserves';
+import { heldFor, holdsIn } from './reserves';
 import { changeNote, checkStatement, periodLabel, suggestIsrcMatch, unmatchedNote } from '@breakrecords/core/statements';
 import type { WaterfallRow } from '@breakrecords/core/waterfall';
 import { withTenant, type Tx } from '@breakrecords/db/client';
@@ -125,12 +127,12 @@ export function liveMatchLines(ctx: RequestContext, isrc: string, recordingId: s
 type StRow = {
   ref: string; payee: string; payee_slug: string; release: string | null; period: Date; version: number | null;
   pays_on: Date; pay_run: string | null; rows: WaterfallRow[]; net_cents: string; audit_ref: string;
-  simple: { label: string; amount: number }[]; qa: Statement['qa'] | null;
+  simple: { label: string; amount: number }[]; qa: Statement['qa'] | null; release_uuid: string | null; period_iso: string;
 };
 
 const statementRows = (tx: Tx, ref?: string) => tx<StRow[]>`
   SELECT s.ref, p.name AS payee, p.slug AS payee_slug, rl.title AS release, s.period, v.version, s.pays_on, s.pay_run,
-         s.rows, s.net_cents, s.audit_ref, s.simple, s.qa
+         s.rows, s.net_cents, s.audit_ref, s.simple, s.qa, s.release_id AS release_uuid, to_char(s.period, 'YYYY-MM-DD') AS period_iso
   FROM payee_statements s
   JOIN parties p ON p.id = s.party_id
   LEFT JOIN releases rl ON rl.id = s.release_id
@@ -156,6 +158,13 @@ export function liveStatements(ctx: RequestContext): Promise<StatementSummary[]>
   return withTenant(sql, ctx, async (tx) => (await statementRows(tx)).map(toStatement).map(({ id, payee, payeeId, release, period, net, pays }) => ({ id, payee, payeeId, release, period, net, pays })));
 }
 
+/** One statement. If a recording it pays from is flagged, the part held in reserve is shown with it. */
 export function liveStatement(ctx: RequestContext, ref: string): Promise<Statement | null> {
-  return withTenant(sql, ctx, async (tx) => { const [r] = await statementRows(tx, ref); return r ? toStatement(r) : null; });
+  return withTenant(sql, ctx, async (tx) => {
+    const [r] = await statementRows(tx, ref);
+    if (!r) return null;
+    const st = toStatement(r);
+    const h = heldFor(await holdsIn(tx), r.release_uuid, r.period_iso, st.net);
+    return h.held ? { ...st, held: { amount: h.held, note: heldNote(h.held, h.recordings) } } : st;
+  });
 }

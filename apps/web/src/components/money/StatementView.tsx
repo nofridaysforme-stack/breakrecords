@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
-import { Waterfall } from '@/components/ui/Money';
+import { Money, Waterfall } from '@/components/ui/Money';
 import type { Statement } from '@/data/money';
 import { ScreenState } from '@/components/ui/ScreenState';
 import { STATES } from '@/data/states';
@@ -46,6 +46,7 @@ export function StatementView({ st, scenario = 'default' }: { st: Statement; sce
           <div>
             <h1 className={s.stTitle}>{st.payee} earned <span className={s.accent}>{net}</span> from {st.release} in {month}</h1>
             <p className={s.sub}>Statement {st.id} · {st.split} · pays {st.pays}</p>
+            {st.held && <p className={s.heldNote} role="note"><strong><Money cents={st.held.amount} /> held.</strong> {st.held.note.replace(/^\S+ held in reserve/, 'In reserve')} It’s paid once released.</p>}
           </div>
           <div className={s.filters}>
             <Button onClick={download}>CSV</Button>

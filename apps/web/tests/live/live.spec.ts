@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse } from '@breakrecords/contract';
+import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 import { MAILBOX } from '../../playwright.live.config';
@@ -1202,5 +1202,46 @@ test.describe('tax compliance (live)', () => {
     expect((await year()).filing.status).toBe('filed');
     const undo = await page.request.delete('/api/approvals/tax_2026/decision');
     expect(ApprovalError.parse(await undo.json()).error).toBe('already_executed');
+  });
+});
+
+test.describe('reserves (live)', () => {
+  test('a flag holds income from unpaid batches; the payee sees their held share; release needs approval; forfeit is final', async ({ page, browser }) => {
+    await signIn(page, USERS.owner);
+    const reserves = async () => ReservesResponse.parse(await (await page.request.get('/api/money/reserves')).json());
+    expect((await reserves()).items.map((r) => [r.recording, r.status])).toEqual([['Night Bus', 'released']]); // the seeded flag, resolved before the platform
+
+    expect((await page.request.post('/api/money/reserves', { data: { recordingId: 'night-bus', note: 'unusual stream spike on Nov 9' } })).status()).toBe(200);
+    expect((await page.request.post('/api/money/reserves', { data: { recordingId: 'night-bus', note: 'again' } })).status()).toBe(409);
+    const p = PayoutsResponse.parse(await (await page.request.get('/api/money/payouts')).json());
+    expect(p.batches.filter((b) => b.held).map((b) => [b.id, b.held])).toEqual([['pb-2026-10', 69443], ['pb-2026-q3', 455740]]);
+    const c = ApprovalChecksResponse.parse(await (await page.request.get('/api/approvals/checks')).json());
+    expect(c.items.apr_payout_oct.results.find((r) => r.id === 'ROY-07')).toMatchObject({ status: 'pass', message: 'Night Bus has an open audit flag. $694.43 of this batch is held in reserve until it’s resolved.' });
+
+    // Paper Moons earns on Velvet Hours, so Marco's October statement holds its share, and Marco sees it.
+    expect((await page.request.post('/api/money/reserves', { data: { recordingId: 'paper-moons', note: 'spike' } })).status()).toBe(200);
+    const marco = await (await browser.newContext()).newPage();
+    await signIn(marco, USERS.payee, { into: 'Northline Records' });
+    const st = StatementResponse.parse(await (await marco.request.get('/api/statements/ST-2026-10-MD')).json());
+    expect(st.held).toEqual({ amount: 1158, note: '$11.58 held in reserve while Paper Moons is checked for artificial streams.' });
+    expect((await marco.request.get('/api/money/reserves')).status()).toBe(403);
+    expect((await marco.request.post('/api/money/reserves', { data: { recordingId: 'paper-moons', note: 'x' } })).status()).toBe(403);
+
+    // Real listeners: a release card; the money stays held until it's approved.
+    const pm = (await reserves()).items.find((r) => r.recording === 'Paper Moons')!;
+    expect((await page.request.post(`/api/money/reserves/${pm.id}/resolve`, { data: { outcome: 'release', note: 'Radio feature' } })).status()).toBe(200);
+    const releasing = (await reserves()).items.find((r) => r.id === pm.id)!;
+    expect(releasing).toMatchObject({ status: 'releasing', approvalId: expect.stringMatching(/^reserve_/) });
+    expect(StatementResponse.parse(await (await marco.request.get('/api/statements/ST-2026-10-MD')).json()).held?.amount).toBe(1158);
+    expect((await page.request.post(`/api/approvals/${releasing.approvalId}/decision`, { data: { action: 'approve' } })).status()).toBe(200);
+    expect((await reserves()).items.find((r) => r.id === pm.id)).toMatchObject({ status: 'released', heldNow: 0 });
+    expect(StatementResponse.parse(await (await marco.request.get('/api/statements/ST-2026-10-MD')).json()).held).toBeUndefined();
+
+    // Artificial streams: forfeited for good.
+    const nb = (await reserves()).items.find((r) => r.recording === 'Night Bus' && r.status === 'held')!;
+    expect((await page.request.post(`/api/money/reserves/${nb.id}/resolve`, { data: { outcome: 'forfeit', note: 'Bot farm confirmed' } })).status()).toBe(200);
+    expect((await page.request.post(`/api/money/reserves/${nb.id}/resolve`, { data: { outcome: 'release', note: 'oops' } })).status()).toBe(409);
+    expect((await reserves()).items.find((r) => r.id === nb.id)).toMatchObject({ status: 'forfeited', heldNow: 0 });
+    expect(PayoutsResponse.parse(await (await page.request.get('/api/money/payouts')).json()).batches.some((b) => b.held)).toBe(false);
   });
 });

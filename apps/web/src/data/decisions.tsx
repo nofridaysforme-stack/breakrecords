@@ -28,6 +28,8 @@ type Store = {
   /** Server approvals plus in-app proposals that still need a decision. */
   openCount: (ids: string[]) => number;
   propose: (p: Proposal) => void;
+  /** Reads the server's decisions and checks again (after a server-side proposal, such as a reserve release). */
+  refresh: () => Promise<void>;
 };
 
 const Ctx = createContext<Store | null>(null);
@@ -111,8 +113,9 @@ export function DecisionsProvider({ children }: { children: ReactNode }) {
         write((s) => { const d = { ...s.decisions }; delete d[p.id]; return { decisions: d, proposals: [...s.proposals.filter((x) => x.id !== p.id), p] }; },
           { url: '/api/approvals', method: 'POST', body: { proposal: p } });
       },
+      refresh,
     };
-  }, [state, checks, write]);
+  }, [state, checks, write, refresh]);
 
   return (
     <Ctx.Provider value={store}>

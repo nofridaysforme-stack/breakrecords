@@ -24,6 +24,8 @@ type Props = {
   numbers: { income: Cents; owed: Cents; recouped: Cents; cash90: Cents; unclaimed: Cents };
   notes: { period: string; income: string; owed: string; owedApprovalId: string | null; recouped: string; cash90: string; unclaimed: string };
   approvals: ApprovalSummary[];
+  /** Income held by audit flags waiting on a decision (AUD-02). */
+  reserves?: { id: string; recording: string; note: string; held: Cents }[];
   labelShort: string;
 };
 
@@ -44,7 +46,7 @@ export function AgentRail({ feed }: { feed: HomeData['feed'] }) {
   );
 }
 
-export function HomeView({ scenario, home, numbers, notes, approvals, labelShort }: Props) {
+export function HomeView({ scenario, home, numbers, notes, approvals, reserves = [], labelShort }: Props) {
   const { pending, approve, undo, proposals, decisions, checks } = useDecisions();
   const { openCommand, openPanel } = useShellUI();
   const router = useRouter();
@@ -154,13 +156,23 @@ export function HomeView({ scenario, home, numbers, notes, approvals, labelShort
 
       <section className={s.needs} aria-labelledby="needs">
         <div className={s.needsHead}>
-          <SectionHead id="needs">Needs you <span className={s.count}>{waiting.length}</span></SectionHead>
+          <SectionHead id="needs">Needs you <span className={s.count}>{waiting.length + reserves.length}</span></SectionHead>
           <Link href="/approvals" className={s.link}><span className={s.deskOnly}>Open approvals</span><span className={s.phoneOnly}>See all</span></Link>
         </div>
         {approvedItem && <ApprovalConfirmed text={`${approvedItem.title} approved. Nothing is sent before ${approvedItem.due}.`} onUndo={() => { undo([approvedItem.id]); setJustApproved(null); }} />}
-        {waiting.length === 0 ? (
+        {reserves.length > 0 && (
+          <ul className={s.reserves} aria-label="Income held by audit flags">
+            {reserves.map((r) => (
+              <li key={r.id} className={s.reserve}>
+                <span><strong>{r.recording}</strong> is flagged: {r.note}. <Money cents={r.held} /> is held in reserve until you decide.</span>
+                <ButtonLink href="/money/payouts#reserves" size="sm">Decide<span className="visually-hidden"> on {r.recording}</span></ButtonLink>
+              </li>
+            ))}
+          </ul>
+        )}
+        {waiting.length === 0 && reserves.length === 0 ? (
           <p className={s.note}>Nothing needs you right now.</p>
-        ) : (
+        ) : waiting.length === 0 ? null : (
           <div className={s.cards}>
             {waiting.slice(0, 3).map((a) => <ApprovalCard key={a.id} approval={a} reviewHref={a.href ?? `/approvals/${a.id}`} onApprove={onApprove} cantApprove={checks?.[a.id] ? !checks[a.id].canApprove : false} />)}
           </div>
