@@ -89,11 +89,14 @@ export const contracts: Contract[] = [
   // ASSUMED: Ines Pardo's mix on Night Bus is paid 1 point, so she has her own signed agreement.
   { id: 'ct_mix_nb', name: 'Mix engineer agreement, Night Bus', template: 'Northline producer v3 · 1 edit', templateId: 'producer', parties: 'Ines Pardo', terms: '1 point', date: null, dateWhat: '', sig: 'Signed', sigState: 'signed' },
   { id: 'ct_distribution', name: 'Distribution agreement', template: 'Third party · reviewed', parties: 'Distributor', terms: '0% fee, 1 year auto-renew', date: 'Aug 1', dateWhat: 'Renewal', sig: 'Signed', sigState: 'signed' },
+  // ASSUMED: the label administers The Low Hours' and Kesi's songs, so it may register them (PUB-02).
+  { id: 'ct_admin_lh', name: 'Administration agreement, The Low Hours', template: 'Northline administration v1', templateId: 'admin', parties: 'Dana Okafor, Theo Lind, Rue Sato', terms: '15% fee, worldwide', date: 'Jan 9', dateWhat: 'Term renews', sig: 'Signed', sigState: 'signed' },
+  { id: 'ct_admin_kv', name: 'Administration agreement, Kesi Vale', template: 'Northline administration v1', templateId: 'admin', parties: 'Kesi Vale', terms: '15% fee, worldwide', date: 'Mar 6, 2029', dateWhat: 'Term ends', sig: 'Signed', sigState: 'signed' },
   // ASSUMED: the 7th active agreement the 5b subtitle counts; shares as in the MLC filing.
   { id: 'ct_split_nb', name: 'Split sheet, Night Bus song', template: 'Split sheet v1', templateId: 'split', parties: 'The Low Hours (3)', terms: '34 / 33 / 33', date: null, dateWhat: '', sig: 'Signed', sigState: 'signed' },
 ];
 
-export const contractsSummary = '8 active · 1 waiting on signatures · next key date Jan 9';
+export const contractsSummary = '10 active · 1 waiting on signatures · next key date Jan 9';
 
 export type Template = {
   id: string; name: string; version: string; summary: string;
@@ -143,6 +146,38 @@ export const templates: Template[] = [
       { title: 'Publishers', text: 'Each writer’s publisher, or “self-published”.' },
     ],
     playbook: ['Every writer signs before anything is filed.'],
+  },
+  // Publishing: who may register and collect for a writer's songs (rule PUB-02). ASSUMED terms.
+  {
+    id: 'publishing', name: 'Publishing agreement', version: 'v1 · full', updated: 'Nov 12, 2026',
+    summary: 'The label owns the writer’s share of copyright in the songs for the term and files as their publisher.',
+    clauses: [
+      { title: 'Rights', text: 'The label owns the publisher share of each song written in the term, worldwide.' },
+      { title: 'Income', text: 'The writer keeps their writer share at the PRO; publishing income splits 50/50 after the publisher’s costs.' },
+      { title: 'Term', text: '3 years; songs stay with the label for 10 years after the term ends.' },
+    ],
+    playbook: ['Never take the writer share at the PRO.', 'Songs revert no later than 10 years after the term.'],
+  },
+  {
+    id: 'co-publishing', name: 'Co-publishing agreement', version: 'v1 · 50/50', updated: 'Nov 12, 2026',
+    summary: 'The writer and the label co-own the publisher share. The label files and collects for both.',
+    clauses: [
+      { title: 'Rights', text: 'The label and the writer each own half of the publisher share.' },
+      { title: 'Income', text: 'The writer gets their writer share plus half the publisher share, so 75% of the song’s income.' },
+      { title: 'Term', text: '3 years; songs stay co-owned for 10 years after the term ends.' },
+    ],
+    playbook: ['The writer’s total stays at or above 75%.'],
+  },
+  {
+    id: 'admin', name: 'Administration agreement', version: 'v1 · 15% fee', updated: 'Nov 12, 2026',
+    summary: 'The writer keeps ownership. The label registers the songs and collects for a fee.',
+    clauses: [
+      { title: 'Rights', text: 'No ownership changes. The label may register, license and collect for the songs.' },
+      { title: 'Fee', text: '15% of publishing income collected, taken before it is paid to the writer.' },
+      { title: 'Territory', text: 'Worldwide, through sub-publishers outside the US where the label names one.' },
+      { title: 'Term', text: '3 years, then year to year until either side ends it with 90 days’ notice.' },
+    ],
+    playbook: ['Admin fee stays at or under 20%.', 'The writer keeps ownership of every song.'],
   },
   {
     id: 'sync', name: 'Sync license', version: 'v1 · one-off', updated: 'May 5, 2026',
