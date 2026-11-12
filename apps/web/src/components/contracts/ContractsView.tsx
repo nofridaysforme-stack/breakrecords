@@ -40,7 +40,7 @@ export function ContractsView({ data: initial }: { data: Data }) {
   return (
     <>
       <div className={`${o.head} ${s.head}`}>
-        <div><PageTitle>Contracts</PageTitle><p className={o.sub}>{data.summary}</p></div>
+        <div><PageTitle>Contracts</PageTitle><p className={o.sub}>{data.summary} · <Link href="/sync" className={o.linkInline}>Sync licensing</Link></p></div>
         <div className={o.actions}>
           <Button onClick={() => upload.current?.showModal()}>Upload a contract for review</Button>
           <Button variant="primary" onClick={() => draft.current?.showModal()}>Draft from template</Button>

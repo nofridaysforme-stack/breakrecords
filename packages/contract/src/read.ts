@@ -133,6 +133,40 @@ export const StatementResponse = z.object({
 /** GET /api/statements: every payee statement the signed-in user may read, newest period first. */
 export const StatementSummary = StatementResponse.pick({ id: true, payee: true, payeeId: true, release: true, period: true, net: true, pays: true });
 export const StatementsResponse = z.object({ items: z.array(StatementSummary) });
+// ---------- Sync licensing ----------
+export const SyncMedia = z.enum(['film', 'tv', 'ad', 'game', 'trailer', 'online', 'other']);
+export const QuoteState = z.enum(['draft', 'sent', 'awaiting_signature', 'licensed', 'paid', 'declined']);
+/** GET /api/sync: briefs and their quotes, and the recordings that can be offered. */
+export const SyncResponse = z.object({
+  briefs: z.array(z.object({
+    id: Id, title: z.string(), client: z.string(), media: SyncMedia, territory: z.string(), term: z.string(),
+    budget: Cents.nullable(), due: Display.nullable(), notes: z.string().nullable(), closed: z.boolean(),
+    quotes: z.array(z.object({
+      id: Id, recordingId: Id, recording: z.string(), artist: z.string(), fee: Cents, masterBp: Bp, master: Cents, song: Cents, use: z.string(),
+      state: QuoteState, approvalId: Id.optional(), paidRef: z.string().optional(),
+    })),
+  })),
+  recordings: z.array(z.object({ id: Id, title: z.string(), artist: z.string(), oneStop: z.boolean(), oneStopNote: z.string() })),
+});
+export type SyncResponse = z.infer<typeof SyncResponse>;
+/** POST /api/sync/briefs: a request from a music supervisor or brand. */
+export const CreateBriefCommand = z.object({
+  title: z.string().trim().min(1).max(200), client: z.string().trim().min(1).max(200), media: SyncMedia,
+  territory: z.string().trim().min(1).max(120).optional(), term: z.string().trim().min(1).max(120).optional(),
+  budget: Cents.refine((c) => c >= 0).optional(), due: IsoDate.optional(), notes: z.string().trim().max(2000).optional(),
+}).strict();
+/** POST /api/sync/briefs/{id}/quotes: offer a recording, with one fee for master and song. */
+export const CreateQuoteCommand = z.object({
+  recordingId: Id, fee: Cents.refine((c) => c > 0, 'A fee is above $0.00.'), masterBp: Bp.optional(), use: z.string().trim().min(1).max(500),
+}).strict();
+/**
+ * POST /api/sync/quotes/{id}: send it (recorded; you send it yourself), the client accepted it
+ * (which asks you to sign the license as an approval card), they declined it, or the fee arrived
+ * (recorded as sync income on the master and the song, only once the license is signed).
+ */
+export const QuoteActionCommand = z.object({ action: z.enum(['send', 'accept', 'decline', 'paid']) }).strict();
+export const SyncError = z.object({ error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'not_allowed', 'already_quoted']), message: z.string() });
+
 // ---------- Statement imports ----------
 export const ImportField = z.enum(['title', 'isrc', 'artist', 'store', 'territory', 'units', 'amount', 'period']);
 export const ImportMapping = z.partialRecord(ImportField, z.string().max(200));

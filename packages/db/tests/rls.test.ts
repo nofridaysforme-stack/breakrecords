@@ -391,6 +391,33 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       await owner`DELETE FROM audit_flags WHERE id = ${flag}`; // the audit flag tests below start clean
     });
 
+    it('a sync quote’s terms freeze once sent; the fee is recorded only on a signed license, which ends undo; payees and other labels see nothing', async () => {
+      const [{ id: rec }] = await owner`INSERT INTO recordings (tenant_id, slug, title, artist_id) VALUES (${ids.a}, 'sync-rec', 'Sync Cue', ${kesi}) RETURNING id`;
+      const [{ id: brief }] = await asOwner((tx) => tx`INSERT INTO sync_briefs (tenant_id, slug, title, client, media) VALUES (${ids.a}, 'brief-x', 'End credits', 'A supervisor', 'film') RETURNING id`);
+      const [{ id: q }] = await asOwner((tx) => tx`INSERT INTO sync_quotes (tenant_id, brief_id, recording_id, fee_cents, use_desc) VALUES (${ids.a}, ${brief}, ${rec}, 500000, 'End credits, 60s') RETURNING id`);
+      await asOwner((tx) => tx`UPDATE sync_quotes SET fee_cents = 600000 WHERE id = ${q}`); // a draft can change
+      await asOwner((tx) => tx`UPDATE sync_quotes SET status = 'sent', sent_at = now() WHERE id = ${q}`);
+      await expect(asOwner((tx) => tx`UPDATE sync_quotes SET fee_cents = 1 WHERE id = ${q}`)).rejects.toThrow(/can’t change/);
+      // Accepting needs the license card; payment needs it approved.
+      await expect(asOwner((tx) => tx`UPDATE sync_quotes SET status = 'accepted' WHERE id = ${q}`)).rejects.toThrow(/sync_quotes_check|violates check/);
+      await owner`INSERT INTO approvals (tenant_id, id, origin, type, title, agent, due, impact, risk) VALUES (${ids.a}, 'sync_x', 'user', 'signature', 'License', 'Legal Agent', 'Now', '$6,000', 'needsEyes')`;
+      await asOwner((tx) => tx`UPDATE sync_quotes SET status = 'accepted', approval_id = 'sync_x', decided_at = now() WHERE id = ${q}`);
+      await expect(asOwner((tx) => tx`UPDATE sync_quotes SET status = 'declined' WHERE id = ${q}`)).rejects.toThrow(/already decided/);
+      const [{ id: st }] = await owner`INSERT INTO income_statements (tenant_id, ref, source, period, total_cents) VALUES (${ids.a}, 'SYNC-X', 'sync', '2026-11-01', 0) RETURNING id`;
+      await expect(asOwner((tx) => tx`UPDATE sync_quotes SET statement_id = ${st} WHERE id = ${q}`)).rejects.toThrow(/hasn’t been signed/);
+      await owner`INSERT INTO approval_decisions (tenant_id, approval_id, status, decided_by, audit_id) VALUES (${ids.a}, 'sync_x', 'approved', ${ids.ua}, 'AUD-SY')`;
+      await asOwner((tx) => tx`UPDATE sync_quotes SET statement_id = ${st} WHERE id = ${q}`);
+      expect((await owner`SELECT executed_at FROM approvals WHERE tenant_id = ${ids.a} AND id = 'sync_x'`)[0].executed_at).not.toBeNull();
+      await expect(asOwner((tx) => tx`UPDATE sync_quotes SET statement_id = NULL WHERE id = ${q}`)).rejects.toThrow(/already paid/);
+      await expect(asOwner((tx) => tx`DELETE FROM sync_quotes WHERE id = ${q}`)).rejects.toThrow(/permission denied/);
+      for (const who of [{ userId: ids.payee, tenantId: ids.a }, { userId: ids.ub, tenantId: ids.b }]) {
+        expect(await withTenant(app, who, (tx) => tx`SELECT 1 FROM sync_briefs`)).toHaveLength(0);
+        expect(await withTenant(app, who, (tx) => tx`SELECT 1 FROM sync_quotes`)).toHaveLength(0);
+      }
+      await expect(withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`INSERT INTO sync_briefs (tenant_id, slug, title, client, media) VALUES (${ids.a}, 'p', 'p', 'p', 'ad')`))
+        .rejects.toThrow(/row-level security|permission denied/);
+    });
+
     it('only the workspace’s people link themselves to a party, only in their workspace; a release has one split node', async () => {
       await expect(withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT app_link_me_to_party(${kesi})`)).rejects.toThrow(/owners and team/);
       const [{ id: other }] = await owner`INSERT INTO parties (tenant_id, slug, name) VALUES (${ids.b}, 'b-artist', 'B Artist') RETURNING id`;

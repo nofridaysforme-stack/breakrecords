@@ -126,7 +126,7 @@ export function liveUpdateRecording(ctx: RequestContext, slug: string, cmd: Upda
 }
 
 /** A slug for a new row: the name, lowercased, made unique in the tenant. */
-export async function freeSlug(tx: Tx, table: 'parties' | 'releases' | 'recordings' | 'split_nodes' | 'works', name: string, prefix = ''): Promise<string> {
+export async function freeSlug(tx: Tx, table: 'parties' | 'releases' | 'recordings' | 'split_nodes' | 'works' | 'sync_briefs', name: string, prefix = ''): Promise<string> {
   const base = prefix + (name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'untitled');
   const taken = new Set((await tx.unsafe<{ slug: string }[]>(`SELECT slug FROM ${table} WHERE slug = $1 OR slug LIKE $2`, [base, `${base}-%`])).map((r) => r.slug));
   let slug = base;
