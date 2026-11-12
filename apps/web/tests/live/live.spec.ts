@@ -1410,3 +1410,10 @@ test.describe('sync licensing (live)', () => {
     expect((await harbor.request.post(`/api/sync/quotes/${q.id}`, { data: { action: 'decline' } })).status()).toBe(404);
   });
 });
+
+// Last: staging is reseeded over data people made (flags, reserves, sync quotes, imports). After
+// every test above has written its rows, the seed must still run cleanly on top of them.
+test('the seed runs again over everything the tests made', async () => {
+  const { execFileSync } = await import('node:child_process');
+  expect(() => execFileSync('npx', ['tsx', 'scripts/seed.ts'], { stdio: 'pipe', env: { ...process.env, SEED_DATABASE_URL: process.env.TEST_DATABASE_URL, BR_ALLOW_SEED: '1' } })).not.toThrow();
+});

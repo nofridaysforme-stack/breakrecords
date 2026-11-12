@@ -53,8 +53,9 @@ async function main() {
     for (const email of STAFF) await tx`INSERT INTO platform_admins (email) VALUES (${email}) ON CONFLICT DO NOTHING`;
 
     // Payouts and statements point at parties, recordings and split versions, and batches at approvals, so they go first.
+    // Sync quotes and audit flags (with their reserves) point at recordings, so they go too; a reseed must not trip on them.
     for (const t of [ids.northline, ids['harbor-sound']]) {
-      for (const table of ['payout_batches', 'payee_requests', 'payees', 'recoupment_accounts', 'payout_policies', 'agreements', 'contract_templates', 'contract_reviews', 'funding_opportunities', 'funding_questions', 'funding_assumptions']) {
+      for (const table of ['sync_briefs', 'audit_flags', 'payout_batches', 'payee_requests', 'payees', 'recoupment_accounts', 'payout_policies', 'agreements', 'contract_templates', 'contract_reviews', 'funding_opportunities', 'funding_questions', 'funding_assumptions']) {
         await tx.unsafe(`DELETE FROM ${table} WHERE tenant_id = $1`, [t]);
       }
       await tx`DELETE FROM payee_statements WHERE tenant_id = ${t}`;
