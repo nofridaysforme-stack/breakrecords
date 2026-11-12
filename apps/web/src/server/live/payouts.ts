@@ -4,6 +4,7 @@ import { formatMoney } from '@breakrecords/core/money';
 import { formatPercent } from '@breakrecords/core/percent';
 import { dayMonth, dayMonthYear, monthYear, recoupment as recoup, shareBasis, shareTerms, signPrompt, taxState } from '@breakrecords/core/payouts';
 import { periodLabel } from '@breakrecords/core/statements';
+import { taxTreatment, type MissingFormPolicy } from '@breakrecords/core/tax';
 import { SPLIT_ROLES, type SplitRole } from '@breakrecords/core/splitVersions';
 import { withTenant, type Tx } from '@breakrecords/db/client';
 import type { Payee, Payouts, Recoup } from '@/data/money';
@@ -13,10 +14,18 @@ import type { RequestContext } from '../context';
 type Kind = 'tax_form' | 'bank_details';
 const n = (v: unknown) => Number(v ?? 0);
 const today = () => new Date();
+const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+type TaxRow = { tax_form: string | null; tax_expires_on: Date | null; backup_withholding: boolean; treaty_country: string | null; treaty_article: string | null; treaty_rate_bp: number | null };
+/** How a payment to this payee is taxed today, in words. */
+export const withholdingLabel = (y: TaxRow, policy: MissingFormPolicy) => taxTreatment({
+  form: y.tax_form, expiresOn: iso(y.tax_expires_on), backupWithholding: y.backup_withholding,
+  treaty: y.treaty_country ? { country: y.treaty_country, article: y.treaty_article ?? '', rateBp: y.treaty_rate_bp ?? 0 } : null,
+}, today().toISOString().slice(0, 10), policy).label;
 const first = (name: string) => name.split(' ')[0];
 
 async function payoutsIn(tx: Tx): Promise<Payouts> {
-  const [policy] = await tx<{ minimum_cents: string }[]>`SELECT minimum_cents FROM payout_policies`;
+  const [policy] = await tx<{ minimum_cents: string; missing_form_policy: MissingFormPolicy }[]>`SELECT minimum_cents, missing_form_policy FROM payout_policies`;
+  const missingFormPolicy: MissingFormPolicy = policy?.missing_form_policy ?? 'hold';
   const batches = await tx<{ slug: string; name: string; status: Payouts['batches'][number]['status']; approval_id: string | null; pays_on: Date; sent_at: Date | null;
     total: string; payees: number; carried: number; failed: { slug: string; name: string; reason: string } | null }[]>`
     SELECT b.slug, b.name, b.status::text AS status, b.approval_id, b.pays_on, b.sent_at,
@@ -27,8 +36,8 @@ async function payoutsIn(tx: Tx): Promise<Payouts> {
               WHERE fl.batch_id = b.id AND fl.status = 'failed' ORDER BY p.name LIMIT 1) AS failed
     FROM payout_batches b LEFT JOIN payout_lines l ON l.batch_id = b.id
     GROUP BY b.id ORDER BY (b.status = 'awaiting') DESC, (b.status = 'draft') DESC, b.period DESC, b.pays_on DESC`;
-  const payees = await tx<{ slug: string; name: string; tax_form: string | null; tax_expires_on: Date | null }[]>`
-    SELECT p.slug, p.name, y.tax_form, y.tax_expires_on FROM payees y JOIN parties p ON p.id = y.party_id ORDER BY y.created_at, p.name`;
+  const payees = await tx<({ slug: string; name: string } & TaxRow)[]>`
+    SELECT p.slug, p.name, y.tax_form, y.tax_expires_on, y.backup_withholding, y.treaty_country, y.treaty_article, y.treaty_rate_bp FROM payees y JOIN parties p ON p.id = y.party_id ORDER BY y.created_at, p.name`;
   const carried = await tx<{ name: string; role: string; amount_cents: string }[]>`
     SELECT p.name, l.role, l.amount_cents FROM payout_lines l JOIN parties p ON p.id = l.party_id JOIN payout_batches b ON b.id = l.batch_id
     WHERE l.status = 'carried' AND b.status IN ('awaiting', 'draft') ORDER BY b.pays_on, l.amount_cents DESC`;
@@ -42,6 +51,7 @@ async function payoutsIn(tx: Tx): Promise<Payouts> {
     : b.carried ? `${b.carried} carried forward` : `Pays ${dayMonth(b.pays_on)}`;
   return {
     minimum: policy ? n(policy.minimum_cents) : 2500,
+    missingFormPolicy,
     batches: batches.map((b) => ({
       id: b.slug, name: b.name, payees: b.payees, total: n(b.total), status: b.status, note: note(b),
       ...(b.approval_id ? { approvalId: b.approval_id } : {}),
@@ -49,7 +59,7 @@ async function payoutsIn(tx: Tx): Promise<Payouts> {
     })),
     taxForms: payees.map((y) => {
       const t = taxState(y.tax_form, y.tax_expires_on, today());
-      return { payeeId: y.slug, name: y.name, form: y.tax_form ?? 'None', status: t.status, label: t.label,
+      return { payeeId: y.slug, name: y.name, form: y.tax_form ?? 'None', status: t.status, label: t.label, withholding: withholdingLabel(y, missingFormPolicy),
         ...(t.status === 'ok' ? {} : { fix: y.tax_form && t.status === 'expiring' ? 'Request new' : 'Request form' }) };
     }),
     carryForward: carried.map((c) => ({ name: c.name, role: c.role, amount: n(c.amount_cents) })),
@@ -76,6 +86,26 @@ export function liveRequestFromPayee(ctx: RequestContext, payeeId: string, kind:
       VALUES (${ctx.tenantId}, ${'AUD-PAY-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'payee_request.created', ${payeeId}, ${tx.json({ kind })})`;
     return { ok: true, value: await payoutsIn(tx) } as const;
   });
+}
+
+/** What happens to a payee with no valid tax form: hold their payout, or pay with 24% backup withholding. */
+export function liveSetMissingFormPolicy(ctx: RequestContext, policy: MissingFormPolicy): Promise<Payouts> {
+  return withTenant(sql, ctx, async (tx) => {
+    await tx`INSERT INTO payout_policies (tenant_id) VALUES (${ctx.tenantId}) ON CONFLICT DO NOTHING`;
+    await tx`UPDATE payout_policies SET missing_form_policy = ${policy}`;
+    await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
+      VALUES (${ctx.tenantId}, ${'AUD-PAY-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'payout_policy.changed', 'missing_form_policy', ${tx.json({ policy })})`;
+    return payoutsIn(tx);
+  });
+}
+
+/** A payee certifies their own tax form in the portal. The database checks it is them. */
+export async function liveSubmitTaxForm(ctx: RequestContext, c: { form: 'W-9' | 'W-8BEN' | 'W-8BEN-E'; legalName: string; tinLast4?: string; country?: string; treaty?: { article: string; rateBp: number }; signature: string }): Promise<Payee | null> {
+  await withTenant(sql, ctx, async (tx) => {
+    await tx`SELECT app_submit_tax_form(${c.form}, ${c.legalName}, ${c.tinLast4 ?? null}, ${c.signature}, ${c.country ?? null},
+      ${c.treaty ? c.country ?? null : null}, ${c.treaty?.article ?? null}, ${c.treaty?.rateBp ?? null}::integer, ${today().toISOString().slice(0, 10)}::date)`;
+  });
+  return livePayee(ctx, null);
 }
 
 async function recoupmentIn(tx: Tx): Promise<Recoup[]> {
@@ -136,9 +166,9 @@ async function pathOf(tx: Tx, nodeId: string): Promise<string[]> {
  */
 export function livePayee(ctx: RequestContext, slug: string | null): Promise<Payee | null> {
   return withTenant(sql, ctx, async (tx) => {
-    const [y] = await tx<{ party_id: string; slug: string; name: string; tax_form: string | null; tax_expires_on: Date | null; bank_last4: string | null; bank_name: string | null;
-      opening_earned_cents: string; opening_paid_cents: string }[]>`
-      SELECT y.party_id, p.slug, p.name, y.tax_form, y.tax_expires_on, y.bank_last4, y.bank_name, y.opening_earned_cents, y.opening_paid_cents
+    const [y] = await tx<({ party_id: string; slug: string; name: string; bank_last4: string | null; bank_name: string | null;
+      opening_earned_cents: string; opening_paid_cents: string } & TaxRow)[]>`
+      SELECT y.party_id, p.slug, p.name, y.tax_form, y.tax_expires_on, y.backup_withholding, y.treaty_country, y.treaty_article, y.treaty_rate_bp, y.bank_last4, y.bank_name, y.opening_earned_cents, y.opening_paid_cents
       FROM payees y JOIN parties p ON p.id = y.party_id
       WHERE (${ctx.role === 'payee'} AND y.party_id = app_party() AND (${slug}::text IS NULL OR p.slug = ${slug}))
          OR (${ctx.role !== 'payee'} AND (${slug}::text IS NULL OR p.slug = ${slug}))
@@ -197,7 +227,9 @@ export function livePayee(ctx: RequestContext, slug: string | null): Promise<Pay
             from: next.release && next.period ? `From ${next.release}, ${periodLabel(next.period).split(' ')[0]}.${next.role && next.terms ? ` ${shareBasis(next.role, next.terms)}` : ''}` : `From the ${next.batch} batch.` }
         : { amount: 0, date: 'Not scheduled', from: 'Nothing is waiting to be paid.' },
       tax: { ok: t.status === 'ok', label: y.tax_form ? `${y.tax_form} ${t.status === 'ok' ? 'on file' : t.label.toLowerCase()}` : 'No tax form on file', form: y.tax_form ?? 'None',
-        expires: y.tax_expires_on ? `Expires ${dayMonthYear(y.tax_expires_on)}` : 'No expiry' },
+        expires: y.tax_expires_on ? `Expires ${dayMonthYear(y.tax_expires_on)}` : 'No expiry',
+        withholding: withholdingLabel(y, (await tx<{ p: MissingFormPolicy }[]>`SELECT missing_form_policy AS p FROM payout_policies`)[0]?.p ?? 'hold'),
+        canSubmit: ctx.role === 'payee' },
       bank: y.bank_last4 ? { last4: y.bank_last4, name: y.bank_name ?? 'Account' } : null,
       statementIds: statements.map((s) => s.ref),
       splits: rows,

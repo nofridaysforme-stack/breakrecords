@@ -11,7 +11,7 @@ import { approvalDetails, home, homeNumberNotes, homeNumbers, releases, TODAY } 
 import type { ApprovalDetail, Release, Scenario } from './types';
 import type { ApprovalSummary } from '@/components/ui/Approval';
 import * as ops from './ops';
-import type { Module, SplitNodeResponse, SplitTreeNode } from '@breakrecords/contract';
+import type { Module, SplitNodeResponse, SplitTreeNode, TaxYearResponse } from '@breakrecords/contract';
 import { advance, baselineIncome, sale, type AdvanceOffer, type OfferAssumptions, type SaleOffer } from '@breakrecords/core/offers';
 
 export { TODAY };
@@ -106,8 +106,14 @@ export async function getStatement(id: string): Promise<Statement | null> {
 /** Payouts (4d). Live: the tenant's batches, lines, payees and requests. */
 export async function getPayouts(): Promise<typeof payouts> {
   const ctx = await liveCtx('payouts');
-  if (!ctx) return (await import('@/server/mockPayouts')).mockPayouts();
+  if (!ctx) return (await import('@/server/mockTax')).mockPayoutsTax(await (await import('@/server/mockPayouts')).mockPayouts());
   return (await import('@/server/live/payouts')).livePayouts(ctx);
+}
+/** Year-end tax forms. Live: payments sent in the year, by payee. */
+export async function getTaxYear(year: number): Promise<TaxYearResponse> {
+  const ctx = await liveCtx('payouts');
+  if (!ctx) return (await import('@/server/mockTax')).mockTaxYear(year);
+  return (await import('@/server/live/tax')).liveTaxYear(ctx, year);
 }
 /** Recoupment (4e). Live: each release's account, costs and entries. */
 export async function getRecoupment(): Promise<typeof recoupment> {
@@ -159,7 +165,7 @@ export async function getDeal(nodeId: string): Promise<SplitNodeResponse | null>
 /** One payee's portal (4f). Live: built from their own rows; a payee can only get themselves. */
 export async function getPayee(id: string): Promise<Payee | null> {
   const ctx = await liveCtx('payouts');
-  if (!ctx) return payees[id] ?? null;
+  if (!ctx) return payees[id] ? (await import('@/server/mockTax')).mockPayeeTax(payees[id]) : null;
   return (await import('@/server/live/payouts')).livePayee(ctx, id);
 }
 
@@ -169,7 +175,7 @@ export async function getPayee(id: string): Promise<Payee | null> {
  */
 export async function getPortalPayee(as?: string): Promise<Payee> {
   const ctx = await liveCtx('payouts');
-  if (!ctx) return payees[as ?? DEFAULT_PAYEE] ?? payees[DEFAULT_PAYEE];
+  if (!ctx) return (await import('@/server/mockTax')).mockPayeeTax(payees[as ?? DEFAULT_PAYEE] ?? payees[DEFAULT_PAYEE]);
   const live = await import('@/server/live/payouts');
   const p = await live.livePayee(ctx, ctx.role === 'payee' ? null : (as ?? null));
   if (!p) (await import('next/navigation')).notFound();

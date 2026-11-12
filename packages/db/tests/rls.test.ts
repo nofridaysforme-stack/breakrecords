@@ -342,6 +342,35 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       await expect(asOwner((tx) => tx`INSERT INTO payee_requests (tenant_id, party_id, kind, requested_by) VALUES (${ids.a}, ${kesi}, 'tax_form', ${ids.ua})`)).rejects.toThrow(/duplicate key/);
     });
 
+    it('a payee certifies only their own tax form, which closes the request; the team can’t sign it for them', async () => {
+      const asPayee = <T,>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(app, { userId: ids.payee, tenantId: ids.a }, fn);
+      await asOwner((tx) => tx`INSERT INTO payee_requests (tenant_id, party_id, kind, requested_by) VALUES (${ids.a}, ${marco}, 'tax_form', ${ids.ua})`);
+      await asPayee((tx) => tx`SELECT app_submit_tax_form('W-8BEN', 'Marco Dela', NULL, 'Marco Dela', 'GB', 'GB', '12', 0, '2026-11-12')`);
+      const [m] = await owner`SELECT tax_form, tax_expires_on::text AS exp, treaty_rate_bp, tax_country, tin_last4 FROM payees WHERE party_id = ${marco}`;
+      expect(m).toEqual({ tax_form: 'W-8BEN', exp: '2029-12-31', treaty_rate_bp: 0, tax_country: 'GB', tin_last4: null });
+      expect(await owner`SELECT 1 FROM payee_requests WHERE party_id = ${marco} AND kind = 'tax_form' AND done_at IS NULL`).toHaveLength(0);
+      // Kesi's request stays open: Marco can only sign for himself.
+      expect(await owner`SELECT 1 FROM payee_requests WHERE party_id = ${kesi} AND kind = 'tax_form' AND done_at IS NULL`).toHaveLength(1);
+      await expect(asOwner((tx) => tx`SELECT app_submit_tax_form('W-9', 'Kesi Vale', '1234', 'Kesi Vale', NULL, NULL, NULL, NULL, '2026-11-12')`)).rejects.toThrow(/only a payee/);
+      // A payee can't edit the record directly either.
+      expect((await asPayee((tx) => tx`UPDATE payees SET tax_form = 'W-9' WHERE party_id = ${marco}`)).count).toBe(0);
+      await asPayee((tx) => tx`SELECT app_submit_tax_form('W-9', 'Marco Dela', '4821', 'Marco Dela', NULL, NULL, NULL, NULL, '2026-11-12')`);
+      expect((await owner`SELECT tax_form, tax_expires_on, treaty_country, tin_last4 FROM payees WHERE party_id = ${marco}`)[0]).toEqual({ tax_form: 'W-9', tax_expires_on: null, treaty_country: null, tin_last4: '4821' });
+    });
+
+    it('a tax year is marked filed only after its approval, which then can’t be undone; payees and other labels never see it', async () => {
+      await owner`INSERT INTO approvals (tenant_id, id, origin, type, title, agent, due, impact, risk) VALUES (${ids.a}, 'tax_2026', 'user', 'filing', 'File 2026', 'Royalties Agent', 'Jan 31', '$1', 'needsEyes')`;
+      await asOwner((tx) => tx`INSERT INTO tax_filings (tenant_id, year, approval_id, prepared_by) VALUES (${ids.a}, 2026, 'tax_2026', ${ids.ua})`);
+      await expect(asOwner((tx) => tx`UPDATE tax_filings SET filed_at = now(), filed_by = ${ids.ua} WHERE year = 2026`)).rejects.toThrow(/has not been approved/);
+      await owner`INSERT INTO approval_decisions (tenant_id, approval_id, status, decided_by, audit_id) VALUES (${ids.a}, 'tax_2026', 'approved', ${ids.ua}, 'AUD-T')`;
+      await asOwner((tx) => tx`UPDATE tax_filings SET filed_at = now(), filed_by = ${ids.ua} WHERE year = 2026`);
+      expect((await owner`SELECT executed_at FROM approvals WHERE tenant_id = ${ids.a} AND id = 'tax_2026'`)[0].executed_at).not.toBeNull();
+      await expect(asOwner((tx) => tx`UPDATE tax_filings SET filed_at = NULL, filed_by = NULL WHERE year = 2026`)).rejects.toThrow(/already marked filed/);
+      await expect(asOwner((tx) => tx`DELETE FROM tax_filings WHERE year = 2026`)).rejects.toThrow(/permission denied/);
+      expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT 1 FROM tax_filings`)).toHaveLength(0);
+      expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT 1 FROM tax_filings`)).toHaveLength(0);
+    });
+
     it('another label sees none of it and can’t point at it', async () => {
       for (const t of ['payout_batches', 'payout_lines', 'payees', 'recoupment_accounts']) {
         expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx.unsafe(`SELECT 1 FROM ${t}`))).toHaveLength(0);

@@ -35,7 +35,7 @@ export function Button({
   );
 }
 
-export function ButtonLink({ href, variant, size, block, mobileFull, className, children, ...rest }: Common & { href: string; 'aria-label'?: string }) {
+export function ButtonLink({ href, variant, size, block, mobileFull, className, children, ...rest }: Common & { href: string; 'aria-label'?: string; download?: boolean | string; prefetch?: boolean }) {
   return (
     <Link href={href} {...rest} className={classes({ variant, size, block, mobileFull, className })}>
       {children}

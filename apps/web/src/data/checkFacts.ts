@@ -4,6 +4,7 @@ import { daysBetween } from '@breakrecords/core/dates';
 import { releases } from './fixtures';
 import { royalties } from './money';
 import { offerAssumptions } from './ops';
+import { mockTaxFacts } from './tax';
 
 // What the approval checks read for the sample label's four cards. Taken from the live seed
 // (scripts/seed.ts) so sample data and live data give the same results: the payout, the MLC
@@ -328,6 +329,7 @@ export function mockProposalFacts(p: Proposal): ApprovalFacts | null {
     const pitch = r.phases.find((ph) => ph.tasks.some((t) => /pitch/i.test(t.title)));
     return { kind: 'release_plan', release: r.title, newDate: p.newDate, pitchLeadDays: pitch ? daysBetween(pitch.iso, r.date) : null, gatesMoved: true, budgetCents: r.budget, spentCents: r.spent };
   }
+  if (/^tax_\d{4}$/.test(p.id)) return mockTaxFacts(Number(p.id.slice(4)));
   if (p.id.startsWith('offer_')) {
     // October and September statements, annualized (Up 18% on September: $12,107.12).
     const months = [royalties.stats.income, 1210712];

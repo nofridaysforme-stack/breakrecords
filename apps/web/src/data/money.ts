@@ -105,6 +105,7 @@ export type BatchStatus = 'awaiting' | 'draft' | 'sent' | 'failed';
 export type Payouts = z.infer<typeof PayoutsResponse>;
 export const payouts: Payouts = {
   minimum: toCents(25),
+  missingFormPolicy: 'hold' as const,
   batches: [
     { id: 'pb-2026-10', name: 'October 2026', payees: 6, total: payoutBatch.total, status: 'awaiting' as BatchStatus, note: '2 carried forward', approvalId: 'apr_payout_oct' },
     { id: 'pb-2026-q3', name: 'Q4 artist run', payees: 2, total: toCents(6904.15), status: 'draft' as BatchStatus, note: 'Opens Jan 15' },
@@ -113,12 +114,12 @@ export const payouts: Payouts = {
     { id: 'pb-2026-07', name: 'July 2026', payees: 4, total: toCents(822.7), status: 'sent' as BatchStatus, note: 'Sent Aug 10' },
   ],
   taxForms: [
-    { payeeId: 'marco-dela', name: 'Marco Dela', form: 'W-9', status: 'ok' as const, label: 'On file' },
-    { payeeId: 'ari-monroe', name: 'Ari Monroe', form: 'W-9', status: 'ok' as const, label: 'On file' },
+    { payeeId: 'marco-dela', name: 'Marco Dela', form: 'W-9', status: 'ok' as const, label: 'On file', withholding: 'No withholding' },
+    { payeeId: 'ari-monroe', name: 'Ari Monroe', form: 'W-9', status: 'ok' as const, label: 'On file', withholding: 'No withholding' },
     // A W-8BEN lasts until the end of the third year after signing (Theo signed in 2023); a W-9 doesn't expire.
-    { payeeId: 'theo-lind', name: 'Theo Lind', form: 'W-8BEN', status: 'expiring' as const, label: 'Expires Dec 31', fix: 'Request new' },
-    { payeeId: 'rue-sato', name: 'Rue Sato', form: 'W-9', status: 'ok' as const, label: 'On file' },
-    { payeeId: 'jules-arden', name: 'Jules Arden', form: 'None', status: 'missing' as const, label: 'Missing', fix: 'Request form' },
+    { payeeId: 'theo-lind', name: 'Theo Lind', form: 'W-8BEN', status: 'expiring' as const, label: 'Expires Dec 31', fix: 'Request new', withholding: '0% under the GB treaty, Article 12' },
+    { payeeId: 'rue-sato', name: 'Rue Sato', form: 'W-9', status: 'ok' as const, label: 'On file', withholding: 'No withholding' },
+    { payeeId: 'jules-arden', name: 'Jules Arden', form: 'None', status: 'missing' as const, label: 'Missing', fix: 'Request form', withholding: 'No tax form: payout held' },
   ],
   carryForward: [
     { name: 'Jules Arden', role: 'Session bass', amount: payoutBatch.carryForward[0].amount },
@@ -185,7 +186,7 @@ export const glasshouseDeal = {
 export type Payee = {
   id: string; first: string; name: string; label: string; labelShort: string;
   earned: Cents; paid: Cents; next: { amount: Cents; date: string; from: string };
-  tax: { ok: boolean; label: string; form: string; expires?: string };
+  tax: { ok: boolean; label: string; form: string; expires?: string; withholding?: string; canSubmit?: boolean };
   bank: { last4: string; name: string } | null;
   statementIds: string[];
   splits: { title: string; meta: string; terms: string; status: 'signed' | 'waiting'; note: string; v5?: boolean }[];
@@ -196,7 +197,7 @@ export const payees: Record<string, Payee> = {
   'marco-dela': {
     id: 'marco-dela', first: 'Marco', name: 'Marco Dela', label: 'Northline Records', labelShort: 'Northline',
     earned: toCents(1146.3), paid: toCents(861.3), next: { amount: toCents(285), date: 'Nov 10', from: 'From Velvet Hours, October. 3 points.' },
-    tax: { ok: true, label: 'W-9 on file', form: 'W-9', expires: 'No expiry' },
+    tax: { ok: true, label: 'W-9 on file', form: 'W-9', expires: 'No expiry', withholding: 'No withholding', canSubmit: true },
     bank: { last4: '4821', name: 'Checking' }, // ASSUMED
     statementIds: ['ST-2026-10-MD', 'ST-2026-09-MD'],
     splits: [
@@ -211,7 +212,7 @@ export const payees: Record<string, Payee> = {
   'kesi-vale': {
     id: 'kesi-vale', first: 'Kesi', name: 'Kesi Vale', label: 'Northline Records', labelShort: 'Northline',
     earned: toCents(2346.75), paid: 0, next: { amount: toCents(2346.75), date: 'Jan 15', from: 'From Velvet Hours, October. 50% of net profit, less feature.' },
-    tax: { ok: true, label: 'W-9 on file', form: 'W-9', expires: 'No expiry' },
+    tax: { ok: true, label: 'W-9 on file', form: 'W-9', expires: 'No expiry', withholding: 'No withholding', canSubmit: true },
     bank: { last4: '0917', name: 'Checking' },
     statementIds: ['ST-2026-10-KV'],
     splits: [

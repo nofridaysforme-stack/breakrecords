@@ -36,6 +36,18 @@ export function PayoutsView({ data: initial }: { data: typeof P }) {
     } catch { setError('Couldn’t reach the server. Nothing was requested.'); }
   }
 
+  const [savingPolicy, setSavingPolicy] = useState(false);
+  // What happens to a payee with no valid tax form. Saved for the label and audited.
+  async function setPolicy(missingFormPolicy: 'hold' | 'withhold') {
+    setError(null); setSavingPolicy(true);
+    try {
+      const res = await fetch('/api/money/payouts/policy', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ missingFormPolicy }) });
+      const body = await res.json();
+      if (res.ok) setData(body); else setError(body.message ?? 'That change wasn’t saved.');
+    } catch { setError('Couldn’t reach the server. Nothing changed.'); }
+    setSavingPolicy(false);
+  }
+
   return (
     <>
       <div><PageTitle>Payouts</PageTitle><p className={s.sub}>Monthly for collaborators, quarterly for artists · {formatMoney(data.minimum)} minimum</p></div>
@@ -70,11 +82,14 @@ export function PayoutsView({ data: initial }: { data: typeof P }) {
       {error && <p role="alert" className={s.text} style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--critical)' }}><CircleAlert size={16} aria-hidden="true" />Not sent. {error}</p>}
       <div className={s.grid2wide}>
         <section className={s.card} aria-labelledby="tax" style={{ gap: 6 }}>
-          <h2 id="tax" className={s.cardTitle} style={{ marginBottom: 8 }}>Tax forms</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 8 }}>
+            <h2 id="tax" className={s.cardTitle}>Tax forms</h2>
+            <Link href="/money/tax" className={s.small} style={{ color: 'var(--accent)', textDecoration: 'underline' }}>Year-end forms</Link>
+          </div>
           <ul>
             {data.taxForms.map((t) => (
               <li key={t.name} className={s.taxRow}>
-                <span style={{ fontWeight: 600 }}>{t.name}</span>
+                <span><span style={{ fontWeight: 600 }}>{t.name}</span><span className={s.small} style={{ display: 'block' }}>{t.withholding}</span></span>
                 <span className={s.form}>{t.form}</span>
                 <RiskFlag risk={t.status === 'ok' ? 'low' : t.status === 'expiring' ? 'dueSoon' : 'blocked'} label={t.label} />
                 <span className={s.r}>
@@ -85,6 +100,14 @@ export function PayoutsView({ data: initial }: { data: typeof P }) {
               </li>
             ))}
           </ul>
+          <div className={s.policy}>
+            <label htmlFor="missing-policy" className={s.small} style={{ fontWeight: 600 }}>When a form is missing or expired</label>
+            <select id="missing-policy" className={s.policySelect} value={data.missingFormPolicy} disabled={savingPolicy}
+              onChange={(e) => void setPolicy(e.target.value as 'hold' | 'withhold')}>
+              <option value="hold">Hold their payout until a form arrives</option>
+              <option value="withhold">Pay them with 24% backup withholding</option>
+            </select>
+          </div>
         </section>
         <section className={s.card} aria-labelledby="carry">
           <h2 id="carry" className={s.cardTitle}>Carried forward</h2>
