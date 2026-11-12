@@ -151,7 +151,7 @@ export function liveAddCost(ctx: RequestContext, c: { releaseId: string; categor
   });
 }
 
-type SplitRow = { node_id: string; version: number; status: string; terms: DealTerms; role: SplitRole; signed_at: Date | null };
+type SplitRow = { node_id: string; node_slug: string; version: number; status: string; terms: DealTerms; role: SplitRole; signed_at: Date | null };
 
 /** Labels from a node up to (not including) the label at the top: ["Kesi Vale", "Glasshouse", "Recording income"]. */
 async function pathOf(tx: Tx, nodeId: string): Promise<string[]> {
@@ -191,11 +191,11 @@ export function livePayee(ctx: RequestContext, slug: string | null): Promise<Pay
       ORDER BY b.pays_on LIMIT 1`;
 
     const splits = await tx<SplitRow[]>`
-      SELECT v.node_id, v.version, v.status::text AS status, v.terms, sp.role::text AS role, sp.signed_at
+      SELECT v.node_id, (SELECT n.slug FROM split_nodes n WHERE n.id = v.node_id) AS node_slug, v.version, v.status::text AS status, v.terms, sp.role::text AS role, sp.signed_at
       FROM split_parties sp JOIN split_versions v ON v.id = sp.version_id
       WHERE sp.party_id = ${y.party_id} AND v.status IN ('in_effect', 'sent', 'draft') ORDER BY v.node_id, v.version`;
-    const songs = await tx<{ title: string; share_bp: number; confirmed: boolean }[]>`
-      SELECT w.title, ww.share_bp, ww.confirmed FROM work_writers ww JOIN works w ON w.id = ww.work_id WHERE ww.party_id = ${y.party_id} ORDER BY w.created_at`;
+    const songs = await tx<{ title: string; slug: string; share_bp: number; confirmed: boolean }[]>`
+      SELECT w.title, w.slug, ww.share_bp, ww.confirmed FROM work_writers ww JOIN works w ON w.id = ww.work_id WHERE ww.party_id = ${y.party_id} ORDER BY w.created_at`;
 
     const rows: Payee['splits'] = [];
     let prompt: Payee['signPrompt'] = { title: 'Nothing to sign', text: 'Every split you’re on is signed.' };
@@ -207,7 +207,10 @@ export function livePayee(ctx: RequestContext, slug: string | null): Promise<Pay
       const open = splits.find((s) => s.node_id === nodeId && s.status !== 'in_effect');
       if (current) rows.push({ title, meta, terms: shareTerms(current.role, current.terms), status: 'signed', note: `signed v${current.version}` });
       if (open) {
-        rows.push({ title, meta: `v${open.version} ${open.status === 'draft' ? 'draft' : 'sent'}`, terms: '', status: open.signed_at ? 'signed' : 'waiting', note: open.signed_at ? `signed v${open.version}` : 'Waiting for you to sign', v5: true });
+        // The 4f sample's v5 keeps its own sign page; any other split is signed right here.
+        const here = open.status === 'sent' && !open.signed_at && open.node_slug !== 'gh-rec';
+        rows.push({ title, meta: `v${open.version} ${open.status === 'draft' ? 'draft' : 'sent'}`, terms: here ? shareTerms(open.role, open.terms) : '', status: open.signed_at ? 'signed' : 'waiting',
+          note: open.signed_at ? `signed v${open.version}` : 'Waiting for you to sign', ...(here ? { sign: { node: open.node_slug, role: open.role } } : { v5: true }) });
         if (current && !open.signed_at) {
           const names = await tx<{ role: SplitRole; name: string }[]>`
             SELECT sp.role::text AS role, p.name FROM split_parties sp JOIN split_versions v ON v.id = sp.version_id JOIN parties p ON p.id = sp.party_id
@@ -217,7 +220,7 @@ export function livePayee(ctx: RequestContext, slug: string | null): Promise<Pay
         }
       }
     }
-    for (const s of songs) rows.push({ title: `${s.title} (song)`, meta: 'writer', terms: formatPercent(s.share_bp), status: s.confirmed ? 'signed' : 'waiting', note: s.confirmed ? 'signed' : 'Not signed yet' });
+    for (const s of songs) rows.push({ title: `${s.title} (song)`, meta: 'writer', terms: formatPercent(s.share_bp), status: s.confirmed ? 'signed' : 'waiting', note: s.confirmed ? 'signed' : 'Not signed yet', ...(s.confirmed ? {} : { songId: s.slug }) });
 
     const t = taxState(y.tax_form, y.tax_expires_on, today());
     const label = ctx.tenantName;

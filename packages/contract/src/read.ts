@@ -258,12 +258,73 @@ export const SplitTreeNode: z.ZodType<SplitTreeNode> = z.lazy(() => z.object({
 /** GET /api/splits: label, artist, release and income-type nodes. `override` marks nodes with a split of their own. */
 export const SplitTreeResponse = z.array(SplitTreeNode);
 
-/** PUT /api/splits/{node}/draft: edit the open draft. Refused once it's sent. */
-export const SaveSplitDraftCommand = z.object({ terms: DealTerms });
+/** Someone on a split or a song: one of the workspace's people, or a new one by name. */
+export const SplitPartyInput = z.union([z.object({ partyId: Id }).strict(), z.object({ name: z.string().trim().min(1).max(120) }).strict()]);
+/** One line of a split version: a role, a person, and their share of that role. */
+export const SplitLine = z.object({
+  role: SplitRole, name: z.string(), partyId: Id,
+  /** Their share of the role, when several people share it (10000 when alone). */
+  shareBp: Bp,
+  /** What they get from every $100 the income earns, in cents. */
+  amount: Cents,
+  signed: Display.nullable(),
+  /** The person viewing can sign this line (their own, or the label as owner or team). */
+  canSign: z.boolean(),
+  /** Has a login or an invitation, so they can sign in the portal. */
+  canSignIn: z.boolean(),
+});
+const SplitVersionOut = z.object({ version: z.number().int().positive(), terms: DealTerms, effective: Display, lines: z.array(SplitLine) });
+/**
+ * GET /api/splits/{node}/versions: a split's version in effect and its open one (a draft, or
+ * out for signatures), line by line, and the songwriter splits of the release's songs.
+ */
+export const SplitVersionsResponse = z.object({
+  node: Id, title: z.string(), breadcrumb: z.array(z.string()), releaseId: Id.nullable(),
+  current: SplitVersionOut.nullable(),
+  open: SplitVersionOut.extend({ status: z.enum(['draft', 'sent']), created: Display }).nullable(),
+  /** The owner and team change splits; a payee only signs. */
+  canEdit: z.boolean(),
+  songs: z.array(z.object({
+    recordingId: Id, title: z.string(),
+    writers: z.array(z.object({ partyId: Id, name: z.string(), shareBp: Bp, confirmed: z.boolean(), canConfirm: z.boolean(), canSignIn: z.boolean() })),
+  })),
+});
+export type SplitVersionsResponse = z.infer<typeof SplitVersionsResponse>;
+/** A role with one or more people, each with a share of it that totals 100%. Not the label: that's always the workspace. */
+export const SplitLineInput = z.object({ role: z.enum(['artist', 'producer', 'feature']), party: SplitPartyInput, shareBp: z.number().int().min(1).max(10000) }).strict();
+/**
+ * POST /api/splits: a release's first split, as a draft. The workspace is the label; with no
+ * artist lines, the release's artist is the artist at 100%. Returns the node.
+ */
+export const CreateSplitCommand = z.object({
+  releaseId: Id,
+  lines: z.array(SplitLineInput).max(20).optional(),
+  /** The person signed in is the release's artist (a solo artist's own workspace), so they sign that line. */
+  artistIsMe: z.boolean().optional(),
+  terms: DealTerms,
+}).strict()
+  .refine((c) => (c.lines ?? []).some((l) => l.role === 'producer') || c.terms.producerBp === 0, 'Name the producer, or give producer points of 0.')
+  .refine((c) => (c.lines ?? []).some((l) => l.role === 'feature') || c.terms.featureOfArtistBp === 0, 'Name the featured artist, or give them 0%.');
+export const CreateSplitResponse = z.object({ node: Id });
+/** POST /api/splits/{node}/versions: start a new version of a split that's in effect, as a draft copy of it. */
+export const ProposeSplitVersionCommand = z.object({}).strict();
+/** PUT /api/catalog/recordings/{id}/writers: who wrote the song and their shares (total 100%). Clears every confirmation. */
+export const SetWritersCommand = z.object({ writers: z.array(z.object({ party: SplitPartyInput, shareBp: z.number().int().min(1).max(10000) }).strict()).min(1).max(20) }).strict()
+  .refine((c) => c.writers.reduce((a, w) => a + w.shareBp, 0) === 10000, 'Writer shares must total 100%.');
+/** PUT /api/catalog/releases/{id}: change a release. Tracks with an id are kept (renamed or re-coded), new ones added, missing ones removed. */
+export const EditReleaseCommand = z.object({
+  title: z.string().trim().min(1).max(200).optional(),
+  kind: z.enum(['single', 'ep', 'album']).optional(),
+  releaseDate: IsoDate.nullable().optional(),
+  tracks: z.array(z.object({ id: Id.optional(), title: z.string().trim().min(1).max(200), isrc: z.string().trim().max(20).optional() })).min(1).max(40).optional(),
+}).strict();
+
+/** PUT /api/splits/{node}/draft: edit the open draft, and on splits made in the app who is on it. Refused once it's sent. */
+export const SaveSplitDraftCommand = z.object({ terms: DealTerms, lines: z.array(SplitLineInput).max(20).optional() });
 /** POST /api/splits/{node}/send: send the draft for signatures. Refused unless net profit is exactly 100%. */
 export const SendSplitCommand = z.object({}).strict();
 /** POST /api/splits/{node}/sign: sign as one party. Live, a payee signs only their own line; the label signs as owner or team. */
-export const SignSplitCommand = z.object({ role: SplitRole });
+export const SignSplitCommand = z.object({ role: SplitRole, partyId: Id.optional() });
 export const SplitError = z.object({
   error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'invalid_terms', 'not_draft', 'not_100', 'not_sent', 'already_signed', 'not_a_party']),
   message: z.string(),
@@ -284,7 +345,13 @@ export const PayeeResponse = z.object({
   /** The last 4 digits only; the account lives with the payout provider. Null until one is on file. */
   bank: z.object({ last4: z.string().regex(/^\d{4}$/), name: z.string() }).nullable(),
   statementIds: z.array(Id),
-  splits: z.array(z.object({ title: z.string(), meta: z.string(), terms: z.string(), status: z.enum(['signed', 'waiting']), note: z.string(), v5: z.boolean().optional() })),
+  splits: z.array(z.object({
+    title: z.string(), meta: z.string(), terms: z.string(), status: z.enum(['signed', 'waiting']), note: z.string(), v5: z.boolean().optional(),
+    /** A split waiting on this payee's signature: sign here with POST /api/splits/{node}/sign. */
+    sign: z.object({ node: Id, role: SplitRole }).optional(),
+    /** A song whose writer share waits on them: confirm with POST /api/catalog/recordings/{songId}/writers/confirm. */
+    songId: Id.optional(),
+  })),
   signPrompt: z.object({ title: z.string(), text: z.string() }),
 });
 
@@ -310,9 +377,26 @@ export const CatalogResponse = z.object({
   counts: z.object({ songs: z.number().int(), recordings: z.number().int(), releases: z.number().int(), assets: z.number().int() }),
   recordings: z.array(Recording),
   songs: z.array(z.object({ id: Id, title: z.string(), writers: z.string(), iswc: z.string().nullable(), recordings: z.number().int(), mlc: RegistrationStatus })),
-  releases: z.array(z.object({ id: Id, title: z.string(), artist: z.string(), kind: z.string(), date: Display, upc: z.string(), tracks: z.number().int(), href: Link.optional() })),
+  releases: z.array(z.object({
+    id: Id, title: z.string(), artist: z.string(), kind: z.string(), date: Display, upc: z.string(), tracks: z.number().int(), href: Link.optional(),
+    /** For changing the release: its date and tracks in order. Present on releases the viewer can change. */
+    edit: z.object({ kind: z.enum(['single', 'ep', 'album']), releaseDate: IsoDate.nullable(), tracks: z.array(z.object({ id: Id, title: z.string(), isrc: z.string().nullable() })) }).optional(),
+  })),
   assets: z.array(z.object({ name: z.string(), kind: z.string(), release: z.string(), ready: z.boolean() })),
+  /** People and groups in the workspace, for picking an artist, producer or featured artist. */
+  people: z.array(z.object({ id: Id, name: z.string() })).optional(),
+  /** Releases with no split yet, for creating one. */
+  unsplit: z.array(z.object({ id: Id, title: z.string(), artist: z.string() })).optional(),
 });
+/** POST /api/catalog/releases: add a release and its recordings. Returns the catalog. */
+export const CreateReleaseCommand = z.object({
+  title: z.string().trim().min(1).max(200),
+  kind: z.enum(['single', 'ep', 'album']),
+  artist: z.union([z.object({ partyId: Id }).strict(), z.object({ name: z.string().trim().min(1).max(120), group: z.boolean().optional() }).strict()]),
+  releaseDate: IsoDate.optional(),
+  tracks: z.array(z.object({ title: z.string().trim().min(1).max(200), isrc: z.string().trim().max(20).optional() })).min(1).max(40),
+}).strict();
+export const CatalogWriteError = z.object({ error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'duplicate', 'already_split']), message: z.string() });
 
 // ---------- Contracts (5b) ----------
 export const Template = z.object({

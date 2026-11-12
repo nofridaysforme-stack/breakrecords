@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse } from '@breakrecords/contract';
+import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse, SplitVersionsResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 import { MAILBOX } from '../../playwright.live.config';
@@ -1243,5 +1243,82 @@ test.describe('reserves (live)', () => {
     expect((await page.request.post(`/api/money/reserves/${nb.id}/resolve`, { data: { outcome: 'release', note: 'oops' } })).status()).toBe(409);
     expect((await reserves()).items.find((r) => r.id === nb.id)).toMatchObject({ status: 'forfeited', heldNow: 0 });
     expect(PayoutsResponse.parse(await (await page.request.get('/api/money/payouts')).json()).batches.some((b) => b.held)).toBe(false);
+  });
+});
+
+test.describe('your own music and splits (live)', () => {
+  test('a release split with co-producers; each person signs their own line; writers confirm their own shares; a new version; release changes', async ({ page, browser }) => {
+    await signIn(page, USERS.owner);
+    const add = await page.request.post('/api/catalog/releases', { data: {
+      title: 'Harbor Lights', kind: 'single', artist: { name: 'Joe Rivers' }, releaseDate: '2027-02-05', tracks: [{ title: 'Harbor Lights', isrc: 'QZ-XXX-26-00077' }],
+    } });
+    expect(add.status()).toBe(200);
+    const cat = CatalogResponse.parse(await add.json());
+    expect(cat.releases.find((r) => r.title === 'Harbor Lights')).toMatchObject({ artist: 'Joe Rivers', kind: 'Single', tracks: 1, date: 'Feb 5, 2027' });
+    expect(cat.recordings.find((r) => r.title === 'Harbor Lights')?.isrc).toBe('QZXXX2600077');
+    expect((await page.request.post('/api/catalog/releases', { data: { title: 'Copy', kind: 'single', artist: { name: 'X' }, tracks: [{ title: 'x', isrc: 'QZXXX2600077' }] } })).status()).toBe(409);
+
+    // Two producers share the points.
+    const terms = { producerBp: 300, artistOfNetBp: 6000, labelOfNetBp: 4000, featureOfArtistBp: 0 };
+    const made = await page.request.post('/api/splits', { data: { releaseId: 'harbor-lights', terms, lines: [
+      { role: 'producer', party: { name: 'Sam Okoro' }, shareBp: 5000 }, { role: 'producer', party: { name: 'Kai Moss' }, shareBp: 5000 },
+    ] } });
+    expect(made.status()).toBe(200);
+    const { node } = (await made.json()) as { node: string };
+    const versions = async (p = page) => SplitVersionsResponse.parse(await (await p.request.get(`/api/splits/${node}/versions`)).json());
+    expect((await versions()).open?.lines.map((l) => [l.role, l.name, l.shareBp, l.amount])).toEqual([
+      ['artist', 'Joe Rivers', 10000, 5820], ['label', 'Northline Records', 10000, 3880], ['producer', 'Kai Moss', 5000, 150], ['producer', 'Sam Okoro', 5000, 150],
+    ]);
+    // Shares in a role that don't total 100% can't be saved.
+    expect((await page.request.put(`/api/splits/${node}/draft`, { data: { terms, lines: [{ role: 'producer', party: { partyId: 'sam-okoro' }, shareBp: 6000 }] } })).status()).toBe(400);
+
+    expect((await page.request.post(`/api/splits/${node}/send`, { data: {} })).status()).toBe(200);
+    expect((await page.request.post(`/api/splits/${node}/sign`, { data: { role: 'label' } })).status()).toBe(200);
+    expect((await page.request.post(`/api/splits/${node}/sign`, { data: { role: 'producer', partyId: 'sam-okoro' } })).status()).toBe(403);
+    for (const [email, who] of [['sam@okoro.example', 'sam-okoro'], ['kai@moss.example', 'kai-moss'], ['joe@rivers.example', 'joe-rivers']] as const) {
+      expect((await page.request.post('/api/settings/invites', { data: { email, role: 'payee', payeeId: who } })).status()).toBe(200);
+    }
+    const sam = await (await browser.newContext()).newPage();
+    await signIn(sam, 'sam@okoro.example', { into: 'Northline Records' });
+    expect((await sam.request.post(`/api/splits/${node}/sign`, { data: { role: 'producer', partyId: 'kai-moss' } })).status()).toBe(403); // not Sam's line
+    expect((await sam.request.post(`/api/splits/${node}/sign`, { data: { role: 'producer' } })).status()).toBe(200); // Sam's own
+    expect((await sam.request.post('/api/catalog/releases', { data: { title: 'Mine', kind: 'single', artist: { name: 'Sam' }, tracks: [{ title: 'x' }] } })).status()).toBe(403);
+    for (const email of ['kai@moss.example', 'joe@rivers.example']) {
+      const who = await (await browser.newContext()).newPage();
+      await signIn(who, email, { into: 'Northline Records' });
+      expect((await who.request.post(`/api/splits/${node}/sign`, { data: { role: email.startsWith('kai') ? 'producer' : 'artist' } })).status()).toBe(200);
+    }
+    let v = await versions();
+    expect([v.current?.version, v.open]).toEqual([1, null]);
+    expect(SplitNodeResponse.parse(await (await page.request.get(`/api/splits/${node}`)).json()).parties.producer).toBe('Kai Moss and Sam Okoro');
+
+    // Songwriters: Joe 60%, Sam 40%. Sam confirms only his own, in his portal.
+    expect((await page.request.put('/api/catalog/recordings/harbor-lights/writers', { data: { writers: [{ party: { partyId: 'joe-rivers' }, shareBp: 6000 }, { party: { partyId: 'sam-okoro' }, shareBp: 4000 }] } })).status()).toBe(200);
+    const portal = PayeeResponse.parse(await (await sam.request.get('/api/portal/sam-okoro')).json());
+    const song = portal.splits.find((x) => x.title === 'Harbor Lights (song)')!;
+    expect(song).toMatchObject({ terms: '40%', status: 'waiting', songId: expect.any(String) });
+    expect((await sam.request.post(`/api/catalog/recordings/${song.songId}/writers/confirm`)).status()).toBe(200);
+    expect((await versions()).songs[0].writers.map((w) => [w.name, w.confirmed])).toEqual([['Joe Rivers', false], ['Sam Okoro', true]]);
+
+    // A new version of the signed split: a draft copy; version 1 keeps paying.
+    expect((await page.request.post(`/api/splits/${node}/versions`, { data: {} })).status()).toBe(200);
+    v = await versions();
+    expect([v.current?.version, v.open?.version, v.open?.status, v.open?.lines.length]).toEqual([1, 2, 'draft', 4]);
+    expect((await page.request.post(`/api/splits/${node}/versions`, { data: {} })).status()).toBe(409);
+
+    // Changing the release: a new title and a second track. It can't be removed: its split was signed.
+    const edited = await page.request.put('/api/catalog/releases/harbor-lights', { data: { title: 'Harbor Lights (Deluxe)', kind: 'ep', tracks: [{ id: 'harbor-lights', title: 'Harbor Lights' }, { title: 'Low Tide' }] } });
+    expect(edited.status()).toBe(200);
+    expect(CatalogResponse.parse(await edited.json()).releases.find((r) => r.id === 'harbor-lights')).toMatchObject({ title: 'Harbor Lights (Deluxe)', kind: 'EP', tracks: 2 });
+    expect((await page.request.delete('/api/catalog/releases/harbor-lights')).status()).toBe(409);
+    await page.request.post('/api/catalog/releases', { data: { title: 'Scratch', kind: 'single', artist: { partyId: 'joe-rivers' }, tracks: [{ title: 'Scratch' }] } });
+    expect((await page.request.delete('/api/catalog/releases/scratch')).status()).toBe(200);
+    expect(CatalogResponse.parse(await (await page.request.get('/api/catalog')).json()).recordings.some((r) => r.title === 'Scratch')).toBe(false);
+
+    // Another label sees none of it.
+    const harbor = await (await browser.newContext()).newPage();
+    await signIn(harbor, USERS.harbor);
+    expect((await harbor.request.get(`/api/splits/${node}/versions`)).status()).toBe(404);
+    expect((await harbor.request.delete('/api/catalog/releases/harbor-lights')).status()).toBe(404);
   });
 });
