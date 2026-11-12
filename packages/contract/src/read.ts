@@ -133,6 +133,48 @@ export const StatementResponse = z.object({
 /** GET /api/statements: every payee statement the signed-in user may read, newest period first. */
 export const StatementSummary = StatementResponse.pick({ id: true, payee: true, payeeId: true, release: true, period: true, net: true, pays: true });
 export const StatementsResponse = z.object({ items: z.array(StatementSummary) });
+// ---------- Statement imports ----------
+export const ImportField = z.enum(['title', 'isrc', 'artist', 'store', 'territory', 'units', 'amount', 'period']);
+export const ImportMapping = z.partialRecord(ImportField, z.string().max(200));
+/** POST /api/money/imports/preview: read a distributor's or society's export without saving it. */
+export const ImportPreviewCommand = z.object({
+  provider: z.string().min(1).max(40),
+  fileName: z.string().trim().min(1).max(255),
+  /** The file's text, CSV or tab-separated. Up to 4 MB (the host's request limit). */
+  text: z.string().min(1).max(4_000_000),
+  /** Which column is which. Guessed from the headers when left out. */
+  mapping: ImportMapping.optional(),
+}).strict();
+export const ImportPreviewResponse = z.object({
+  provider: z.object({ id: z.string(), name: z.string() }),
+  headers: z.array(z.string()),
+  mapping: ImportMapping,
+  /** Fields that must be mapped before importing (title, amount, month). */
+  missing: z.array(ImportField),
+  rows: z.number().int(),
+  /** One statement per month the file covers. */
+  months: z.array(z.object({
+    period: IsoDate, label: Display, lines: z.number().int(), total: Cents, matched: z.number().int(), unmatched: z.number().int(), unmatchedTotal: Cents,
+  })),
+  /** Rows left out, and why: nothing is guessed. */
+  problems: z.array(z.object({ row: z.number().int(), problem: z.string() })),
+  /** This exact file was imported before. */
+  duplicate: z.boolean(),
+  sample: z.array(z.object({ title: z.string(), isrc: z.string().nullable(), store: z.string().nullable(), amount: Cents, matched: z.boolean() })),
+});
+/** POST /api/money/imports: import the file as previewed. Returns the statements made. */
+export const ImportStatementCommand = ImportPreviewCommand.extend({ mapping: ImportMapping });
+/** GET /api/money/imports: statements imported from files, newest first, and the sources to import from. */
+export const ImportsResponse = z.object({
+  providers: z.array(z.object({ id: z.string(), name: z.string() })),
+  items: z.array(z.object({
+    ref: z.string(), provider: z.string(), fileName: z.string(), period: Display, lines: z.number().int(), total: Cents, matched: z.number().int(), imported: Display,
+  })),
+});
+export const ImportError = z.object({ error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_mapped', 'nothing_to_import', 'duplicate']), message: z.string() });
+export type ImportPreviewResponse = z.infer<typeof ImportPreviewResponse>;
+export type ImportsResponse = z.infer<typeof ImportsResponse>;
+
 /** POST /api/money/royalties/match: point every unmatched line carrying `isrc` at a recording. Returns 4b. */
 export const MatchLinesCommand = z.object({ isrc: z.string().trim().min(1).max(20), recordingId: Id }).strict();
 export const StatementError = z.object({
