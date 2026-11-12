@@ -475,9 +475,18 @@ export const CreateReleaseCommand = z.object({
 export const CatalogWriteError = z.object({ error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'duplicate', 'already_split']), message: z.string() });
 
 // ---------- Contracts (5b) ----------
+const Clause = z.object({ title: z.string(), text: z.string() });
 export const Template = z.object({
   id: Id, name: z.string(), version: z.string(), updated: Display, summary: z.string(),
-  clauses: z.array(z.object({ title: z.string(), text: z.string() })), playbook: z.array(z.string()),
+  clauses: z.array(Clause), playbook: z.array(z.string()),
+  /** starter: the Indie SRVCS library, read only; own: this workspace's copy or its own template. */
+  origin: z.enum(['starter', 'own']),
+  /** False while the wording (or the starter it was copied from) hasn't been reviewed by a lawyer. */
+  reviewed: z.boolean(),
+  /** Whether it suits this kind of workspace; the rest show under "Show all templates". */
+  fits: z.boolean(),
+  /** Saved versions of the workspace's own wording, newest first (empty for a starter). */
+  history: z.array(z.object({ version: z.string(), saved: Display })),
 });
 export const ContractsResponse = z.object({
   summary: z.string(),
@@ -486,12 +495,22 @@ export const ContractsResponse = z.object({
     date: Display.nullable(), dateWhat: z.string(), sig: z.string(), sigState: z.enum(['waiting', 'signed', 'partial']), href: Link.optional(),
   })),
   templates: z.array(Template),
+  /** Indie SRVCS staff may record that an attorney reviewed a starter template. */
+  staff: z.boolean(),
   /** Contracts uploaded for Legal Agent to check, newest first. */
   reviews: z.array(z.object({ id: Id, fileName: z.string(), status: z.enum(['queued', 'reviewed']), requested: Display })),
 });
 /** POST /api/contracts/reviews: send an uploaded contract to Legal Agent. The file arrives with uploads; only its name is recorded today. */
 export const RequestContractReviewCommand = z.object({ fileName: z.string().trim().min(1).max(200).regex(/\.(pdf|docx?)$/i, 'A PDF or Word file.') }).strict();
-export const ContractError = z.object({ error: z.enum(['invalid', 'unauthorized', 'forbidden']), message: z.string() });
+export const ContractError = z.object({ error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'conflict']), message: z.string() });
+/** PUT /api/contracts/templates/{id}: new wording for the workspace's own template; saved as a new version. */
+export const EditTemplateCommand = z.object({
+  summary: z.string().trim().min(1).max(500),
+  clauses: z.array(z.object({ title: z.string().trim().min(1).max(120), text: z.string().trim().min(1).max(4000) }).strict()).min(1).max(40),
+  playbook: z.array(z.string().trim().min(1).max(300)).max(20),
+}).strict();
+/** POST /api/contracts/templates/{id}/review: Indie SRVCS staff record (or withdraw) an attorney's review of a starter. */
+export const ReviewStarterCommand = z.object({ reviewed: z.boolean() }).strict();
 
 // ---------- Rights (5c and the undrawn tabs) ----------
 const Cell = z.object({ status: RegistrationStatus, ref: z.string().optional() });

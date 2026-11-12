@@ -391,6 +391,41 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       await owner`DELETE FROM audit_flags WHERE id = ${flag}`; // the audit flag tests below start clean
     });
 
+    it('starter templates are read by every workspace and changed by none; only staff record a review, and new wording clears it; own templates keep every version', async () => {
+      expect((await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`SELECT slug FROM starter_templates`)).length).toBeGreaterThan(5);
+      await expect(asOwner((tx) => tx`UPDATE starter_templates SET summary = 'x' WHERE slug = 'feature'`)).rejects.toThrow(/permission denied/);
+      await expect(asOwner((tx) => tx`INSERT INTO starter_templates (slug, name, version, summary, clauses) VALUES ('x', 'x', 'v1', 'x', '[]')`)).rejects.toThrow(/permission denied/);
+      await expect(asOwner((tx) => tx`SELECT app_set_starter_reviewed('feature', true)`)).rejects.toThrow(/only Indie SRVCS staff/);
+      // Staff (platform admins) record it; changing the wording later clears it.
+      const [{ email }] = await owner`SELECT email FROM users WHERE id = ${ids.ua}`;
+      await owner`INSERT INTO platform_admins (email) VALUES (${email}) ON CONFLICT DO NOTHING`;
+      await asOwner((tx) => tx`SELECT app_set_starter_reviewed('feature', true)`);
+      expect((await owner`SELECT reviewed_by FROM starter_templates WHERE slug = 'feature'`)[0].reviewed_by).toBe(email);
+      const [{ clauses: before }] = await owner`SELECT clauses FROM starter_templates WHERE slug = 'feature'`;
+      await owner`UPDATE starter_templates SET clauses = '[{"title":"T","text":"new"}]' WHERE slug = 'feature'`;
+      expect((await owner`SELECT reviewed_at FROM starter_templates WHERE slug = 'feature'`)[0].reviewed_at).toBeNull();
+      await owner`UPDATE starter_templates SET clauses = ${owner.json(before)} WHERE slug = 'feature'`; // the library is shared by the suites that follow
+      await owner`DELETE FROM platform_admins WHERE email = ${email}`;
+
+      // A workspace's own copy: each wording change is a new version, kept; agreements keep theirs.
+      const [{ id: tpl }] = await asOwner((tx) => tx`INSERT INTO contract_templates (tenant_id, slug, name, version, updated_on, summary, clauses, starter_slug, starter_reviewed)
+        SELECT ${ids.a}, slug, name, version, current_date, summary, clauses, slug, false FROM starter_templates WHERE slug = 'sync' RETURNING id`);
+      const [{ id: ag }] = await asOwner((tx) => tx`INSERT INTO agreements (tenant_id, slug, name, source, template_id) VALUES (${ids.a}, 'ag-sync', 'Sync', 'template', ${tpl}) RETURNING id`);
+      await asOwner((tx) => tx`UPDATE contract_templates SET clauses = '[{"title":"Fee","text":"changed"}]' WHERE id = ${tpl}`);
+      await asOwner((tx) => tx`UPDATE contract_templates SET name = 'Sync license (ours)' WHERE id = ${tpl}`); // not wording: no new version
+      const [t] = await owner`SELECT version, version_no FROM contract_templates WHERE id = ${tpl}`;
+      expect([t.version, t.version_no]).toEqual(['v2 · one-off', 2]);
+      expect((await asOwner((tx) => tx`SELECT version FROM contract_template_versions WHERE template_id = ${tpl} ORDER BY version_no`)).map((v) => v.version)).toEqual(['v1 · one-off', 'v2 · one-off']);
+      expect((await owner`SELECT template_version FROM agreements WHERE id = ${ag}`)[0].template_version).toBe(1);
+      await expect(asOwner((tx) => tx`UPDATE contract_templates SET version_no = 9 WHERE id = ${tpl}`)).rejects.toThrow(/can’t be changed/);
+      await expect(asOwner((tx) => tx`DELETE FROM contract_template_versions WHERE template_id = ${tpl}`)).rejects.toThrow(/permission denied/);
+      for (const who of [{ userId: ids.payee, tenantId: ids.a }, { userId: ids.ub, tenantId: ids.b }]) {
+        expect(await withTenant(app, who, (tx) => tx`SELECT 1 FROM contract_template_versions`)).toHaveLength(0);
+      }
+      await owner`DELETE FROM agreements WHERE id = ${ag}`;
+      await owner`DELETE FROM contract_templates WHERE id = ${tpl}`;
+    });
+
     it('a sync quote’s terms freeze once sent; the fee is recorded only on a signed license, which ends undo; payees and other labels see nothing', async () => {
       const [{ id: rec }] = await owner`INSERT INTO recordings (tenant_id, slug, title, artist_id) VALUES (${ids.a}, 'sync-rec', 'Sync Cue', ${kesi}) RETURNING id`;
       const [{ id: brief }] = await asOwner((tx) => tx`INSERT INTO sync_briefs (tenant_id, slug, title, client, media) VALUES (${ids.a}, 'brief-x', 'End credits', 'A supervisor', 'film') RETURNING id`);

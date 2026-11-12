@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse, SplitVersionsResponse, ImportsResponse, SyncResponse } from '@breakrecords/contract';
+import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse, SplitVersionsResponse, ImportsResponse, SyncResponse, Template } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 import { MAILBOX } from '../../playwright.live.config';
@@ -601,8 +601,10 @@ test.describe('contracts (live)', () => {
     const harbor = await (await browser.newContext()).newPage();
     await signIn(harbor, USERS.harbor);
     const c = await contracts(harbor);
-    expect([c.contracts, c.templates, c.reviews]).toEqual([[], [], []]);
-    expect((await harbor.request.get('/api/contracts/templates/artist')).status()).toBe(404);
+    expect([c.contracts, c.reviews]).toEqual([[], []]);
+    // Another label gets the Indie SRVCS starters, never Northline's own templates.
+    expect(c.templates.every((t) => t.origin === 'starter')).toBe(true);
+    expect(Template.parse(await (await harbor.request.get('/api/contracts/templates/artist')).json())).toMatchObject({ origin: 'starter', version: 'v1 · net profit' });
   });
 });
 
@@ -1408,6 +1410,66 @@ test.describe('sync licensing (live)', () => {
     await signIn(harbor, USERS.harbor);
     expect(SyncResponse.parse(await (await harbor.request.get('/api/sync')).json()).briefs).toEqual([]);
     expect((await harbor.request.post(`/api/sync/quotes/${q.id}`, { data: { action: 'decline' } })).status()).toBe(404);
+  });
+});
+
+test.describe('contract templates (live)', () => {
+  test('a new workspace gets the starter library, fitted to its kind and marked not reviewed; it copies and edits its own; only staff record a review', async ({ page, browser }) => {
+    await signIn(page, USERS.jana); // Indie SRVCS staff, in Northline
+    const code = ((await (await page.request.post('/api/admin/invite-codes', { data: { note: 'E2E templates', maxUses: 1, expiresInDays: 7 } })).json()) as { code: string }).code;
+    const artist = await signUp(browser, code, `e2e-tpl-${Date.now()}@artist.example`);
+    const answers = { profile: 'solo', name: 'Joe Rivers', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_yet' }, autonomy: 'draft_and_wait' };
+    expect((await artist.request.put('/api/onboarding', { data: { answers, complete: true } })).status()).toBe(200);
+    const contracts = async (p = artist) => ContractsResponse.parse(await (await p.request.get('/api/contracts')).json());
+
+    // Every starter, none reviewed; an artist workspace isn't shown the artist agreement by default.
+    const mine = await contracts();
+    expect(mine.templates.every((t) => t.origin === 'starter' && !t.reviewed)).toBe(true);
+    expect(mine.templates.filter((t) => !t.fits).map((t) => t.id)).toEqual(['artist']);
+    expect(mine.staff).toBe(false);
+    await artist.goto('/contracts');
+    const tpl = artist.getByRole('region', { name: 'Templates' }).or(artist.locator('section[aria-labelledby="tpl-h"]')).first();
+    await expect(tpl.getByRole('link', { name: /Sync license/ })).toContainText('Not reviewed by a lawyer');
+    await expect(tpl.getByRole('link', { name: /Artist agreement/ })).toHaveCount(0);
+    await tpl.getByRole('button', { name: 'Show all templates (1 more)' }).click();
+    await expect(tpl.getByRole('link', { name: /Artist agreement/ })).toBeVisible();
+
+    // A starter can't be changed; the workspace's own copy can, and each save is a version.
+    await artist.goto('/contracts/templates/sync');
+    await expect(artist.getByRole('note')).toContainText('Starter template, not yet reviewed by a lawyer.');
+    expect((await artist.request.put('/api/contracts/templates/sync', { data: { summary: 'x', clauses: [{ title: 'a', text: 'b' }], playbook: [] } })).status()).toBe(409);
+    await artist.waitForLoadState('networkidle');
+    await artist.getByRole('button', { name: 'Make my own copy' }).click();
+    await expect(artist.getByRole('status')).toContainText('This is now your own copy');
+    await artist.getByRole('button', { name: 'Edit wording' }).click();
+    const form = artist.getByRole('form', { name: 'Edit wording' });
+    await form.getByRole('group', { name: 'Clause 1' }).getByLabel('Wording').fill('A one-off fee covering the master and the song, paid within 30 days.');
+    await form.getByRole('button', { name: 'Save as a new version' }).click();
+    await expect(artist.getByRole('status')).toContainText('Saved as a new version');
+    await expect(artist.getByRole('region', { name: 'Versions' }).or(artist.locator('section[aria-labelledby="ver-h"]')).first()).toContainText('v2 · one-off');
+    const copy = (await contracts()).templates.find((t) => t.id === 'sync')!;
+    expect(copy).toMatchObject({ origin: 'own', reviewed: false, version: 'v2 · one-off' });
+    expect(copy.history.map((h) => h.version)).toEqual(['v2 · one-off', 'v1 · one-off']);
+    expect((await artist.request.post('/api/contracts/templates/sync/copy')).status()).toBe(409);
+
+    // Only staff record a lawyer's review; every workspace then sees the starter without the warning.
+    expect((await artist.request.post('/api/contracts/templates/feature/review', { data: { reviewed: true } })).status()).toBe(403);
+    const owner = await (await browser.newContext()).newPage();
+    await signIn(owner, USERS.owner);
+    expect((await owner.request.post('/api/contracts/templates/feature/review', { data: { reviewed: true } })).status()).toBe(403);
+    expect((await contracts(page)).staff).toBe(true);
+    expect((await page.request.post('/api/contracts/templates/feature/review', { data: { reviewed: true } })).status()).toBe(200);
+    expect((await contracts()).templates.find((t) => t.id === 'feature')!.reviewed).toBe(true);
+    expect((await page.request.post('/api/contracts/templates/feature/review', { data: { reviewed: false } })).status()).toBe(200);
+    expect((await contracts()).templates.find((t) => t.id === 'feature')!.reviewed).toBe(false);
+
+    // The sample label keeps its own templates; another label with none gets the starters.
+    expect((await contracts(owner)).templates.every((t) => t.origin === 'own' && t.reviewed)).toBe(true);
+    const harbor = await (await browser.newContext()).newPage();
+    await signIn(harbor, USERS.harbor);
+    const h = await contracts(harbor);
+    expect(h.templates.every((t) => t.origin === 'starter' && t.fits)).toBe(true);
+    expect(h.templates.find((t) => t.id === 'sync')!.version).toBe('v1 · one-off'); // another workspace's copy changes nothing here
   });
 });
 

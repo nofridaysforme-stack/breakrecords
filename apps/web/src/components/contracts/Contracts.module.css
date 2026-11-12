@@ -35,3 +35,9 @@
   .templates { grid-template-columns: minmax(0, 1fr); }
   .clause { grid-template-columns: minmax(0, 1fr); gap: 4px; }
 }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; align-self: flex-start; }
+.warnLine { display: flex; align-items: flex-start; gap: 8px; }
+.warnLine > svg { flex: none; margin-top: 3px; }
+.tag { display: inline-flex; align-items: center; gap: 4px; font: 500 var(--fs-eyebrow) var(--font-mono); border: 1px solid var(--line-chip); padding: 1px 6px; border-radius: var(--r-tag); color: var(--text-muted); white-space: nowrap; }
+.tagWarn { color: var(--warn); }
+.clauseEdit { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: var(--r-card); padding: 12px; }

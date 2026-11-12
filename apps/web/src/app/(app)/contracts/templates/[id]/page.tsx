@@ -17,6 +17,7 @@ export default async function TemplatePage({ params, searchParams }: Props) {
   const t = await getTemplate((await params).id);
   if (!t) notFound();
   const q = await searchParams;
-  const usedIn = (await getContracts()).contracts.filter((c) => c.templateId === t.id);
-  return <Page><ScreenState scenario={toScenario(q.state)} copy={OPS_STATES.template} heading={t.name}><TemplateView template={t} usedIn={usedIn} openDraft={q.draft === '1'} /></ScreenState></Page>;
+  const all = await getContracts();
+  const usedIn = all.contracts.filter((c) => c.templateId === t.id);
+  return <Page><ScreenState scenario={toScenario(q.state)} copy={OPS_STATES.template} heading={t.name}><TemplateView key={`${t.id}-${t.version}-${t.reviewed}`} template={t} usedIn={usedIn} openDraft={q.draft === '1'} staff={all.staff} /></ScreenState></Page>;
 }
