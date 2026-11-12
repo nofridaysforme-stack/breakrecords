@@ -47,3 +47,14 @@ describe('producer market note', () => {
     expect(producerMarketNote(150, 'Marco Dela')).toContain('Marco’s 1.5 is below that range.');
   });
 });
+
+describe('a split without every role', () => {
+  it('takes effect when the parties it has have signed', () => {
+    const v = { status: 'sent' as const, terms: { producerBp: 0, labelOfNetBp: 5000, artistOfNetBp: 5000, featureOfArtistBp: 0 }, signed: {}, roles: ['label', 'artist'] as ('label' | 'artist')[] };
+    const one = sign(v, 'label', '2026-11-12');
+    expect(one).toMatchObject({ ok: true, tookEffect: false });
+    const two = one.ok ? sign(one.state, 'artist', '2026-11-12') : one;
+    expect(two).toMatchObject({ ok: true, tookEffect: true, state: { status: 'in_effect' } });
+    expect(sign(v, 'producer', '2026-11-12')).toMatchObject({ ok: false, error: 'not_a_party' });
+  });
+});

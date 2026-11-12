@@ -1,7 +1,8 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { editDraft, send, sign } from '@breakrecords/core/splitVersions';
-import { getDeal } from '@/data/api';
+import { getDeal, getFirstSplit } from '@/data/api';
+import { mockMusicSplitWrite } from './mockMusic';
 import { authRequired, getContext } from './context';
 import { isLive } from './modules';
 import { mockSplitWrite } from './mockSplits';
@@ -18,12 +19,18 @@ export async function splitWrite(slug: string, w: SplitWrite) {
     if (isLive('splits')) {
       const out = await liveSplitWrite(ctx, slug, w);
       if (!out.ok) return splitError(out.error, out.message);
-      return NextResponse.json(await getDeal(slug));
+      return NextResponse.json((await getFirstSplit(slug)) ?? (await getDeal(slug)));
     }
     if (ctx.role === 'payee' && w.kind !== 'sign') return splitError('forbidden', 'Only the label’s owner and team can change a split.');
   }
-  if (slug !== 'gh-rec') return splitError('not_found', 'There is no open version of this split.');
   const today = new Date().toISOString().slice(0, 10);
+  if (slug !== 'gh-rec') {
+    // A split made in the app this session.
+    const out = await mockMusicSplitWrite(slug, (v) => (w.kind === 'draft' ? editDraft(v, w.terms) : w.kind === 'send' ? send(v) : sign(v, w.role, today)));
+    if (!out) return splitError('not_found', 'There is no open version of this split.');
+    if (!out.ok) return splitError(out.error, out.message);
+    return NextResponse.json((await getFirstSplit(slug)) ?? (await getDeal(slug)));
+  }
   const out = await mockSplitWrite((v) => (w.kind === 'draft' ? editDraft(v, w.terms) : w.kind === 'send' ? send(v) : sign(v, w.role, today)));
   if (!out.ok) return splitError(out.error, out.message);
   return NextResponse.json(await getDeal(slug));

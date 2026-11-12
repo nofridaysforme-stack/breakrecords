@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse } from '@breakrecords/contract';
+import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse, FirstSplitResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 import { MAILBOX } from '../../playwright.live.config';
@@ -1243,5 +1243,56 @@ test.describe('reserves (live)', () => {
     expect((await page.request.post(`/api/money/reserves/${nb.id}/resolve`, { data: { outcome: 'release', note: 'oops' } })).status()).toBe(409);
     expect((await reserves()).items.find((r) => r.id === nb.id)).toMatchObject({ status: 'forfeited', heldNow: 0 });
     expect(PayoutsResponse.parse(await (await page.request.get('/api/money/payouts')).json()).batches.some((b) => b.held)).toBe(false);
+  });
+});
+
+test.describe('your own music and splits (live)', () => {
+  test('add a release, split it, send it; each person signs their own line; it takes effect', async ({ page, browser }) => {
+    await signIn(page, USERS.owner);
+    const add = await page.request.post('/api/catalog/releases', { data: {
+      title: 'Harbor Lights', kind: 'single', artist: { name: 'Joe Rivers' }, releaseDate: '2027-02-05', tracks: [{ title: 'Harbor Lights', isrc: 'QZ-XXX-26-00077' }],
+    } });
+    expect(add.status()).toBe(200);
+    const cat = CatalogResponse.parse(await add.json());
+    expect(cat.releases.find((r) => r.title === 'Harbor Lights')).toMatchObject({ artist: 'Joe Rivers', kind: 'Single', tracks: 1, date: 'Feb 5, 2027' });
+    expect(cat.recordings.find((r) => r.title === 'Harbor Lights')?.isrc).toBe('QZXXX2600077');
+    expect(cat.unsplit?.map((r) => r.id)).toContain('harbor-lights');
+    // The same ISRC twice is refused.
+    expect((await page.request.post('/api/catalog/releases', { data: { title: 'Copy', kind: 'single', artist: { name: 'X' }, tracks: [{ title: 'x', isrc: 'QZXXX2600077' }] } })).status()).toBe(409);
+
+    const made = await page.request.post('/api/splits', { data: { releaseId: 'harbor-lights', producer: { name: 'Sam Okoro' }, terms: { producerBp: 300, artistOfNetBp: 6000, labelOfNetBp: 4000, featureOfArtistBp: 0 } } });
+    expect(made.status()).toBe(200);
+    const { node } = (await made.json()) as { node: string };
+    expect((await page.request.post('/api/splits', { data: { releaseId: 'harbor-lights', terms: { producerBp: 0, artistOfNetBp: 5000, labelOfNetBp: 5000, featureOfArtistBp: 0 } } })).status()).toBe(409);
+    const first = async (p = page) => FirstSplitResponse.parse(await (await p.request.get(`/api/splits/${node}/first`)).json());
+    expect((await first()).parties.map((p) => [p.role, p.name, p.signed])).toEqual([['artist', 'Joe Rivers', null], ['label', 'Northline Records', null], ['producer', 'Sam Okoro', null]]);
+
+    expect((await page.request.post(`/api/splits/${node}/send`, { data: {} })).status()).toBe(200);
+    expect((await page.request.post(`/api/splits/${node}/sign`, { data: { role: 'label' } })).status()).toBe(200);
+    // The label can't sign for the producer.
+    expect((await page.request.post(`/api/splits/${node}/sign`, { data: { role: 'producer' } })).status()).toBe(403);
+
+    // Invite the producer and the artist; each signs their own line in the portal.
+    for (const [email, who] of [['sam@okoro.example', 'sam-okoro'], ['joe@rivers.example', 'joe-rivers']] as const) {
+      expect((await page.request.post('/api/settings/invites', { data: { email, role: 'payee', payeeId: who } })).status()).toBe(200);
+    }
+    const sam = await (await browser.newContext()).newPage();
+    await signIn(sam, 'sam@okoro.example', { into: 'Northline Records' });
+    expect((await sam.request.post(`/api/splits/${node}/sign`, { data: { role: 'artist' } })).status()).toBe(403);
+    expect((await sam.request.post(`/api/splits/${node}/sign`, { data: { role: 'producer' } })).status()).toBe(200);
+    expect((await sam.request.post('/api/catalog/releases', { data: { title: 'Mine', kind: 'single', artist: { name: 'Sam' }, tracks: [{ title: 'x' }] } })).status()).toBe(403);
+    const joe = await (await browser.newContext()).newPage();
+    await signIn(joe, 'joe@rivers.example', { into: 'Northline Records' });
+    expect((await joe.request.post(`/api/splits/${node}/sign`, { data: { role: 'artist' } })).status()).toBe(200);
+
+    // Everyone signed: it's in effect, and the split reads as usual.
+    expect((await page.request.get(`/api/splits/${node}/first`)).status()).toBe(404);
+    const deal = SplitNodeResponse.parse(await (await page.request.get(`/api/splits/${node}`)).json());
+    expect(deal).toMatchObject({ v4: { version: 1, terms: { artistOfNetBp: 6000 } }, v5: null, parties: { producer: 'Sam Okoro', artist: 'Joe Rivers', label: 'Northline Records' } });
+    // Another label sees none of it.
+    const harbor = await (await browser.newContext()).newPage();
+    await signIn(harbor, USERS.harbor);
+    expect((await harbor.request.get(`/api/splits/${node}/first`)).status()).toBe(404);
+    expect(CatalogResponse.parse(await (await harbor.request.get('/api/catalog')).json()).releases.some((r) => r.title === 'Harbor Lights')).toBe(false);
   });
 });

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { StatusPill, type Status } from '@/components/ui/Status';
 import { Term } from '@/components/ui/Controls';
 import { LinkTabs } from '@/components/ops/LinkTabs';
+import { AddRelease } from './AddRelease';
 import type { getCatalog } from '@/data/api';
 import type { Recording } from '@/data/ops';
 import { formatIsrc, normalizeIsrc } from '@breakrecords/core/codes';
@@ -33,6 +34,7 @@ export function CatalogView({ data, tab, initialId }: { data: Data; tab: Catalog
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const codes = useCodes();
+  const [adding, setAdding] = useState(false);
 
   /** Gives the recording the next ISRC from the workspace's prefix. */
   const assignIsrc = async (r: Recording) => {
@@ -69,7 +71,10 @@ export function CatalogView({ data, tab, initialId }: { data: Data; tab: Catalog
     <>
       <div className={o.head}>
         <PageTitle>Catalog</PageTitle>
-        <Button variant="primary" onClick={() => upload.current?.showModal()}>Upload assets</Button>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <Button onClick={() => setAdding(true)}>Add a release</Button>
+          <Button variant="primary" onClick={() => upload.current?.showModal()}>Upload assets</Button>
+        </div>
       </div>
       <LinkTabs label="Catalog" tabs={[
         { label: 'Songs', href: '/catalog/songs', count: data.counts.songs },
@@ -79,6 +84,15 @@ export function CatalogView({ data, tab, initialId }: { data: Data; tab: Catalog
       ]} />
       {saved && !saveError && <p className={o.toast} role="status"><Check size={16} className={o.good} aria-hidden="true" />{saved}</p>}
       {saveError && <p className={o.toast} role="alert"><CircleAlert size={16} className={o.critical} aria-hidden="true" />{saveError}</p>}
+      {data.counts.releases === 0 && data.counts.recordings === 0 && (
+        <div className={o.callout} role="note">
+          <div className={o.calloutBody}>
+            <p className={o.calloutTitle}>Your catalog is empty</p>
+            <p className={o.calloutText}>Start with a release: its title, the artist and its songs. Then you can set its split and send it to everyone on it to sign.</p>
+          </div>
+          <Button variant="primary" onClick={() => setAdding(true)}>Add your first release</Button>
+        </div>
+      )}
       {queued.length > 0 && (
         <p className={o.toast} role="status"><Check size={16} className={o.good} aria-hidden="true" />{queued.length} {queued.length === 1 ? 'file' : 'files'} queued. Metadata Agent will check {queued.length === 1 ? 'it' : 'them'} before anything is delivered.</p>
       )}
@@ -88,6 +102,7 @@ export function CatalogView({ data, tab, initialId }: { data: Data; tab: Catalog
   const dialogs = (
     <>
       <UploadDialog ref={upload} onQueue={(names) => setQueued((q) => [...q, ...names])} />
+      <AddRelease people={data.people ?? []} open={adding} onClose={() => setAdding(false)} />
       {selected && <EditDialog ref={edit} recording={selected} onSave={(r) => void save(r)} nextIsrc={codes.data?.nextIsrc ?? null} onAssign={(r) => void assignIsrc(r)} />}
     </>
   );

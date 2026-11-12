@@ -391,6 +391,17 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       await owner`DELETE FROM audit_flags WHERE id = ${flag}`; // the audit flag tests below start clean
     });
 
+    it('only the workspace’s people link themselves to a party, only in their workspace; a release has one split node', async () => {
+      await expect(withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT app_link_me_to_party(${kesi})`)).rejects.toThrow(/owners and team/);
+      const [{ id: other }] = await owner`INSERT INTO parties (tenant_id, slug, name) VALUES (${ids.b}, 'b-artist', 'B Artist') RETURNING id`;
+      await expect(asOwner((tx) => tx`SELECT app_link_me_to_party(${other})`)).rejects.toThrow(/no such party/);
+      const [{ id: rel }] = await owner`SELECT id FROM releases WHERE tenant_id = ${ids.a} AND slug = 'rel_a'`;
+      await asOwner((tx) => tx`INSERT INTO split_nodes (tenant_id, slug, label, release_id) VALUES (${ids.a}, 'rel-a-node', 'Release A', ${rel})`);
+      await expect(asOwner((tx) => tx`INSERT INTO split_nodes (tenant_id, slug, label, release_id) VALUES (${ids.a}, 'rel-a-node-2', 'Again', ${rel})`)).rejects.toThrow(/duplicate key/);
+      await expect(withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx`INSERT INTO split_nodes (tenant_id, slug, label, release_id) VALUES (${ids.b}, 'steal', 'Steal', ${rel})`)).rejects.toThrow(/cross-tenant/);
+      await owner`DELETE FROM split_nodes WHERE slug = 'rel-a-node'`;
+    });
+
     it('another label sees none of it and can’t point at it', async () => {
       for (const t of ['payout_batches', 'payout_lines', 'payees', 'recoupment_accounts']) {
         expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx.unsafe(`SELECT 1 FROM ${t}`))).toHaveLength(0);

@@ -11,7 +11,7 @@ import { approvalDetails, home, homeNumberNotes, homeNumbers, releases, TODAY } 
 import type { ApprovalDetail, Release, Scenario } from './types';
 import type { ApprovalSummary } from '@/components/ui/Approval';
 import * as ops from './ops';
-import type { Module, ReservesResponse, SplitNodeResponse, SplitTreeNode, TaxYearResponse } from '@breakrecords/contract';
+import type { FirstSplitResponse, Module, ReservesResponse, SplitNodeResponse, SplitTreeNode, TaxYearResponse } from '@breakrecords/contract';
 import { advance, baselineIncome, sale, type AdvanceOffer, type OfferAssumptions, type SaleOffer } from '@breakrecords/core/offers';
 
 export { TODAY };
@@ -145,7 +145,7 @@ export async function getBudgets(): Promise<typeof budgets> {
 /** The split tree (4a). Live: the tenant's nodes. */
 export async function getSplitTree(): Promise<SplitTreeNode[]> {
   const ctx = await liveCtx('splits');
-  if (!ctx) return splitTree;
+  if (!ctx) return (await import('@/server/mockMusic')).mockTreeWithSplits(splitTree);
   const { liveSplitTree } = await import('@/server/live/splits');
   return liveSplitTree(ctx);
 }
@@ -163,7 +163,7 @@ export async function getDeal(nodeId: string): Promise<SplitNodeResponse | null>
     const { liveSplitNode } = await import('@/server/live/splits');
     return liveSplitNode(ctx, nodeId);
   }
-  if (nodeId !== 'gh-rec') return null;
+  if (nodeId !== 'gh-rec') return (await import('@/server/mockMusic')).mockSplitDeal(nodeId);
   const { mockSplitState } = await import('@/server/mockSplits');
   const st = await mockSplitState();
   const d = glasshouseDeal;
@@ -176,6 +176,12 @@ export async function getDeal(nodeId: string): Promise<SplitNodeResponse | null>
   return { breadcrumb: d.breadcrumb, parties: ROLE_NAMES, dealTerms: d.dealTerms, market: d.market, history: d.history,
     v4: { version: 4, terms: d.v4.terms, effective: d.v4.effective, signed: d.v4.signed },
     v5: { version: 5, status: st.status === 'sent' ? 'sent' : 'draft', terms: st.terms, effective: d.v5.effective, created: d.v5.created, signed } };
+}
+/** A split's first version while it's still being agreed, or null. */
+export async function getFirstSplit(nodeId: string): Promise<FirstSplitResponse | null> {
+  const ctx = await liveCtx('splits');
+  if (!ctx) return (await import('@/server/mockMusic')).mockFirstSplit(nodeId);
+  return (await import('@/server/live/splits')).liveFirstSplit(ctx, nodeId);
 }
 /** One payee's portal (4f). Live: built from their own rows; a payee can only get themselves. */
 export async function getPayee(id: string): Promise<Payee | null> {
@@ -199,7 +205,8 @@ export async function getPortalPayee(as?: string): Promise<Payee> {
 
 // ---------- Batch 3: rights and operations ----------
 
-const mockCatalog = () => ({ counts: ops.catalogCounts, recordings: ops.recordings, songs: ops.songs, releases: ops.catalogReleases, assets: ops.catalogAssets });
+const mockCatalog = () => ({ counts: ops.catalogCounts, recordings: ops.recordings, songs: ops.songs, releases: ops.catalogReleases as (typeof ops.catalogReleases[number] | { id: string; title: string; artist: string; kind: string; date: string; upc: string; tracks: number; href?: string })[], assets: ops.catalogAssets,
+  people: [] as { id: string; name: string }[], unsplit: [] as { id: string; title: string; artist: string }[] });
 
 /** Catalog (5a). Live: the signed-in tenant's tables. Mock: the sample, plus this session's edits. */
 export async function getCatalog(): Promise<ReturnType<typeof mockCatalog>> {
@@ -212,10 +219,14 @@ export async function getCatalog(): Promise<ReturnType<typeof mockCatalog>> {
   const edits = await mockRecordingEdits();
   const upcs = await (await import('@/server/mockCodes')).mockUpcEdits();
   const base = mockCatalog();
+  // Releases and recordings added this session come after the sample's.
+  const music = await (await import('@/server/mockMusic')).mockMusic();
+  const recordings = [...base.recordings.map((r) => (edits[r.id] ? { ...r, ...edits[r.id] } : r)), ...music.recordings];
+  const releases = [...base.releases.map((r) => (upcs[r.id] !== undefined ? { ...r, upc: upcs[r.id] ?? 'Not assigned' } : r)), ...music.releases];
   return {
     ...base,
-    recordings: base.recordings.map((r) => (edits[r.id] ? { ...r, ...edits[r.id] } : r)),
-    releases: base.releases.map((r) => (upcs[r.id] !== undefined ? { ...r, upc: upcs[r.id] ?? 'Not assigned' } : r)),
+    counts: { ...base.counts, recordings: base.counts.recordings + music.recordings.length, releases: base.counts.releases + music.releases.length },
+    recordings, releases, people: music.people, unsplit: music.unsplit,
   };
 }
 export type Contracts = { summary: string; contracts: ops.Contract[]; templates: ops.Template[]; reviews: { id: string; fileName: string; status: 'queued' | 'reviewed'; requested: string }[] };

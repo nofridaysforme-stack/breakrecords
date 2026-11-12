@@ -1,7 +1,8 @@
 import 'server-only';
-import type { SplitNodeResponse, SplitTreeNode } from '@breakrecords/contract';
+import type { FirstSplitResponse, SplitNodeResponse, SplitTreeNode } from '@breakrecords/contract';
+import { freeSlug } from './catalog';
 import type { DealTerms } from '@breakrecords/core/dealSplit';
-import { editDraft, producerMarketNote, PRODUCER_RANGE, send, sign, SPLIT_ROLES, type SplitOutcome, type SplitRole, type VersionState } from '@breakrecords/core/splitVersions';
+import { editDraft, producerMarketNote, PRODUCER_RANGE, send, sign, SPLIT_ROLES, validTerms, type SplitOutcome, type SplitRole, type VersionState } from '@breakrecords/core/splitVersions';
 import { withTenant, type Tx } from '@breakrecords/db/client';
 import { sql } from '../db';
 import type { RequestContext } from '../context';
@@ -38,7 +39,7 @@ async function load(tx: Tx, slug: string) {
 }
 
 const stateOf = (v: VersionRow, parties: PartyRow[]): VersionState => ({
-  status: v.status, terms: v.terms,
+  status: v.status, terms: v.terms, roles: parties.filter((p) => p.version_id === v.id).map((p) => p.role),
   signed: Object.fromEntries(parties.filter((p) => p.version_id === v.id && p.signed_at).map((p) => [p.role, p.signed_at!.toISOString().slice(0, 10)])),
 });
 
@@ -95,7 +96,8 @@ export function liveSplitWrite(ctx: RequestContext, slug: string, w: SplitWrite)
 
     if (w.kind === 'sign') {
       const mine = await tx<{ role: SplitRole }[]>`SELECT role::text FROM split_parties WHERE version_id = ${open.id} AND party_id = app_party()`;
-      const allowed = ctx.role === 'payee' ? mine.some((m) => m.role === w.role) : w.role === 'label';
+      // Each party signs their own line; the owner and team also sign for the label.
+      const allowed = mine.some((m) => m.role === w.role) || (ctx.role !== 'payee' && w.role === 'label');
       if (!allowed) return { ok: false, error: 'forbidden', message: ctx.role === 'payee' ? 'You can only sign your own share.' : 'The label signs as itself; each other party signs their own share.' } as const;
     } else if (ctx.role === 'payee') {
       return { ok: false, error: 'forbidden', message: 'Only the label’s owner and team can change a split.' } as const;
@@ -117,5 +119,99 @@ export function liveSplitWrite(ctx: RequestContext, slug: string, w: SplitWrite)
       await audit('split.signed', { role: w.role, tookEffect: out.tookEffect });
     }
     return out;
+  });
+}
+
+type PartyInput = { partyId: string } | { name: string };
+
+/**
+ * A release's first split, as a draft: the workspace is the label (a company party named after
+ * it), the release's artist the artist, and an optional producer and featured artist. The tree
+ * gets the artist, the release and its recording income; the draft sits on recording income.
+ * New people get a payee record, so they can be paid and invited to sign.
+ */
+export function liveCreateSplit(ctx: RequestContext, c: { releaseId: string; producer?: PartyInput; feature?: PartyInput; artistIsMe?: boolean; terms: DealTerms }):
+  Promise<{ ok: true; node: string } | { ok: false; status: number; error: 'not_found' | 'already_split' | 'invalid_terms' | 'forbidden'; message: string }> {
+  return withTenant(sql, ctx, async (tx) => {
+    if (ctx.role === 'payee') return { ok: false, status: 403, error: 'forbidden', message: 'Only the workspace’s owners and team make splits.' } as const;
+    const bad = validTerms(c.terms);
+    if (bad) return { ok: false, status: 400, error: 'invalid_terms', message: bad } as const;
+    await tx`SELECT pg_advisory_xact_lock(hashtext(${ctx.tenantId + ':splits'}))`;
+    const [rel] = await tx<{ id: string; slug: string; title: string; kind: string; artist_id: string; artist: string; artist_slug: string }[]>`
+      SELECT rl.id, rl.slug, rl.title, rl.kind::text AS kind, rl.artist_id, a.name AS artist, a.slug AS artist_slug
+      FROM releases rl JOIN parties a ON a.id = rl.artist_id WHERE rl.slug = ${c.releaseId}`;
+    if (!rel) return { ok: false, status: 404, error: 'not_found', message: 'No such release.' } as const;
+    if ((await tx`SELECT 1 FROM split_nodes WHERE release_id = ${rel.id}`).length) return { ok: false, status: 409, error: 'already_split', message: `${rel.title} already has a split. Open it from Splits.` } as const;
+
+    const partyOf = async (p: PartyInput): Promise<string | null> => {
+      if ('partyId' in p) return (await tx<{ id: string }[]>`SELECT id FROM parties WHERE slug = ${p.partyId}`)[0]?.id ?? null;
+      const slug = await freeSlug(tx, 'parties', p.name);
+      const [row] = await tx<{ id: string }[]>`INSERT INTO parties (tenant_id, slug, name, type) VALUES (${ctx.tenantId}, ${slug}, ${p.name}, 'person') RETURNING id`;
+      return row.id;
+    };
+    const producer = c.producer ? await partyOf(c.producer) : null;
+    const feature = c.feature ? await partyOf(c.feature) : null;
+    if ((c.producer && !producer) || (c.feature && !feature)) return { ok: false, status: 404, error: 'not_found', message: 'Someone on this split isn’t in the workspace.' } as const;
+    // The workspace signs as the label.
+    let [label] = await tx<{ id: string }[]>`SELECT id FROM parties WHERE type = 'company' AND name = ${ctx.tenantName} ORDER BY created_at LIMIT 1`;
+    if (!label) [label] = await tx<{ id: string }[]>`INSERT INTO parties (tenant_id, slug, name, type) VALUES (${ctx.tenantId}, ${await freeSlug(tx, 'parties', ctx.tenantName)}, ${ctx.tenantName}, 'company') RETURNING id`;
+    // A solo artist's own workspace: the person signed in is the artist, and signs that line.
+    if (c.artistIsMe) await tx`SELECT app_link_me_to_party(${rel.artist_id})`;
+    for (const id of [rel.artist_id, producer, feature].filter(Boolean) as string[]) {
+      await tx`INSERT INTO payees (tenant_id, party_id) VALUES (${ctx.tenantId}, ${id}) ON CONFLICT (party_id) DO NOTHING`;
+    }
+
+    // The tree: workspace, artist, release, recording income.
+    let [root] = await tx<{ id: string }[]>`SELECT id FROM split_nodes WHERE parent_id IS NULL ORDER BY created_at LIMIT 1`;
+    if (!root) [root] = await tx<{ id: string }[]>`INSERT INTO split_nodes (tenant_id, slug, label) VALUES (${ctx.tenantId}, ${await freeSlug(tx, 'split_nodes', ctx.tenantName)}, ${ctx.tenantName}) RETURNING id`;
+    let [artistNode] = await tx<{ id: string }[]>`SELECT id FROM split_nodes WHERE parent_id = ${root.id} AND label = ${rel.artist} ORDER BY created_at LIMIT 1`;
+    if (!artistNode) [artistNode] = await tx<{ id: string }[]>`INSERT INTO split_nodes (tenant_id, slug, label, parent_id, position)
+      VALUES (${ctx.tenantId}, ${await freeSlug(tx, 'split_nodes', rel.artist)}, ${rel.artist}, ${root.id}, (SELECT count(*) FROM split_nodes WHERE parent_id = ${root.id})) RETURNING id`;
+    const kind = rel.kind === 'ep' ? 'EP' : rel.kind;
+    const [relNode] = await tx<{ id: string }[]>`INSERT INTO split_nodes (tenant_id, slug, label, parent_id, position, release_id)
+      VALUES (${ctx.tenantId}, ${await freeSlug(tx, 'split_nodes', rel.title)}, ${`${rel.title} (${kind})`}, ${artistNode.id}, (SELECT count(*) FROM split_nodes WHERE parent_id = ${artistNode.id}), ${rel.id}) RETURNING id`;
+    const leafSlug = await freeSlug(tx, 'split_nodes', `${rel.title} recording`);
+    const [leaf] = await tx<{ id: string }[]>`INSERT INTO split_nodes (tenant_id, slug, label, parent_id, position, deal_notes)
+      VALUES (${ctx.tenantId}, ${leafSlug}, 'Recording income', ${relNode.id}, 0, ${tx.json([['Type', 'Net profit'], ['Set up', 'In the app']] as never)}) RETURNING id`;
+    const [v] = await tx<{ id: string }[]>`INSERT INTO split_versions (tenant_id, node_id, version, status, terms, effective_from, created_by)
+      VALUES (${ctx.tenantId}, ${leaf.id}, 1, 'draft', ${tx.json(c.terms as never)}, ${new Date().toISOString().slice(0, 10)}, ${ctx.userId}) RETURNING id`;
+    const lines: [SplitRole, string | null][] = [['label', label.id], ['artist', rel.artist_id], ['producer', producer], ['feature', feature]];
+    for (const [role, id] of lines) if (id) await tx`INSERT INTO split_parties (tenant_id, version_id, role, party_id) VALUES (${ctx.tenantId}, ${v.id}, ${role}, ${id})`;
+    await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
+      VALUES (${ctx.tenantId}, ${'AUD-SPL-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'split.created', ${`${leafSlug}/v1`}, ${tx.json({ release: rel.slug, terms: c.terms } as never)})`;
+    return { ok: true, node: leafSlug } as const;
+  });
+}
+
+/** A split's first version while it is still being agreed, or null if the node has none (or it is in effect). */
+export function liveFirstSplit(ctx: RequestContext, slug: string): Promise<FirstSplitResponse | null> {
+  return withTenant(sql, ctx, async (tx) => {
+    const got = await load(tx, slug);
+    if (!got || got.versions.some((v) => v.status === 'in_effect' || v.status === 'superseded')) return null;
+    const open = got.versions.find((v) => v.status === 'draft' || v.status === 'sent');
+    if (!open) return null;
+    const rows = await tx<{ role: SplitRole; name: string; slug: string; signed_at: Date | null; mine: boolean; can_sign_in: boolean }[]>`
+      SELECT sp.role::text AS role, p.name, p.slug, sp.signed_at, sp.party_id = app_party() AS mine,
+             EXISTS (SELECT 1 FROM memberships m WHERE m.party_id = p.id AND m.tenant_id = sp.tenant_id)
+               OR EXISTS (SELECT 1 FROM allowlist a WHERE a.party_slug = p.slug AND a.tenant_id = sp.tenant_id) AS can_sign_in
+      FROM split_parties sp JOIN parties p ON p.id = sp.party_id WHERE sp.version_id = ${open.id}`;
+    const path: string[] = [];
+    let at: string | null = got.node.id;
+    while (at) {
+      const [n]: { label: string; parent_id: string | null }[] = await tx`SELECT label, parent_id FROM split_nodes WHERE id = ${at}`;
+      if (!n || !n.parent_id) break;
+      path.unshift(n.label.replace(/\s*\(.*\)$/, ''));
+      at = n.parent_id;
+    }
+    const order: SplitRole[] = ['artist', 'label', 'producer', 'feature'];
+    return {
+      node: slug, title: path.slice(-2, -1)[0] ?? got.node.label, breadcrumb: path, version: open.version, status: open.status as 'draft' | 'sent',
+      terms: open.terms, effective: long(open.effective_from),
+      parties: rows.sort((a, b) => order.indexOf(a.role) - order.indexOf(b.role)).map((r) => ({
+        role: r.role, name: r.name, partyId: r.slug, signed: r.signed_at ? short(r.signed_at) : null,
+        canSign: open.status === 'sent' && !r.signed_at && (r.mine || (ctx.role !== 'payee' && r.role === 'label')),
+        canSignIn: r.role === 'label' || r.can_sign_in,
+      })),
+    };
   });
 }

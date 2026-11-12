@@ -2,6 +2,7 @@ import 'server-only';
 import type { Recording, UpdateRecordingCommand } from '@breakrecords/contract';
 import { aiUseFromLabel, aiUseLabel, formatDuration, metadataScore, type MetadataInput } from '@breakrecords/core/metadata';
 import { formatPercent } from '@breakrecords/core/percent';
+import { isIsrc, normalizeIsrc } from '@breakrecords/core/codes';
 import { withTenant, type Tx } from '@breakrecords/db/client';
 import type { getCatalog } from '@/data/api';
 import { listReleases } from '@/data/api';
@@ -49,7 +50,11 @@ const shortDate = (d: Date | null) => (d ? d.toLocaleDateString('en-US', { month
 
 /** The catalog for the signed-in tenant, in the contract's shape. Counts are real row counts. */
 export function liveCatalog(ctx: RequestContext): Promise<Catalog> {
-  return withTenant(sql, ctx, async (tx) => {
+  return withTenant(sql, ctx, catalogIn);
+}
+
+async function catalogIn(tx: Tx): Promise<Catalog> {
+  {
     const recordings = (await recordingRows(tx)).map(toRecording);
 
     const songs = await tx<{ slug: string; title: string; iswc: string | null; writers: { name: string; bp: number }[]; recordings: number; mlc: string | null }[]>`
@@ -71,7 +76,14 @@ export function liveCatalog(ctx: RequestContext): Promise<Catalog> {
       SELECT s.name, s.kind::text AS kind, s.detail, rl.title AS release, s.ready
       FROM assets s LEFT JOIN releases rl ON rl.id = s.release_id ORDER BY s.created_at, s.name`;
 
+    const people = await tx<{ slug: string; name: string }[]>`SELECT slug, name FROM parties WHERE type <> 'company' ORDER BY name`;
+    const unsplit = await tx<{ slug: string; title: string; artist: string }[]>`
+      SELECT rl.slug, rl.title, a.name AS artist FROM releases rl JOIN parties a ON a.id = rl.artist_id
+      WHERE NOT EXISTS (SELECT 1 FROM split_nodes n WHERE n.release_id = rl.id) ORDER BY rl.created_at DESC`;
+
     return {
+      people: people.map((p) => ({ id: p.slug, name: p.name })),
+      unsplit: unsplit.map((r) => ({ id: r.slug, title: r.title, artist: r.artist })),
       counts: { songs: songs.length, recordings: recordings.length, releases: releases.length, assets: assets.length },
       recordings,
       songs: songs.map((w) => ({
@@ -85,7 +97,7 @@ export function liveCatalog(ctx: RequestContext): Promise<Catalog> {
       })),
       assets: assets.map((a) => ({ name: a.name, kind: a.detail ? `${ASSET[a.kind]} · ${a.detail}` : ASSET[a.kind], release: a.release ?? 'Not assigned', ready: a.ready })),
     } as Catalog;
-  });
+  }
 }
 
 /** Changes what the label owns on a recording: genre and the AI use declaration. Returns it rescored, or null if not found. */
@@ -107,5 +119,56 @@ export function liveUpdateRecording(ctx: RequestContext, slug: string, cmd: Upda
       VALUES (${ctx.tenantId}, ${'AUD-CAT-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'recording.updated', ${slug}, ${tx.json(cmd as never)})`;
     const [row] = await recordingRows(tx, slug);
     return row ? toRecording(row) : null;
+  });
+}
+
+/** A slug for a new row: the name, lowercased, made unique in the tenant. */
+export async function freeSlug(tx: Tx, table: 'parties' | 'releases' | 'recordings' | 'split_nodes', name: string, prefix = ''): Promise<string> {
+  const base = prefix + (name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'untitled');
+  const taken = new Set((await tx.unsafe<{ slug: string }[]>(`SELECT slug FROM ${table} WHERE slug = $1 OR slug LIKE $2`, [base, `${base}-%`])).map((r) => r.slug));
+  let slug = base;
+  for (let i = 2; taken.has(slug); i++) slug = `${base}-${i}`;
+  return slug;
+}
+
+export type CatalogWrite<T> = { ok: true; value: T } | { ok: false; status: number; error: 'not_found' | 'duplicate' | 'invalid' | 'forbidden'; message: string };
+
+/**
+ * Adds a release and its recordings, in order. The artist is someone already in the workspace
+ * or a new person or group by name. An ISRC is checked and must not already be in use.
+ */
+export function liveCreateRelease(ctx: RequestContext, c: { title: string; kind: 'single' | 'ep' | 'album'; artist: { partyId: string } | { name: string; group?: boolean }; releaseDate?: string; tracks: { title: string; isrc?: string }[] }): Promise<CatalogWrite<Catalog>> {
+  return withTenant(sql, ctx, async (tx) => {
+    if (ctx.role === 'payee') return { ok: false, status: 403, error: 'forbidden', message: 'Only the workspace’s owners and team add music.' } as const;
+    const isrcs = c.tracks.map((t) => (t.isrc ? normalizeIsrc(t.isrc) : null));
+    const bad = isrcs.find((i) => i && !isIsrc(i));
+    if (bad) return { ok: false, status: 400, error: 'invalid', message: `${bad} isn’t a valid ISRC (like US-ABC-26-00001).` } as const;
+    const given = isrcs.filter(Boolean) as string[];
+    if (new Set(given).size !== given.length) return { ok: false, status: 400, error: 'invalid', message: 'Two tracks have the same ISRC.' } as const;
+    if (given.length) {
+      const [dup] = await tx<{ isrc: string }[]>`SELECT isrc FROM recordings WHERE isrc = ANY(${given}::text[])`;
+      if (dup) return { ok: false, status: 409, error: 'duplicate', message: `${dup.isrc} is already on another recording.` } as const;
+    }
+    let artistId: string;
+    if ('partyId' in c.artist) {
+      const [a] = await tx<{ id: string }[]>`SELECT id FROM parties WHERE slug = ${c.artist.partyId}`;
+      if (!a) return { ok: false, status: 404, error: 'not_found', message: 'No such artist in this workspace.' } as const;
+      artistId = a.id;
+    } else {
+      const slug = await freeSlug(tx, 'parties', c.artist.name);
+      [{ id: artistId }] = await tx<{ id: string }[]>`INSERT INTO parties (tenant_id, slug, name, type) VALUES (${ctx.tenantId}, ${slug}, ${c.artist.name}, ${c.artist.group ? 'group' : 'person'}) RETURNING id`;
+    }
+    const relSlug = await freeSlug(tx, 'releases', c.title);
+    const [rel] = await tx<{ id: string }[]>`INSERT INTO releases (tenant_id, slug, title, kind, artist_id, release_date)
+      VALUES (${ctx.tenantId}, ${relSlug}, ${c.title}, ${c.kind}, ${artistId}, ${c.releaseDate ?? null}) RETURNING id`;
+    for (const [i, t] of c.tracks.entries()) {
+      const recSlug = await freeSlug(tx, 'recordings', t.title);
+      const [rec] = await tx<{ id: string }[]>`INSERT INTO recordings (tenant_id, slug, title, artist_id, isrc, updated_by)
+        VALUES (${ctx.tenantId}, ${recSlug}, ${t.title}, ${artistId}, ${isrcs[i]}, ${ctx.userId}) RETURNING id`;
+      await tx`INSERT INTO release_tracks (tenant_id, release_id, recording_id, position) VALUES (${ctx.tenantId}, ${rel.id}, ${rec.id}, ${i + 1})`;
+    }
+    await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
+      VALUES (${ctx.tenantId}, ${'AUD-CAT-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'release.created', ${relSlug}, ${tx.json({ title: c.title, kind: c.kind, tracks: c.tracks.length })})`;
+    return { ok: true, value: await catalogIn(tx) } as const;
   });
 }

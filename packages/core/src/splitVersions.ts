@@ -13,6 +13,8 @@ export type VersionState = {
   terms: DealTerms;
   /** Role → ISO date signed. */
   signed: Partial<Record<SplitRole, string>>;
+  /** Who is on this version. A split with no producer or featured artist has fewer parties. All four when left out. */
+  roles?: SplitRole[];
 };
 
 export type SplitErrorCode = 'invalid_terms' | 'not_draft' | 'not_100' | 'not_sent' | 'already_signed' | 'not_a_party';
@@ -49,11 +51,12 @@ export function send(v: VersionState): SplitOutcome {
 
 /** Records one party's signature. The last signature puts the version in effect. */
 export function sign(v: VersionState, role: SplitRole, onDate: string): SplitOutcome {
-  if (!SPLIT_ROLES.includes(role)) return { ok: false, error: 'not_a_party', message: 'That isn’t a party to this split.' };
+  const roles = v.roles ?? SPLIT_ROLES;
+  if (!roles.includes(role)) return { ok: false, error: 'not_a_party', message: 'That isn’t a party to this split.' };
   if (v.status !== 'sent') return { ok: false, error: 'not_sent', message: 'This version isn’t out for signatures.' };
   if (v.signed[role]) return { ok: false, error: 'already_signed', message: 'Already signed.' };
   const signed = { ...v.signed, [role]: onDate };
-  const all = SPLIT_ROLES.every((r) => signed[r]);
+  const all = roles.every((r) => signed[r]);
   return { ok: true, state: { ...v, signed, status: all ? 'in_effect' : 'sent' }, tookEffect: all };
 }
 

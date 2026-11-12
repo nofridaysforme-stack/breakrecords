@@ -258,6 +258,41 @@ export const SplitTreeNode: z.ZodType<SplitTreeNode> = z.lazy(() => z.object({
 /** GET /api/splits: label, artist, release and income-type nodes. `override` marks nodes with a split of their own. */
 export const SplitTreeResponse = z.array(SplitTreeNode);
 
+/**
+ * GET /api/splits/{node}/first: a split's first version while it is still being agreed (draft,
+ * or out for signatures). Once everyone signs it is in effect and the node reads as usual.
+ */
+export const FirstSplitResponse = z.object({
+  node: Id, title: z.string(), breadcrumb: z.array(z.string()),
+  version: z.number().int().positive(), status: z.enum(['draft', 'sent']), terms: DealTerms, effective: Display,
+  parties: z.array(z.object({
+    role: SplitRole, name: z.string(), partyId: Id,
+    signed: Display.nullable(),
+    /** The person viewing can sign this line (the label as owner or team, or their own line). */
+    canSign: z.boolean(),
+    /** Has a login (or an invitation) so they can sign in the portal. */
+    canSignIn: z.boolean(),
+  })),
+});
+export type FirstSplitResponse = z.infer<typeof FirstSplitResponse>;
+/** Someone on a split: one of the workspace's people, or a new one by name. */
+export const SplitPartyInput = z.union([z.object({ partyId: Id }).strict(), z.object({ name: z.string().trim().min(1).max(120) }).strict()]);
+/**
+ * POST /api/splits: a release's first split, as a draft. The workspace is the label; the
+ * release's artist is the artist. A producer and a featured artist are optional. Returns the node.
+ */
+export const CreateSplitCommand = z.object({
+  releaseId: Id,
+  producer: SplitPartyInput.optional(),
+  feature: SplitPartyInput.optional(),
+  /** The artist is the person signed in (a solo artist's own workspace), so they sign as the artist too. */
+  artistIsMe: z.boolean().optional(),
+  terms: DealTerms,
+}).strict()
+  .refine((c) => !!c.producer || c.terms.producerBp === 0, 'Name the producer, or give producer points of 0.')
+  .refine((c) => !!c.feature || c.terms.featureOfArtistBp === 0, 'Name the featured artist, or give them 0%.');
+export const CreateSplitResponse = z.object({ node: Id });
+
 /** PUT /api/splits/{node}/draft: edit the open draft. Refused once it's sent. */
 export const SaveSplitDraftCommand = z.object({ terms: DealTerms });
 /** POST /api/splits/{node}/send: send the draft for signatures. Refused unless net profit is exactly 100%. */
@@ -312,7 +347,20 @@ export const CatalogResponse = z.object({
   songs: z.array(z.object({ id: Id, title: z.string(), writers: z.string(), iswc: z.string().nullable(), recordings: z.number().int(), mlc: RegistrationStatus })),
   releases: z.array(z.object({ id: Id, title: z.string(), artist: z.string(), kind: z.string(), date: Display, upc: z.string(), tracks: z.number().int(), href: Link.optional() })),
   assets: z.array(z.object({ name: z.string(), kind: z.string(), release: z.string(), ready: z.boolean() })),
+  /** People and groups in the workspace, for picking an artist, producer or featured artist. */
+  people: z.array(z.object({ id: Id, name: z.string() })).optional(),
+  /** Releases with no split yet, for creating one. */
+  unsplit: z.array(z.object({ id: Id, title: z.string(), artist: z.string() })).optional(),
 });
+/** POST /api/catalog/releases: add a release and its recordings. Returns the catalog. */
+export const CreateReleaseCommand = z.object({
+  title: z.string().trim().min(1).max(200),
+  kind: z.enum(['single', 'ep', 'album']),
+  artist: z.union([z.object({ partyId: Id }).strict(), z.object({ name: z.string().trim().min(1).max(120), group: z.boolean().optional() }).strict()]),
+  releaseDate: IsoDate.optional(),
+  tracks: z.array(z.object({ title: z.string().trim().min(1).max(200), isrc: z.string().trim().max(20).optional() })).min(1).max(40),
+}).strict();
+export const CatalogWriteError = z.object({ error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'duplicate', 'already_split']), message: z.string() });
 
 // ---------- Contracts (5b) ----------
 export const Template = z.object({

@@ -247,6 +247,10 @@ async function seedSplits(tx: Tx, tenant: string) {
   const lh = await node('low-hours', 'The Low Hours', root, 1);
   const nb = await node('night-bus', 'Night Bus EP', lh, 0);
   const nbRec = await node('nb-rec', 'Recording income', nb, 0, [['Type', 'Net profit, 50/50'], ['Funded by', 'Label'], ['Advance', '$5,000, recoupable'], ['Term', '3 years from release']]);
+  // Release nodes point at their release.
+  for (const [n, r] of [[gh, 'rel_glasshouse'], [vh, 'rel_velvet'], [nb, 'rel_nightbus']] as const) {
+    await tx`UPDATE split_nodes SET release_id = (SELECT id FROM releases WHERE tenant_id = ${tenant} AND slug = ${r}) WHERE id = ${n}`;
+  }
   const marco = await node('marco', 'Marco Dela', root, 2);
   await node('marco-prod', 'Production credits', marco, 0);
 
