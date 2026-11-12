@@ -48,7 +48,10 @@ export function CreateSplit({ releases, people, labelName, initialRelease }: { r
     try {
       const res = await fetch('/api/splits', {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ releaseId, terms, ...(me ? { artistIsMe: true } : {}), ...(hasProducer ? { producer: party(producer) } : {}), ...(hasFeature ? { feature: party(feature) } : {}) }),
+        body: JSON.stringify({ releaseId, terms, ...(me ? { artistIsMe: true } : {}), lines: [
+          ...(hasProducer ? [{ role: 'producer', party: party(producer), shareBp: 10000 }] : []),
+          ...(hasFeature ? [{ role: 'feature', party: party(feature), shareBp: 10000 }] : []),
+        ] }),
       });
       const out = await res.json().catch(() => null);
       if (!res.ok) { setError(out?.message ?? 'That split wasn’t saved.'); return; }
@@ -99,7 +102,7 @@ export function CreateSplit({ releases, people, labelName, initialRelease }: { r
       <div className={o.formActions}>
         <Button type="submit" variant="primary" disabled={!valid || busy} disabledReason="Pick a release, name everyone on it, and keep shares between 0 and 100 (producer points at most 10).">Save as draft</Button>
       </div>
-      <p className={o.hint}>A draft isn’t binding. You can still change it, then send it to everyone on it to sign.</p>
+      <p className={o.hint}>A draft isn’t binding. Next you can add more artists or producers and their shares, then send it to everyone on it to sign.</p>
     </form>
   );
 }

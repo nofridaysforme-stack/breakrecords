@@ -58,3 +58,24 @@ describe('a split without every role', () => {
     expect(sign(v, 'producer', '2026-11-12')).toMatchObject({ ok: false, error: 'not_a_party' });
   });
 });
+
+import { checkLines, lineAmounts } from '../src/splitVersions';
+describe('several people in a role', () => {
+  const terms = { producerBp: 300, labelOfNetBp: 5000, artistOfNetBp: 5000, featureOfArtistBp: 0 };
+  it('splits each role by the people’s shares; the first person in a role gets the remainder', () => {
+    const lines = [
+      { role: 'label' as const, party: 'n', shareBp: 10000 },
+      { role: 'artist' as const, party: 'a', shareBp: 3334 }, { role: 'artist' as const, party: 'b', shareBp: 3333 }, { role: 'artist' as const, party: 'c', shareBp: 3333 },
+      { role: 'producer' as const, party: 'p', shareBp: 5000 }, { role: 'producer' as const, party: 'q', shareBp: 5000 },
+    ];
+    expect(checkLines(lines)).toBeNull();
+    const amounts = lineAmounts(terms, lines);
+    expect(amounts).toEqual([4850, 1618, 1616, 1616, 150, 150]);
+    expect(amounts.reduce((a, b) => a + b, 0)).toBe(10000);
+  });
+  it('refuses shares that don’t total 100%, two labels, or no artist', () => {
+    expect(checkLines([{ role: 'label', party: 'n', shareBp: 10000 }, { role: 'artist', party: 'a', shareBp: 6000 }, { role: 'artist', party: 'b', shareBp: 3000 }])).toBe('The artists’ shares must total 100%.');
+    expect(checkLines([{ role: 'label', party: 'n', shareBp: 10000 }, { role: 'label', party: 'm', shareBp: 10000 }, { role: 'artist', party: 'a', shareBp: 10000 }])).toBe('A split has exactly one label.');
+    expect(checkLines([{ role: 'label', party: 'n', shareBp: 10000 }])).toBe('A split needs at least one artist.');
+  });
+});

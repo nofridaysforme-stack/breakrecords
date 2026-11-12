@@ -191,7 +191,7 @@ export type Payee = {
   tax: { ok: boolean; label: string; form: string; expires?: string; withholding?: string; canSubmit?: boolean };
   bank: { last4: string; name: string } | null;
   statementIds: string[];
-  splits: { title: string; meta: string; terms: string; status: 'signed' | 'waiting'; note: string; v5?: boolean }[];
+  splits: { title: string; meta: string; terms: string; status: 'signed' | 'waiting'; note: string; v5?: boolean; sign?: { node: string; role: 'producer' | 'label' | 'artist' | 'feature' }; songId?: string }[];
   signPrompt: { title: string; text: string };
 };
 

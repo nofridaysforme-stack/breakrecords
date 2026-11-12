@@ -402,6 +402,25 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       await owner`DELETE FROM split_nodes WHERE slug = 'rel-a-node'`;
     });
 
+    it('several people can share a role; shares must total 100% to send; one label; writers confirm only their own share', async () => {
+      const [{ id: n }] = await asOwner((tx) => tx`INSERT INTO split_nodes (tenant_id, slug, label) VALUES (${ids.a}, 'multi', 'Multi') RETURNING id`);
+      const [{ id: v }] = await asOwner((tx) => tx`INSERT INTO split_versions (tenant_id, node_id, version, terms, effective_from)
+        VALUES (${ids.a}, ${n}, 1, ${tx.json({ producerBp: 0, labelOfNetBp: 5000, artistOfNetBp: 5000, featureOfArtistBp: 0 })}, '2026-11-12') RETURNING id`);
+      await asOwner((tx) => tx`INSERT INTO split_parties (tenant_id, version_id, role, party_id, share_bp) VALUES (${ids.a}, ${v}, 'label', ${kesi}, 10000), (${ids.a}, ${v}, 'artist', ${kesi}, 6000), (${ids.a}, ${v}, 'artist', ${marco}, 3000)`);
+      await expect(asOwner((tx) => tx`INSERT INTO split_parties (tenant_id, version_id, role, party_id) VALUES (${ids.a}, ${v}, 'label', ${marco})`)).rejects.toThrow(/duplicate key/);
+      await expect(asOwner((tx) => tx`UPDATE split_versions SET status = 'sent' WHERE id = ${v}`)).rejects.toThrow(/must total 100%/);
+      await asOwner((tx) => tx`UPDATE split_parties SET share_bp = 4000 WHERE version_id = ${v} AND role = 'artist' AND party_id = ${marco}`);
+      await asOwner((tx) => tx`UPDATE split_versions SET status = 'sent' WHERE id = ${v}`);
+
+      const [{ id: w }] = await owner`INSERT INTO works (tenant_id, slug, title) VALUES (${ids.a}, 'multi-song', 'Song') RETURNING id`;
+      await owner`INSERT INTO work_writers (tenant_id, work_id, party_id, share_bp) VALUES (${ids.a}, ${w}, ${kesi}, 5000), (${ids.a}, ${w}, ${marco}, 5000)`;
+      // The payee is Marco: he confirms his share, never Kesi's.
+      await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT app_confirm_writer_share(${w})`);
+      expect((await owner`SELECT party_id, confirmed FROM work_writers WHERE work_id = ${w} ORDER BY confirmed`).map((r) => r.confirmed)).toEqual([false, true]);
+      await expect(asOwner((tx) => tx`SELECT app_confirm_writer_share(${w})`)).rejects.toThrow(/aren’t a writer/);
+      await owner`DELETE FROM split_nodes WHERE id = ${n}`;
+    });
+
     it('another label sees none of it and can’t point at it', async () => {
       for (const t of ['payout_batches', 'payout_lines', 'payees', 'recoupment_accounts']) {
         expect(await withTenant(app, { userId: ids.ub, tenantId: ids.b }, (tx) => tx.unsafe(`SELECT 1 FROM ${t}`))).toHaveLength(0);

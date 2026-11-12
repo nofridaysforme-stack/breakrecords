@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { Check, ChevronRight, Circle } from 'lucide-react';
-import { ButtonLink } from '@/components/ui/Button';
+import { Button, ButtonLink } from '@/components/ui/Button';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { Money } from '@/components/ui/Money';
 import { Eyebrow } from '@/components/type/Type';
 import { useV5 } from '@/data/splitState';
@@ -10,6 +12,29 @@ import type { Payee, Statement } from '@/data/money';
 import { formatMoney } from '@breakrecords/core/money';
 import { withAs } from './payee';
 import s from './Portal.module.css';
+
+/** Sign a split, or confirm a song share, right from the list. */
+function ActNow({ sp }: { sp: Payee['splits'][number] }) {
+  const router = useRouter();
+  const [state, setState] = useState<'idle' | 'busy' | 'done' | string>('idle');
+  const go = async () => {
+    setState('busy');
+    const res = sp.sign
+      ? await fetch(`/api/splits/${encodeURIComponent(sp.sign.node)}/sign`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ role: sp.sign.role }) }).catch(() => null)
+      : await fetch(`/api/catalog/recordings/${encodeURIComponent(sp.songId!)}/writers/confirm`, { method: 'POST' }).catch(() => null);
+    const out = await res?.json().catch(() => null);
+    if (!res?.ok) { setState(out?.message ?? 'That didn’t go through.'); return; }
+    setState('done'); router.refresh();
+  };
+  if (state === 'done') return <span className={s.signed}><Check size={12} aria-hidden="true" style={{ display: 'inline' }} /> {sp.sign ? 'signed' : 'confirmed'}</span>;
+  return (
+    <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      {sp.terms && <span>{sp.terms}</span>}
+      <Button size="sm" variant="primary" disabled={state === 'busy'} onClick={() => void go()}>{sp.sign ? 'Sign my share' : 'Confirm my share'}<span className="visually-hidden"> of {sp.title}</span></Button>
+      {state !== 'idle' && state !== 'busy' && <span role="alert">{state}</span>}
+    </span>
+  );
+}
 
 export function EarningsView({ p, statements }: { p: Payee; statements: Statement[] }) {
   const v5 = useV5();
@@ -52,7 +77,7 @@ export function EarningsView({ p, statements }: { p: Payee; statements: Statemen
               {p.splits.map((sp) => (
                 <li key={sp.title + sp.meta} className={s.split}>
                   <span><strong>{sp.title}</strong> <span className={s.splitMeta}>· {sp.meta}</span></span>
-                  {sp.v5 ? v5Status(sp) : <span className={s.signed}>{sp.terms} · <Check size={12} aria-hidden="true" style={{ display: 'inline' }} /> {sp.note}</span>}
+                  {sp.sign || sp.songId ? <ActNow sp={sp} /> : sp.v5 ? v5Status(sp) : <span className={s.signed}>{sp.terms} · <Check size={12} aria-hidden="true" style={{ display: 'inline' }} /> {sp.note}</span>}
                 </li>
               ))}
             </ul>
