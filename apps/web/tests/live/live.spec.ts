@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse, SplitVersionsResponse, ImportsResponse } from '@breakrecords/contract';
+import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse, SplitVersionsResponse, ImportsResponse, SyncResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 import { MAILBOX } from '../../playwright.live.config';
@@ -1360,5 +1360,53 @@ test.describe('statement imports (live)', () => {
     const harbor = await (await browser.newContext()).newPage();
     await signIn(harbor, USERS.harbor);
     expect(ImportsResponse.parse(await (await harbor.request.get('/api/money/imports')).json()).items).toEqual([]);
+  });
+});
+
+test.describe('sync licensing (live)', () => {
+  test('a quote becomes a license only through its approval card; the fee is recorded once as sync income on the master and the song; team only', async ({ page, browser }) => {
+    await signIn(page, USERS.owner);
+    const sync = async () => SyncResponse.parse(await (await page.request.get('/api/sync')).json());
+    expect((await page.request.post('/api/sync/briefs', { data: { title: 'Trailer cue', client: 'Lantern Films', media: 'trailer', budget: 1500000 } })).status()).toBe(200);
+    const brief = (await sync()).briefs.find((b) => b.title === 'Trailer cue')!;
+    expect((await page.request.post(`/api/sync/briefs/${brief.id}/quotes`, { data: { recordingId: 'glasshouse', fee: 1000001, masterBp: 6000, use: 'Main trailer, 2:10' } })).status()).toBe(200);
+    expect((await page.request.post(`/api/sync/briefs/${brief.id}/quotes`, { data: { recordingId: 'glasshouse', fee: 1, use: 'again' } })).status()).toBe(409);
+    let q = (await sync()).briefs.find((b) => b.id === brief.id)!.quotes[0];
+    expect(q).toMatchObject({ state: 'draft', master: 600001, song: 400000 });
+
+    const act = (action: string) => page.request.post(`/api/sync/quotes/${q.id}`, { data: { action } });
+    expect((await act('accept')).status()).toBe(409); // not sent yet
+    expect((await act('send')).status()).toBe(200);
+    expect((await act('accept')).status()).toBe(200);
+    q = (await sync()).briefs.find((b) => b.id === brief.id)!.quotes[0];
+    expect(q).toMatchObject({ state: 'awaiting_signature', approvalId: expect.stringMatching(/^sync_/) });
+    expect((await act('paid')).status()).toBe(409); // not signed
+    await page.goto(`/sync/license/${q.id}`);
+    await expect(page.getByRole('note')).toContainText('DRAFT');
+
+    expect((await page.request.post(`/api/approvals/${q.approvalId}/decision`, { data: { action: 'approve' } })).status()).toBe(200);
+    expect((await act('paid')).status()).toBe(200);
+    expect((await act('paid')).status()).toBe(409);
+    q = (await sync()).briefs.find((b) => b.id === brief.id)!.quotes[0];
+    expect(q).toMatchObject({ state: 'paid', paidRef: expect.stringMatching(/^SYNC-/) });
+    const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+    const lines = await db<{ amount: string; rec: boolean; work: boolean; source: string; total: string }[]>`
+      SELECT l.amount_cents AS amount, l.recording_id IS NOT NULL AS rec, l.work_id IS NOT NULL AS work, s.source::text AS source, s.total_cents AS total
+      FROM income_lines l JOIN income_statements s ON s.id = l.statement_id WHERE s.ref = ${q.paidRef!} ORDER BY l.line_no`;
+    const [{ executed }] = await db<{ executed: boolean }[]>`SELECT executed_at IS NOT NULL AS executed FROM approvals WHERE id = ${q.approvalId!}`;
+    await db.end();
+    expect(lines.map((l) => [Number(l.amount), l.rec, l.work, l.source, Number(l.total)])).toEqual([[600001, true, false, 'sync', 1000001], [400000, false, true, 'sync', 1000001]]);
+    expect(executed).toBe(true); // undo ended once the fee was recorded
+    await page.goto(`/sync/license/${q.id}`);
+    await expect(page.getByText('Signed: its approval card was approved.')).toBeVisible();
+
+    const payee = await (await browser.newContext()).newPage();
+    await signIn(payee, USERS.payee, { into: 'Northline Records' });
+    expect((await payee.request.get('/api/sync')).status()).toBe(403);
+    expect((await payee.request.post('/api/sync/briefs', { data: { title: 'x', client: 'y', media: 'ad' } })).status()).toBe(403);
+    const harbor = await (await browser.newContext()).newPage();
+    await signIn(harbor, USERS.harbor);
+    expect(SyncResponse.parse(await (await harbor.request.get('/api/sync')).json()).briefs).toEqual([]);
+    expect((await harbor.request.post(`/api/sync/quotes/${q.id}`, { data: { action: 'decline' } })).status()).toBe(404);
   });
 });
