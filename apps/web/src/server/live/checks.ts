@@ -1,4 +1,5 @@
 import 'server-only';
+import { taxFilingFacts } from './tax';
 import type { ApprovalFacts, FilingFacts, PayoutFacts } from '@breakrecords/core/checks';
 import type { DealTerms } from '@breakrecords/core/dealSplit';
 import { w8ExpiresOn } from '@breakrecords/core/payouts';
@@ -15,16 +16,17 @@ const iso = (d: Date | string | null) => (d == null ? null : typeof d === 'strin
 export const todayIso = () => new Date().toISOString().slice(0, 10);
 
 async function payoutFacts(tx: Tx, batchId: string): Promise<PayoutFacts> {
-  const [b] = await tx<{ period: string; period_end: string; pays_on: string; minimum: string | null }[]>`
+  const [b] = await tx<{ period: string; period_end: string; pays_on: string; minimum: string | null; policy: 'hold' | 'withhold' | null }[]>`
     SELECT to_char(b.period, 'YYYY-MM-DD') AS period, to_char((b.period + interval '1 month - 1 day')::date, 'YYYY-MM-DD') AS period_end,
-           to_char(b.pays_on, 'YYYY-MM-DD') AS pays_on, (SELECT minimum_cents FROM payout_policies) AS minimum
+           to_char(b.pays_on, 'YYYY-MM-DD') AS pays_on, (SELECT minimum_cents FROM payout_policies) AS minimum,
+           (SELECT missing_form_policy FROM payout_policies) AS policy
     FROM payout_batches b WHERE b.id = ${batchId}`;
   const lines = await tx<{
     party_id: string; name: string; role: string; amount: string; withheld: string; status: string; tax_form: string | null; tax_expires_on: Date | null; tax_signed_on: Date | null;
-    treaty: boolean; bank: string | null; last_failed: boolean; stmt_version: string | null; stmt_net: string | null;
+    treaty: boolean; treaty_rate_bp: number | null; backup: boolean | null; bank: string | null; last_failed: boolean; stmt_version: string | null; stmt_net: string | null;
   }[]>`
     SELECT l.party_id, p.name, l.role, l.amount_cents AS amount, l.withheld_cents AS withheld, l.status::text, y.tax_form, y.tax_expires_on, y.tax_signed_on,
-      y.treaty_country IS NOT NULL AS treaty, y.bank_last4 AS bank,
+      y.treaty_country IS NOT NULL AS treaty, y.treaty_rate_bp, y.backup_withholding AS backup, y.bank_last4 AS bank,
       coalesce((SELECT pl.status = 'failed' FROM payout_lines pl JOIN payout_batches pb ON pb.id = pl.batch_id
                 WHERE pl.party_id = l.party_id AND pb.period < ${b.period}::date ORDER BY pb.period DESC LIMIT 1), false) AS last_failed,
       (SELECT s.version_id FROM payee_statements s WHERE s.id = l.statement_id) AS stmt_version,
@@ -52,7 +54,7 @@ async function payoutFacts(tx: Tx, batchId: string): Promise<PayoutFacts> {
   const titles = new Map(income.map((i) => [i.recording_id, i.title]));
 
   return {
-    kind: 'payout', periodEnd: b.period_end, paysOn: b.pays_on, minimumCents: Number(b.minimum ?? 2500),
+    kind: 'payout', periodEnd: b.period_end, paysOn: b.pays_on, minimumCents: Number(b.minimum ?? 2500), missingFormPolicy: b.policy ?? 'hold',
     payees: lines.map((l) => {
       const mine = splits.filter((s) => s.party_id === l.party_id);
       const split = mine.find((s) => s.version_id === l.stmt_version) ?? mine[0];
@@ -64,7 +66,7 @@ async function payoutFacts(tx: Tx, batchId: string): Promise<PayoutFacts> {
         name: l.name, amountCents: Number(l.amount), status: l.status === 'carried' ? 'carried' : 'included',
         covered: !!split || asGroup || theirs.some((a) => a.complete),
         pendingAgreements: theirs.filter((a) => !a.complete).map((a) => lower(a.name)),
-        taxForm: l.tax_form, withheldCents: Number(l.withheld), treaty: l.treaty,
+        taxForm: l.tax_form, withheldCents: Number(l.withheld), treaty: l.treaty, treatyRateBp: l.treaty_rate_bp, backupWithholding: !!l.backup,
         // A W-9 never expires; a W-8's expiry is worked out from when it was signed.
         taxExpiresOn: w8 ? iso(l.tax_expires_on) ?? (l.tax_signed_on ? w8ExpiresOn(l.tax_signed_on) : null) : null,
         statementNetCents: l.stmt_net == null ? null : Number(l.stmt_net),
@@ -176,6 +178,7 @@ export async function liveFacts(tx: Tx): Promise<Record<string, ApprovalFacts>> 
       // Proposals made in the app: a release date plan, or accepting a funding offer.
       if (c.release_id && c.new_date) { const f = await releasePlanFacts(tx, c.release_id, c.new_date); if (f) out[c.id] = f; }
       else if (c.id.startsWith('offer_')) out[c.id] = await offerFacts(tx, c.id);
+      else if (/^tax_\d{4}$/.test(c.id)) out[c.id] = await taxFilingFacts(tx, Number(c.id.slice(4)));
       continue;
     }
     const batch = batches.find((b) => b.approval_id === c.id);

@@ -114,6 +114,10 @@ export function liveInvite(ctx: RequestContext, c: { email: string; role: 'owner
       if (!p) return { ok: false, status: 404, error: 'not_found', message: 'No such payee.' } as const;
       slug = c.payeeId!;
     }
+    // ROS-02: a payee with no tax form on file is asked for one before their first payout.
+    if (slug) await tx`INSERT INTO payee_requests (tenant_id, party_id, kind, requested_by)
+      SELECT ${ctx.tenantId}, y.party_id, 'tax_form', ${ctx.userId} FROM payees y JOIN parties p ON p.id = y.party_id WHERE p.slug = ${slug} AND y.tax_form IS NULL
+      ON CONFLICT (party_id, kind) WHERE done_at IS NULL DO NOTHING`;
     await tx`INSERT INTO allowlist (email, tenant_id, role, party_slug, added_by) VALUES (${c.email}, ${ctx.tenantId}, ${c.role}, ${slug}, ${ctx.userId})
       ON CONFLICT (email, tenant_id) DO UPDATE SET role = EXCLUDED.role, party_slug = EXCLUDED.party_slug, added_by = EXCLUDED.added_by`;
     await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)

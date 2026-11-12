@@ -462,9 +462,13 @@ async function seedPayouts(tx: Tx, tenant: string) {
     const [row] = await tx`INSERT INTO parties (tenant_id, slug, name) VALUES (${tenant}, ${p.slug}, ${p.name})
       ON CONFLICT (tenant_id, slug) DO UPDATE SET name = EXCLUDED.name RETURNING id`;
     party[p.slug] = row.id;
-    await tx`INSERT INTO payees (tenant_id, party_id, cadence, tax_form, tax_signed_on, tax_expires_on, treaty_country, treaty_article, treaty_rate_bp, bank_last4, bank_name, opening_earned_cents)
+    // Each W-9 payee's taxpayer number is confirmed (its last 4 digits); the full number stays with the payout provider.
+    const tin = p.form === 'W-9' ? String(1000 + (PAYEES.indexOf(p) * 1373) % 9000) : null;
+    await tx`INSERT INTO payees (tenant_id, party_id, cadence, tax_form, tax_signed_on, tax_expires_on, treaty_country, treaty_article, treaty_rate_bp, bank_last4, bank_name, opening_earned_cents,
+                                 tin_last4, tax_country, tax_legal_name)
       VALUES (${tenant}, ${row.id}, ${p.cadence ?? 'monthly'}, ${p.form}, ${p.signed ?? null}, ${p.expires ?? null}, ${p.treaty?.[0] ?? null}, ${p.treaty?.[1] ?? null}, ${p.treaty?.[2] ?? null},
-              ${p.bank?.[0] ?? null}, ${p.bank?.[1] ?? null}, ${Math.round((p.openingEarned ?? 0) * 100)})`;
+              ${p.bank?.[0] ?? null}, ${p.bank?.[1] ?? null}, ${Math.round((p.openingEarned ?? 0) * 100)},
+              ${tin}, ${p.form === 'W-9' ? 'US' : p.treaty?.[0] ?? null}, ${p.form ? p.name : null})`;
   }
   for (const b of BATCHES) {
     const history = b.status === 'sent' || b.status === 'failed';

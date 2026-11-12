@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse } from '@breakrecords/contract';
+import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 import { MAILBOX } from '../../playwright.live.config';
@@ -1151,4 +1151,56 @@ test('publishing: the MLC filing may be filed because the label administers its 
   await db`UPDATE parties SET publishing_mode = NULL WHERE slug = 'theo-lind'`;
   expect((await pub02()).status).toBe('pass');
   await db.end();
+});
+
+test.describe('tax compliance (live)', () => {
+  test('a payee certifies their own form, the team can’t, and the label chooses what a missing form means', async ({ page, browser }) => {
+    const me = await (await browser.newContext()).newPage();
+    await signIn(me, USERS.payee, { into: 'Northline Records' });
+    const res = await me.request.post('/api/portal/tax-form', { data: { form: 'W-9', legalName: 'Marco Dela', tinLast4: '1000', signature: 'Marco Dela' } });
+    expect(res.status()).toBe(200);
+    expect(PayeeResponse.parse(await res.json()).tax).toMatchObject({ form: 'W-9', label: 'W-9 on file', withholding: 'No withholding', canSubmit: true });
+    // A payee can't change the label's policy; the label's people can't sign a payee's form.
+    expect((await me.request.put('/api/money/payouts/policy', { data: { missingFormPolicy: 'withhold' } })).status()).toBe(403);
+    await signIn(page, USERS.owner);
+    expect((await page.request.post('/api/portal/tax-form', { data: { form: 'W-9', legalName: 'X', tinLast4: '1111', signature: 'X' } })).status()).toBe(403);
+
+    const set = async (missingFormPolicy: 'hold' | 'withhold') => PayoutsResponse.parse(await (await page.request.put('/api/money/payouts/policy', { data: { missingFormPolicy } })).json());
+    const jules = (p: Awaited<ReturnType<typeof set>>) => p.taxForms.find((t) => t.name === 'Jules Arden')?.withholding;
+    expect(jules(await set('withhold'))).toBe('No tax form: 24% backup withholding');
+    expect(jules(await set('hold'))).toBe('No tax form: payout held');
+    const p = PayoutsResponse.parse(await (await page.request.get('/api/money/payouts')).json());
+    expect(p.taxForms.find((t) => t.name === 'Theo Lind')?.withholding).toBe('0% under the GB treaty, Article 12');
+  });
+
+  test('inviting a payee with no form asks them for one (ROS-02)', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    expect((await page.request.post('/api/settings/invites', { data: { email: 'new.writer@x.example', role: 'payee', newPayee: { name: 'Nova Writer' } } })).status()).toBe(200);
+    const p = PayoutsResponse.parse(await (await page.request.get('/api/money/payouts')).json());
+    expect(p.requests).toContainEqual({ payeeId: 'nova-writer', kind: 'tax_form' });
+  });
+
+  test('the year’s forms are filed only through an approval, and filing ends undo', async ({ page }) => {
+    await signIn(page, USERS.owner);
+    const year = async () => TaxYearResponse.parse(await (await page.request.get('/api/money/tax/2026')).json());
+    const t = await year();
+    expect(t.forms1099.map((f) => [f.name, f.royalties, f.tinLast4])).toEqual([['Ari Monroe', 77012, '2373'], ['Dana Okafor', 43524, '1611'], ['Marco Dela', 86130, '1000'], ['Rue Sato', 43525, '5119']]);
+    expect(t.forms1042s).toEqual([{ payeeId: 'theo-lind', name: 'Theo Lind', country: 'GB', rateBp: 0, gross: 14191, withheld: 0 }]);
+    expect((await page.request.get('/api/money/tax/2026/csv')).status()).toBe(409);
+    expect((await page.request.post('/api/money/tax/2026/filed')).status()).toBe(404);
+
+    expect((await page.request.post('/api/money/tax/2026/prepare')).status()).toBe(200);
+    expect((await year()).filing.status).toBe('awaiting');
+    const c = ApprovalChecksResponse.parse(await (await page.request.get('/api/approvals/checks')).json());
+    expect(c.items.tax_2026.results.map((r) => [r.id, r.status])).toEqual([['TAX-01', 'pass'], ['TAX-02', 'pass']]);
+    expect((await page.request.post('/api/money/tax/2026/filed')).status()).toBe(409); // not approved yet
+    expect((await page.request.post('/api/approvals/tax_2026/decision', { data: { action: 'approve' } })).status()).toBe(200);
+
+    const csv = await (await page.request.get('/api/money/tax/2026/csv')).text();
+    expect(csv.trim().split('\n')).toHaveLength(6); // header, four 1099-MISC, one 1042-S
+    expect((await page.request.post('/api/money/tax/2026/filed')).status()).toBe(200);
+    expect((await year()).filing.status).toBe('filed');
+    const undo = await page.request.delete('/api/approvals/tax_2026/decision');
+    expect(ApprovalError.parse(await undo.json()).error).toBe('already_executed');
+  });
 });

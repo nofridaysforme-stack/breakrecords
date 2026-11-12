@@ -143,13 +143,51 @@ export const PayoutsResponse = z.object({
     /** The payee whose payment failed in a failed batch, and why. */
     failed: z.object({ payeeId: Id, name: z.string(), reason: z.string() }).optional(),
   })),
-  taxForms: z.array(z.object({ payeeId: Id, name: z.string(), form: z.string(), status: z.enum(['ok', 'expiring', 'missing']), label: z.string(), fix: z.string().optional() })),
+  taxForms: z.array(z.object({
+    payeeId: Id, name: z.string(), form: z.string(), status: z.enum(['ok', 'expiring', 'missing']), label: z.string(), fix: z.string().optional(),
+    /** How a payment to them is taxed today: "No withholding", "30% withheld, no treaty recorded", "No tax form: payout held". */
+    withholding: z.string(),
+  })),
+  /** No valid tax form: hold their payout, or pay with 24% backup withholding. */
+  missingFormPolicy: z.enum(['hold', 'withhold']),
   carryForward: z.array(z.object({ name: z.string(), role: z.string(), amount: Cents })),
   /** Open requests to payees. Recorded here; the payout provider sends them (Stage 3). */
   requests: z.array(z.object({ payeeId: Id, kind: PayeeRequestKind })),
 });
 /** POST /api/money/payouts/requests: ask a payee for a tax form or new bank details. Returns 4d. */
 export const RequestFromPayeeCommand = z.object({ payeeId: Id, kind: PayeeRequestKind }).strict();
+/** PUT /api/money/payouts/policy: what happens to a payee with no valid tax form. Returns 4d. */
+export const SetMissingFormPolicyCommand = z.object({ missingFormPolicy: z.enum(['hold', 'withhold']) }).strict();
+
+/**
+ * GET /api/money/tax/{year}: the year-end forms. Payments sent in the year, by payee: a
+ * 1099-MISC for US payees paid $10 or more in royalties, a 1042-S for each foreign payee.
+ */
+export const TaxYearResponse = z.object({
+  year: z.number().int(), years: z.array(z.number().int()), payer: z.string(),
+  forms1099: z.array(z.object({ payeeId: Id, name: z.string(), tinLast4: z.string().regex(/^\d{4}$/).nullable(), royalties: Cents, withheld: Cents, reportable: z.boolean(), note: z.string() })),
+  forms1042s: z.array(z.object({ payeeId: Id, name: z.string(), country: z.string().length(2).nullable(), rateBp: Bp, gross: Cents, withheld: Cents })),
+  /** Paid in the year with no form on file. */
+  missing: z.array(z.object({ payeeId: Id, name: z.string(), paid: Cents })),
+  /** None until prepared; then its approval card; filed once the label says it uploaded the file. */
+  filing: z.object({ status: z.enum(['none', 'awaiting', 'approved', 'rejected', 'filed']), approvalId: Id.optional(), filedOn: Display.optional() }),
+});
+export const TaxError = z.object({ error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'already_prepared', 'not_approved', 'nothing_to_file']), message: z.string() });
+
+/** POST /api/portal/tax-form: a payee certifies their own tax form. Returns their portal. */
+export const SubmitTaxFormCommand = z.object({
+  form: z.enum(['W-9', 'W-8BEN', 'W-8BEN-E']),
+  legalName: z.string().trim().min(1).max(200),
+  /** The last four digits only: the full number goes to the payout provider (Stage 3). */
+  tinLast4: z.string().regex(/^\d{4}$/, 'Enter the last 4 digits.').optional(),
+  /** W-8: where the payee is a tax resident, and the treaty they claim, if any. */
+  country: z.string().regex(/^[A-Z]{2}$/).optional(),
+  treaty: z.object({ article: z.string().trim().min(1).max(20), rateBp: z.number().int().min(0).max(3000) }).optional(),
+  signature: z.string().trim().min(1).max(200),
+}).strict()
+  .refine((c) => c.form !== 'W-9' || (!!c.tinLast4 && !c.country && !c.treaty), 'A W-9 needs the last 4 digits of your taxpayer number, and no country or treaty.')
+  .refine((c) => c.form === 'W-9' || (!!c.country && c.country !== 'US'), 'A W-8 needs your country of tax residence, outside the US.');
+
 /** POST /api/money/recoupment/costs: add a recoupable cost to a release. Returns 4e's items. */
 export const AddRecoupableCostCommand = z.object({
   releaseId: Id, category: z.string().trim().min(1).max(60), cost: Cents.refine((c) => c > 0, 'A cost is above $0.00.'), shareBp: Bp, // 0 records a cost the label pays itself
@@ -207,7 +245,13 @@ export const PayeeResponse = z.object({
   id: Id, first: z.string(), name: z.string(), label: z.string(), labelShort: z.string(),
   earned: Cents, paid: Cents,
   next: z.object({ amount: Cents, date: Display, from: z.string() }),
-  tax: z.object({ ok: z.boolean(), label: z.string(), form: z.string(), expires: Display.optional() }),
+  tax: z.object({
+    ok: z.boolean(), label: z.string(), form: z.string(), expires: Display.optional(),
+    /** How their payments are taxed, in words. */
+    withholding: z.string().optional(),
+    /** Only the payee themselves can certify a form. */
+    canSubmit: z.boolean().optional(),
+  }),
   /** The last 4 digits only; the account lives with the payout provider. Null until one is on file. */
   bank: z.object({ last4: z.string().regex(/^\d{4}$/), name: z.string() }).nullable(),
   statementIds: z.array(Id),
@@ -484,3 +528,5 @@ export const SetCodePrefixesCommand = z.object({ isrcPrefix: z.string().trim().m
 export const AssignCodeCommand = z.object({ kind: z.enum(['isrc', 'upc']), id: Id }).strict();
 export const AssignedCode = z.object({ kind: z.enum(['isrc', 'upc']), id: z.string(), code: z.string() });
 export type CodesResponse = z.infer<typeof CodesResponse>;
+export type TaxYearResponse = z.infer<typeof TaxYearResponse>;
+export type SubmitTaxFormCommand = z.infer<typeof SubmitTaxFormCommand>;

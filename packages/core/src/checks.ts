@@ -12,6 +12,7 @@
 import { daysBetween, short } from './dates';
 import type { DealTerms } from './dealSplit';
 import { formatMoney } from './money';
+import { BACKUP_RATE_BP, formValid, taxTreatment, withholding, type MissingFormPolicy } from './tax';
 import type { ApprovalKind } from './approvals';
 
 export type Severity = 'block' | 'warn';
@@ -45,6 +46,10 @@ export type PayeeFact = {
   withheldCents: number;
   /** A treaty country, article and rate are recorded (W-8 only). */
   treaty: boolean;
+  /** The treaty's withholding rate, when one is recorded. */
+  treatyRateBp?: number | null;
+  /** The IRS told the label to backup withhold from this W-9 payee (a B-notice). */
+  backupWithholding?: boolean;
   bankOnFile: boolean;
   /** Their most recent payout before this batch failed. */
   lastFailed: boolean;
@@ -60,6 +65,8 @@ export type PayoutFacts = {
   periodEnd: string;
   paysOn: string;
   minimumCents: number;
+  /** What the workspace does when a payee has no valid form: hold them, or withhold 24%. */
+  missingFormPolicy?: MissingFormPolicy;
   payees: PayeeFact[];
   /** Matched income in the period, by recording. */
   income: { recording: string; isrc: string | null; releasedOn: string | null; amountCents: number }[];
@@ -131,7 +138,18 @@ export type GrantFacts = {
   fields: { label: string; value: string; limit: number }[];
 };
 
-export type ApprovalFacts = PayoutFacts | FilingFacts | SignatureFacts | GrantFacts | ReleasePlanFacts | OfferFacts;
+/** A year's 1099-MISC and 1042-S filing. */
+export type TaxYearFacts = {
+  kind: 'tax_year';
+  year: number;
+  /** Paid in the year with no tax form on file. */
+  missing: string[];
+  /** Reportable 1099 payees whose taxpayer number isn't confirmed (no last four digits). */
+  noTin: string[];
+  forms: number;
+};
+
+export type ApprovalFacts = PayoutFacts | FilingFacts | SignatureFacts | GrantFacts | ReleasePlanFacts | OfferFacts | TaxYearFacts;
 
 // ---------- the registry ----------
 
@@ -175,27 +193,47 @@ const ROYALTIES: Rule<PayoutFacts>[] = [
     id: 'ROY-02', title: 'Tax forms', appliesTo: ['money'], facts: 'payout', severity: 'block',
     fix: { label: 'Open payouts', href: '/money/payouts' },
     check: (f) => {
-      const missing = paid(f).filter((p) => !p.taxForm);
       // A W-9 doesn't expire; a W-8 does.
-      const expired = paid(f).filter((p) => isW8(p.taxForm) && p.taxExpiresOn && p.taxExpiresOn < f.paysOn);
-      const inputs = paid(f).map((p) => `${p.name}: ${p.taxForm ?? 'no form'}${isW8(p.taxForm) && p.taxExpiresOn ? `, expires ${p.taxExpiresOn}` : ''}`);
-      if (!missing.length && !expired.length) return pass('Every payee has a valid tax form.', inputs);
-      return fail([
-        ...(missing.length ? [`${names(missing.map((p) => p.name))} ${missing.length === 1 ? 'has' : 'have'} no tax form on file.`] : []),
-        ...expired.map((p) => `${p.name}’s ${p.taxForm} expires before payday.`),
-      ].join(' '), inputs);
+      const invalid = paid(f).filter((p) => !formValid({ form: p.taxForm, expiresOn: p.taxExpiresOn }, f.paysOn));
+      const inputs = [
+        ...paid(f).map((p) => `${p.name}: ${p.taxForm ?? 'no form'}${isW8(p.taxForm) && p.taxExpiresOn ? `, expires ${p.taxExpiresOn}` : ''}`),
+        `Missing forms: ${f.missingFormPolicy === 'withhold' ? '24% backup withholding' : 'hold the payout'}`,
+      ];
+      if (!invalid.length) return pass('Every payee has a valid tax form.', inputs);
+      const why = [
+        ...(invalid.some((p) => !p.taxForm) ? [`${names(invalid.filter((p) => !p.taxForm).map((p) => p.name))} ${invalid.filter((p) => !p.taxForm).length === 1 ? 'has' : 'have'} no tax form on file.`] : []),
+        ...invalid.filter((p) => p.taxForm).map((p) => `${p.name}’s ${p.taxForm} expires before payday.`),
+      ].join(' ');
+      // The workspace pays them with 24% backup withholding instead of holding them.
+      if (f.missingFormPolicy === 'withhold') {
+        const short = invalid.filter((p) => p.withheldCents < withholding(p.amountCents, { kind: 'backup', rateBp: BACKUP_RATE_BP, label: '' }));
+        if (!short.length) return pass(`${why} ${pct(BACKUP_RATE_BP)} backup withholding is applied.`, inputs);
+        return fail(`${why} Withhold ${pct(BACKUP_RATE_BP)} from ${names(short.map((p) => p.name))}, or hold them.`, inputs);
+      }
+      return fail(why, inputs);
     },
   },
   {
-    id: 'ROY-03', title: 'Withholding for W-8 payees', appliesTo: ['money'], facts: 'payout', severity: 'block',
+    id: 'ROY-03', title: 'Withholding', appliesTo: ['money'], facts: 'payout', severity: 'block',
     fix: { label: 'Open payouts', href: '/money/payouts' },
     check: (f) => {
-      const w8 = paid(f).filter((p) => isW8(p.taxForm));
-      const wrong = w8.filter((p) => !p.treaty && p.withheldCents < Math.round(p.amountCents * 0.3));
-      const inputs = w8.map((p) => `${p.name}: ${p.taxForm}, withheld ${formatMoney(p.withheldCents)}, treaty ${p.treaty ? 'recorded' : 'not recorded'}`);
-      if (!w8.length) return pass('No payee in this batch is on a W-8.', inputs);
-      if (!wrong.length) return pass('W-8 payees are withheld at 30% or have a treaty rate recorded.', inputs);
-      return fail(`${names(wrong.map((p) => p.name))} ${wrong.length === 1 ? 'is' : 'are'} on a W-8 with ${formatMoney(wrong[0].withheldCents)} withheld and no treaty rate recorded. Withhold 30% or record the treaty country, article and rate.`, inputs);
+      // Payees with a valid form: W-8s at 30% or their treaty rate, W-9s under an IRS notice at 24%.
+      const taxed = paid(f).filter((p) => formValid({ form: p.taxForm, expiresOn: p.taxExpiresOn }, f.paysOn) && (isW8(p.taxForm) || p.backupWithholding));
+      const owed = (p: PayeeFact) => withholding(p.amountCents, taxTreatment({
+        form: p.taxForm, expiresOn: p.taxExpiresOn, backupWithholding: p.backupWithholding,
+        // A treaty recorded without its rate (older facts) is taken as covering the payment.
+        treaty: p.treaty ? { country: '', article: '', rateBp: p.treatyRateBp ?? 0 } : null,
+      }, f.paysOn, 'hold'));
+      const inputs = taxed.map((p) => `${p.name}: ${p.taxForm}, withheld ${formatMoney(p.withheldCents)} of ${formatMoney(owed(p))} due, treaty ${p.treaty ? 'recorded' : 'not recorded'}`);
+      if (!taxed.length) return pass('No payee in this batch needs tax withheld.', inputs);
+      const wrong = taxed.filter((p) => p.withheldCents < owed(p));
+      if (!wrong.length) return pass('Tax is withheld at the right rate for every payee who needs it.', inputs);
+      const w8 = wrong.filter((p) => isW8(p.taxForm));
+      const w9 = wrong.filter((p) => !isW8(p.taxForm));
+      return fail([
+        ...(w8.length ? [`${names(w8.map((p) => p.name))} ${w8.length === 1 ? 'is' : 'are'} on a W-8 with ${formatMoney(w8[0].withheldCents)} withheld and no treaty rate recorded. Withhold 30% or record the treaty country, article and rate.`] : []),
+        ...(w9.length ? [`The IRS asked for backup withholding from ${names(w9.map((p) => p.name))}. Withhold ${pct(BACKUP_RATE_BP)}.`] : []),
+      ].join(' '), inputs);
     },
   },
   {
@@ -473,7 +511,29 @@ const FUNDING: Rule<GrantFacts>[] = [
   },
 ];
 
-export const RULES: Rule[] = [...ROYALTIES, ...PUBLISHING, ...LEGAL, ...RELEASE, ...OFFERS, ...FUNDING] as Rule[];
+const TAX: Rule<TaxYearFacts>[] = [
+  {
+    id: 'TAX-01', title: 'A form for everyone paid', appliesTo: ['filing'], facts: 'tax_year', severity: 'block',
+    fix: { label: 'Open payouts', href: '/money/payouts' },
+    check: (f) => {
+      const inputs = [`${f.forms} form${f.forms === 1 ? '' : 's'} to file for ${f.year}`, ...f.missing.map((m) => `${m}: no form`)];
+      return f.missing.length
+        ? fail(`${names(f.missing)} ${f.missing.length === 1 ? 'was' : 'were'} paid in ${f.year} with no tax form on file. Get their form before filing.`, inputs)
+        : pass(`Everyone paid in ${f.year} has a tax form on file.`, inputs);
+    },
+  },
+  {
+    id: 'TAX-02', title: 'Taxpayer numbers confirmed', appliesTo: ['filing'], facts: 'tax_year', severity: 'warn',
+    check: (f) => {
+      const inputs = f.noTin.map((m) => `${m}: last 4 digits not on file`);
+      return f.noTin.length
+        ? fail(`${names(f.noTin)}’s taxpayer number isn’t confirmed. Check it with your payout provider before filing.`, inputs)
+        : pass('Every 1099 payee’s taxpayer number is confirmed.', inputs);
+    },
+  },
+];
+
+export const RULES: Rule[] = [...ROYALTIES, ...PUBLISHING, ...LEGAL, ...RELEASE, ...OFFERS, ...FUNDING, ...TAX] as Rule[];
 
 /** Every rule that applies to this card, with its result. No facts means no rules apply. */
 export function runChecks(type: ApprovalKind, facts: ApprovalFacts | null | undefined, today: string): CheckResult[] {

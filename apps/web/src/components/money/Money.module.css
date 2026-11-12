@@ -127,3 +127,6 @@
   .taxRow { grid-template-columns: minmax(0, 1fr) auto; }
   .taxRow > :nth-child(2) { display: none; }
 }
+.policy { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; margin-top: 4px; border-top: 1px solid var(--line-soft); }
+.policySelect { min-height: var(--tap-min); padding: 0 12px; border: 1px solid var(--line-control); border-radius: var(--r-control); background: var(--surface); color: var(--text); font-size: var(--fs-body); max-width: 100%; }
+.policySelect:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
