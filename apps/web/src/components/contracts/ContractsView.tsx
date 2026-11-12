@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRef, useState } from 'react';
-import { Check, Circle, CircleAlert, Upload, X } from 'lucide-react';
+import { Check, Circle, CircleAlert, TriangleAlert, Upload, X } from 'lucide-react';
 import { PageTitle } from '@/components/type/Type';
 import { Button } from '@/components/ui/Button';
 import type { getContracts } from '@/data/api';
@@ -25,6 +25,16 @@ export function ContractsView({ data: initial }: { data: Data }) {
   const [data, setData] = useState(initial);
   const [file, setFile] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  // Templates that suit this kind of workspace first; the rest one click away.
+  const [allTemplates, setAllTemplates] = useState(false);
+  const shown = allTemplates ? data.templates : data.templates.filter((t) => t.fits);
+  const more = data.templates.length - data.templates.filter((t) => t.fits).length;
+  const tags = (t: Data['templates'][number]) => (
+    <span className={s.tags}>
+      <span className={s.tag}>{t.origin === 'starter' ? 'Starter' : 'Yours'}</span>
+      {!t.reviewed && <span className={`${s.tag} ${s.tagWarn}`}><TriangleAlert size={11} aria-hidden="true" />Not reviewed by a lawyer</span>}
+    </span>
+  );
   const uploaded = data.reviews.find((r) => r.status === 'queued')?.fileName ?? null;
   // Records the review request on the server; Legal Agent picks it up.
   async function sendForReview() {
@@ -53,6 +63,7 @@ export function ContractsView({ data: initial }: { data: Data }) {
           <colgroup><col className={s.cName} /><col className={s.cParties} /><col className={s.cTerms} /><col className={s.cDate} /><col className={s.cSig} /></colgroup>
           <thead><tr><th scope="col">Agreement</th><th scope="col">Parties</th><th scope="col">Key terms</th><th scope="col">Next date</th><th scope="col">Signatures</th></tr></thead>
           <tbody>
+            {!data.contracts.length && <tr><td colSpan={5} className={o.muted}>No agreements yet. Draft one from a template, or upload a contract for review.</td></tr>}
             {data.contracts.map((c) => {
               const { Icon, cls } = SIG[c.sigState];
               return (
@@ -74,20 +85,31 @@ export function ContractsView({ data: initial }: { data: Data }) {
 
       <section className={o.section} aria-labelledby="tpl-h">
         <h2 id="tpl-h" className={o.sectionTitle}>Templates</h2>
-        <ul className={s.templates}>
-          {data.templates.map((t) => (
-            <li key={t.id}><Link href={`/contracts/templates/${t.id}`} className={`${o.card} ${s.tpl}`}><span className={o.cardTitle}>{t.name}</span><span className={o.cardMeta}>{t.version}</span></Link></li>
-          ))}
-        </ul>
+        {shown.length ? (
+          <ul className={s.templates}>
+            {shown.map((t) => (
+              <li key={t.id}><Link href={`/contracts/templates/${t.id}`} className={`${o.card} ${s.tpl}`}><span className={o.cardTitle}>{t.name}</span><span className={o.cardMeta}>{t.version}</span>{tags(t)}</Link></li>
+            ))}
+          </ul>
+        ) : <p className={o.muted}>No templates yet. Upload a contract for review, or ask Indie SRVCS to add starter templates.</p>}
+        {more > 0 && (
+          <div><Button size="sm" onClick={() => setAllTemplates(!allTemplates)} aria-expanded={allTemplates}>
+            {allTemplates ? 'Show only templates for this workspace' : `Show all templates (${more} more)`}
+          </Button></div>
+        )}
+        {data.templates.some((t) => !t.reviewed) && (
+          <p className={`${o.small} ${s.warnLine}`}><TriangleAlert size={12} className={o.warn} aria-hidden="true" />Starter templates are a starting point, not legal advice. Have your attorney review an agreement before anyone signs it.</p>
+        )}
       </section>
 
       <dialog ref={draft} className={o.drawer} aria-labelledby="draft-h" onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close(); }}>
         <div className={o.drawerHead}><h2 id="draft-h" className={o.drawerTitle}>Draft from template</h2><button type="button" className={o.iconBtn} aria-label="Close" onClick={() => draft.current?.close()}><X size={16} aria-hidden="true" /></button></div>
         <p className={o.small}>Pick a template. Legal Agent drafts it, and you review it before anyone is asked to sign.</p>
         <ul className={s.pick}>
-          {data.templates.map((t) => (
-            <li key={t.id}><Link href={`/contracts/templates/${t.id}?draft=1`} className={`${o.card} ${s.tpl}`}><span className={o.cardTitle}>{t.name}</span><span className={o.cardMeta}>{t.version} · {t.summary}</span></Link></li>
+          {shown.map((t) => (
+            <li key={t.id}><Link href={`/contracts/templates/${t.id}?draft=1`} className={`${o.card} ${s.tpl}`}><span className={o.cardTitle}>{t.name}</span><span className={o.cardMeta}>{t.version} · {t.summary}</span>{tags(t)}</Link></li>
           ))}
+          {!shown.length && <li className={o.muted}>No templates yet.</li>}
         </ul>
       </dialog>
 

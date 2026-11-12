@@ -98,15 +98,16 @@ export const contracts: Contract[] = [
 
 export const contractsSummary = '10 active · 1 waiting on signatures · next key date Jan 9';
 
-export type Template = {
+type BaseTemplate = {
   id: string; name: string; version: string; summary: string;
   clauses: { title: string; text: string }[];
   playbook: string[];
   updated: string;
 };
+export type Template = BaseTemplate & { origin: 'starter' | 'own'; reviewed: boolean; fits: boolean; history: { version: string; saved: string }[] };
 
 // ASSUMED: clause text and playbook lines. Names and versions are from 5b; producer terms from 2f.
-export const templates: Template[] = [
+const baseTemplates: BaseTemplate[] = [
   {
     id: 'artist', name: 'Artist agreement', version: 'v2 · net profit', updated: 'Mar 2, 2026',
     summary: 'For signing an artist or band to the label. Profits split after costs are recouped.',
@@ -190,6 +191,8 @@ export const templates: Template[] = [
     playbook: ['Every sync license is a signature, so it always comes to you.'],
   },
 ];
+// The sample label's own templates (its lawyer's wording), each at the version shown.
+export const templates: Template[] = baseTemplates.map((t) => ({ ...t, origin: 'own', reviewed: true, fits: true, history: [{ version: t.version, saved: t.updated }] }));
 
 // ---------- 5c Registrations ----------
 export const regColumns = [

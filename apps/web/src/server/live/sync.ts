@@ -145,7 +145,8 @@ export function liveLicense(ctx: RequestContext, id: string) {
       FROM sync_quotes q JOIN recordings r ON r.id = q.recording_id JOIN parties a ON a.id = r.artist_id LEFT JOIN works w ON w.id = r.work_id JOIN sync_briefs b ON b.id = q.brief_id
       WHERE q.id::text = ${id}`;
     if (!q) return null;
-    const [t] = await tx<{ clauses: { title: string; text: string }[] }[]>`SELECT clauses FROM contract_templates WHERE slug = 'sync'`;
+    const [t] = await tx<{ clauses: { title: string; text: string }[] }[]>`SELECT clauses, 0 AS pick FROM contract_templates WHERE slug = 'sync' OR starter_slug = 'sync'
+      UNION ALL SELECT clauses, 1 FROM starter_templates WHERE slug = 'sync' ORDER BY pick LIMIT 1`; // the workspace's own sync license, else the starter
     const signed = q.status === 'accepted' && q.decision === 'approved';
     return {
       signed, title: `Sync license: ${q.title} for ${q.client}`, media: MEDIA[q.media],

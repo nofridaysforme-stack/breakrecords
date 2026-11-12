@@ -230,13 +230,18 @@ export async function getCatalog(): Promise<ReturnType<typeof mockCatalog>> {
     recordings, releases, people: music.people, unsplit: music.unsplit,
   };
 }
-export type Contracts = { summary: string; contracts: ops.Contract[]; templates: ops.Template[]; reviews: { id: string; fileName: string; status: 'queued' | 'reviewed'; requested: string }[] };
+export type Contracts = { summary: string; contracts: ops.Contract[]; templates: ops.Template[]; staff: boolean; reviews: { id: string; fileName: string; status: 'queued' | 'reviewed'; requested: string }[] };
 /** Contracts (5b). Live: the tenant's agreements, templates and review requests. */
 export async function getContracts(): Promise<Contracts> {
   const ctx = await liveCtx('contracts');
   if (ctx) return (await import('@/server/live/contracts')).liveContracts(ctx);
-  const reviews = await (await import('@/server/mockContracts')).mockReviews();
-  return { summary: ops.contractsSummary, contracts: ops.contracts, templates: ops.templates, reviews };
+  const m = await import('@/server/mockContracts');
+  const [reviews, edited] = await Promise.all([m.mockReviews(), m.mockTemplateEdits()]);
+  const templates = ops.templates.map((t) => {
+    const e = edited[t.id];
+    return e ? { ...t, summary: e.summary, clauses: e.clauses, playbook: e.playbook, version: e.versions[0].version, updated: e.versions[0].saved, history: e.versions } : t;
+  });
+  return { summary: ops.contractsSummary, contracts: ops.contracts, templates, staff: false, reviews };
 }
 export async function getTemplate(id: string): Promise<ops.Template | null> {
   return (await getContracts()).templates.find((t) => t.id === id) ?? null;
