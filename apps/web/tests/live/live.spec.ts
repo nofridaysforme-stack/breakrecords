@@ -1500,6 +1500,30 @@ test.describe('contract templates (live)', () => {
   });
 });
 
+test('a payee whose record goes missing is told so, never stuck on "page not found"; reloading the sample data reconnects them', async ({ page }) => {
+  await signIn(page, USERS.payee, { into: 'Northline Records' });
+  await page.goto('/portal');
+  await expect(page).toHaveURL(/\/portal$/);
+  await expect(page.getByRole('navigation').first()).toBeVisible();
+  // What a sample-data reload used to do: the person they are is replaced, so the link is lost.
+  const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+  await db`UPDATE memberships SET party_id = NULL WHERE user_id = (SELECT id FROM users WHERE email = ${USERS.payee}) AND tenant_id = (SELECT id FROM tenants WHERE slug = 'northline')`;
+  for (const path of ['/', '/approvals', '/portal', '/portal/statements']) {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/portal\/unavailable/);
+  }
+  await expect(page.getByRole('heading', { name: 'Nothing from Northline Records to show you' })).toBeVisible();
+  await expect(page.getByText('This page could not be found')).toHaveCount(0);
+  // The reload links them back to who they are.
+  const { execFileSync } = await import('node:child_process');
+  const out = execFileSync('npx', ['tsx', 'scripts/seed.ts'], { env: { ...process.env, SEED_DATABASE_URL: process.env.TEST_DATABASE_URL, BR_ALLOW_SEED: '1' } }).toString();
+  expect(out).toMatch(/Reconnected \d+ signed-in (person|people)/);
+  await db.end();
+  await page.goto('/portal');
+  await expect(page).toHaveURL(/\/portal$/);
+  await expect(page.getByRole('heading', { name: 'Nothing from Northline Records to show you' })).toHaveCount(0);
+});
+
 // Last: staging is reseeded over data people made (flags, reserves, sync quotes, imports). After
 // every test above has written its rows, the seed must still run cleanly on top of them.
 test('the seed runs again over everything the tests made', async () => {

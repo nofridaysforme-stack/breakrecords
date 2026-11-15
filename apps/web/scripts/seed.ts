@@ -89,6 +89,13 @@ async function main() {
     await seedSettings(tx, ids.northline, ids['harbor-sound'], licensee);
     await seedHarborPayouts(tx, ids['harbor-sound']);
   });
+  // The sample people were replaced, which unlinks anyone signed in as one of them (a payee
+  // then finds no record of theirs). Link each membership back to the person its invitation names.
+  const relinked = await sql`
+    UPDATE memberships m SET party_id = p.id
+    FROM allowlist a JOIN users u ON lower(u.email) = a.email JOIN parties p ON p.tenant_id = a.tenant_id AND p.slug = a.party_slug
+    WHERE m.user_id = u.id AND m.tenant_id = a.tenant_id AND m.party_id IS NULL AND a.party_slug IS NOT NULL`;
+  if (relinked.count) console.log(`Reconnected ${relinked.count} signed-in ${relinked.count === 1 ? 'person' : 'people'} to who they are in the sample labels.`);
   console.log(`Seeded Northline and Harbor Sound; ${PEOPLE.length} people allowlisted; ${STAFF.length} staff.`);
   await sql.end();
 }

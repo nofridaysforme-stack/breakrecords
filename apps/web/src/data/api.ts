@@ -204,7 +204,8 @@ export async function getPortalPayee(as?: string): Promise<Payee> {
   if (!ctx) return (await import('@/server/mockTax')).mockPayeeTax(payees[as ?? DEFAULT_PAYEE] ?? payees[DEFAULT_PAYEE]);
   const live = await import('@/server/live/payouts');
   const p = await live.livePayee(ctx, ctx.role === 'payee' ? null : (as ?? null));
-  if (!p) (await import('next/navigation')).notFound();
+  // Never a dead end: a payee with no record here is told why, with a way back to their own workspace.
+  if (!p) (await import('next/navigation')).redirect(ctx.role === 'payee' ? '/portal/unavailable' : '/');
   return p!;
 }
 

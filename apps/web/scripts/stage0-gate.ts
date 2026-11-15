@@ -8,13 +8,13 @@ import { randomBytes } from 'node:crypto';
 import { ENDPOINTS } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 
-const base = process.env.STAGING_URL?.replace(/\/$/, '');
+let base = process.env.STAGING_URL?.replace(/\/$/, '');
 const ownerUrl = process.env.STAGING_OWNER_DATABASE_URL;
 if (!base || !ownerUrl || process.env.BR_ALLOW_GATE !== '1') {
   console.error('Set STAGING_URL, STAGING_OWNER_DATABASE_URL (owner role) and BR_ALLOW_GATE=1. Staging only, never production.');
   process.exit(1);
 }
-const cookieName = base.startsWith('https:') ? '__Secure-authjs.session-token' : 'authjs.session-token';
+const cookieName = base!.startsWith('https:') ? '__Secure-authjs.session-token' : 'authjs.session-token';
 const sql = connect(ownerUrl, { max: 1 });
 const tokens: string[] = [];
 const failures: string[] = [];
@@ -34,7 +34,22 @@ async function sessionFor(email: string): Promise<string> {
 const tenantOf = new Map<string, string>();
 const get = (token: string, path: string) => fetch(`${base}${path}`, { headers: { cookie: `${cookieName}=${token}${tenantOf.has(token) ? `; br_tenant=${tenantOf.get(token)}` : ''}` }, redirect: 'manual' });
 
+/**
+ * The address the site really answers on. If STAGING_URL forwards somewhere else (for example
+ * indiesrvcs.com to www.indiesrvcs.com, a hosting setting), signed-in checks would only ever see
+ * the redirect. Follow it once, then check the real address.
+ */
+export async function canonicalBase(url: string): Promise<string> {
+  const res = await fetch(`${url}/api/approvals`, { redirect: 'follow' });
+  return new URL(res.url).origin;
+}
+
 async function main() {
+  const real = await canonicalBase(base!);
+  if (real !== base) {
+    console.log(`::notice::STAGING_URL (${base}) redirects to ${real}. Checking ${real}; set STAGING_URL to it to skip this step.`);
+    base = real;
+  }
   const owner = await sessionFor('e2e-owner@northline.example');
   const harbor = await sessionFor('e2e-harbor@harbor.example');
   const payee = await sessionFor('e2e-payee@northline.example');
