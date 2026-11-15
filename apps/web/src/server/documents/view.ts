@@ -20,7 +20,12 @@ export function aiState(on: boolean, canChange: boolean): DocumentsResponse['ai'
   const available = aiAvailable();
   return {
     available, on: available && on, canChange,
-    note: !available ? 'AI review is switched off for the platform.' : on ? 'AI review is on. It suggests; it never changes a document.' : 'AI review is off for this label.',
+    // What it is, then what it means right now and who can change it.
+    note: !available
+      ? 'AI review reads a prepared document and points out anything missing or inconsistent. It never changes a document. It isn’t available yet: Indie SRVCS turns it on for every workspace once it’s set up, and then your owner can switch it on here.'
+      : on ? 'AI review is on. It reads each prepared document and points out anything missing or inconsistent; it never changes a document.'
+      : canChange ? 'AI review is off for this workspace. Turn it on to have each prepared document checked for anything missing or inconsistent; it never changes a document.'
+      : 'AI review is off for this workspace. An owner can turn it on here.',
   };
 }
 

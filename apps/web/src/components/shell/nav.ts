@@ -12,14 +12,15 @@ export type NavItem = {
   icon: LucideIcon;
   badge?: 'approvals';
   locked?: boolean;
+  /** More path prefixes that mark it active (a release's runbook is part of Catalog). */
+  also?: string[];
 };
 
 // Order from the brief (BR Sidebar.dc.html). Marketing is a Phase 2 placeholder.
 export const primaryNav: NavItem[] = [
   { label: 'Home', href: '/', match: '/', icon: House },
   { label: 'Approvals', href: '/approvals', match: '/approvals', icon: Inbox, badge: 'approvals' },
-  { label: 'Releases', href: '/releases', match: '/releases', icon: Disc3 },
-  { label: 'Catalog', href: '/catalog/recordings', match: '/catalog', icon: Library },
+  { label: 'Catalog', href: '/catalog/recordings', match: '/catalog', also: ['/releases'], icon: Library },
   { label: 'Money', href: '/money/royalties', match: '/money', icon: CircleDollarSign },
   { label: 'Splits', href: '/splits', match: '/splits', icon: PieChart },
   { label: 'Contracts', href: '/contracts', match: '/contracts', icon: FileText },
@@ -37,11 +38,12 @@ export const footerNav: NavItem[] = [
 ];
 
 // Mobile tab bar: 4 items (components.md > Mobile tab bar).
-export const tabNav: NavItem[] = primaryNav.filter((i) =>
-  ['Home', 'Approvals', 'Releases', 'Money'].includes(i.label),
-);
+// Releases is a shortcut to Catalog › Releases, where in-progress runbooks come first.
+const RELEASES_TAB: NavItem = { label: 'Releases', href: '/catalog/releases', match: '/catalog/releases', also: ['/releases'], icon: Disc3 };
+export const tabNav: NavItem[] = [primaryNav[0], primaryNav[1], RELEASES_TAB, primaryNav.find((i) => i.label === 'Money')!];
 
 export function isActive(item: NavItem, pathname: string) {
   if (item.locked) return false;
-  return item.match === '/' ? pathname === '/' : pathname === item.match || pathname.startsWith(item.match + '/');
+  const under = (m: string) => pathname === m || pathname.startsWith(m + '/');
+  return item.match === '/' ? pathname === '/' : under(item.match) || (item.also ?? []).some(under);
 }

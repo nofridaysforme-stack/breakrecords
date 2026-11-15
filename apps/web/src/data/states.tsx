@@ -25,14 +25,14 @@ export const STATES: Record<'royalties' | 'statement' | 'payouts' | 'recoupment'
     partial: { text: <><strong>Your payout account isn&apos;t verified.</strong> Batches can be approved but won&apos;t send until it is.</>, action: 'Verify account' },
   },
   recoupment: {
-    empty: { title: 'Nothing to recoup', text: 'Add a cost or an advance and I’ll track it against the release’s income.', action: { label: 'See releases', href: '/releases' } },
+    empty: { title: 'Nothing to recoup', text: 'Add a cost or an advance and I’ll track it against the release’s income.', action: { label: 'See releases', href: '/catalog/releases' } },
     working: { agent: 'Royalties Agent', task: 'matching receipts to costs', note: 'Totals refresh when matching finishes.' },
     blocked: { title: 'Night Bus EP costs need receipts', text: <>Two costs have no receipt, so they don&apos;t count yet. <strong>Owner: you.</strong></>, action: { label: 'Open budgets', href: '/money/budgets' } },
     error: { title: 'Recoupment didn’t update', text: <>October income couldn&apos;t be applied. <strong>No money moved.</strong> Figures below are from September.</>, meta: 'Error RC-118 · Nov 6, 8:20 · Audit AUD-7F3K-2305', retry: 'Retry' },
     partial: { text: <><strong>The Night Bus advance terms aren&apos;t imported.</strong> I&apos;m assuming the full $5,000 is recoupable until you confirm.</>, action: 'Confirm terms' },
   },
   splits: {
-    empty: { title: 'No splits set up yet', text: 'Start with a release. I’ll suggest a split from your deal template for you to approve.', action: { label: 'See releases', href: '/releases' } },
+    empty: { title: 'No splits set up yet', text: 'Start with a release. I’ll suggest a split from your deal template for you to approve.', action: { label: 'See releases', href: '/catalog/releases' } },
     working: { agent: 'Legal Agent', task: 'drafting a split from your template', note: 'The draft comes to you before anyone is asked to sign.' },
     blocked: { title: 'v5 is waiting on signatures', text: <>Payouts under v5 stay in suspense until all 4 parties sign. <strong>Owner: Legal Agent, waiting on Marco Dela.</strong></>, action: { label: 'See signatures', href: '/contracts' } },
     error: { title: 'The signature request didn’t send', text: <>The e-signature service timed out. <strong>Nothing was signed and v4 still applies.</strong></>, meta: 'Error ES-502 · Nov 6, 8:30 · Audit AUD-7F3K-2306', retry: 'Send again' },

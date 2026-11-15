@@ -65,7 +65,12 @@ export async function getApprovals(scenario: Scenario = 'default'): Promise<{ sc
 
 export async function getApproval(id: string): Promise<ApprovalDetail | null> {
   const ctx = await liveCtx();
-  if (!ctx) return approvalDetails[id] ?? null;
+  if (!ctx) {
+    const d = approvalDetails[id] ?? null;
+    // Sample data: answers edited on the card this session.
+    const edited = d?.body.kind === 'application' ? await (await import('@/server/approvalDraft')).mockDraftValues(id) : null;
+    return d && edited && d.body.kind === 'application' ? { ...d, body: { ...d.body, fields: d.body.fields.map((f, i) => ({ ...f, value: edited[i] ?? f.value })) } } : d;
+  }
   const { liveApprovalDetail } = await import('@/server/live/approvals');
   return liveApprovalDetail(ctx, id);
 }
@@ -326,7 +331,7 @@ export async function getActivity(): Promise<ops.ActivityEvent[]> {
   return (await import('@/server/live/activity')).liveActivity(ctx);
 }
 export type Invite = { email: string; role: 'owner' | 'team' | 'payee'; payee: string | null; added: string; joined: boolean };
-export type Settings = { nav: typeof ops.settingsNav; routing: typeof ops.routing; config: typeof ops.labelConfig; integrations: typeof ops.integrations; team: typeof ops.team; invites: Invite[]; canInvite: boolean; payeeOptions: { id: string; name: string }[] };
+export type Settings = { nav: typeof ops.settingsNav; routing: typeof ops.routing; config: typeof ops.labelConfig; integrations: typeof ops.integrations; team: typeof ops.team; invites: Invite[]; canInvite: boolean; me: { name: string | null } | null; payeeOptions: { id: string; name: string }[] };
 /** Settings (5h). Live: the tenant's settings, routing, integrations and team. */
 export async function getSettings(): Promise<Settings> {
   const ctx = await liveCtx('settings');
@@ -334,7 +339,7 @@ export async function getSettings(): Promise<Settings> {
   const m = await (await import('@/server/mockSettings')).mockSettingsState();
   return { nav: ops.settingsNav, routing: ops.routing, config: ops.labelConfig, team: ops.team,
     integrations: ops.integrations.map((i) => (m.connected.has(i.id) ? { ...i, state: 'ok' as const, status: 'Connected' } : i)),
-    invites: m.invites, canInvite: true, payeeOptions: payouts.taxForms.map((t) => ({ id: t.payeeId, name: t.name })) };
+    invites: m.invites, canInvite: true, me: null, payeeOptions: payouts.taxForms.map((t) => ({ id: t.payeeId, name: t.name })) };
 }
 export type Theme = { theme: ThemeColors; tenant: typeof ops.tenant; published: { at: string; by: string } | null; canPublish: boolean };
 /** White label (5i). Live: the licensee's theme, which its labels read and only its owners publish. */

@@ -581,6 +581,8 @@ export const SettingsResponse = z.object({
     publishingMode: PublishingMode.nullable().optional(),
   }),
   integrations: z.array(z.object({ id: Id, name: z.string(), abbr: z.string(), state: z.enum(['ok', 'off', 'err']), status: z.string() })),
+  /** The signed-in person's own name, which they can set (null on sample data). */
+  me: z.object({ name: z.string().nullable() }).nullable(),
   team: z.array(TeamMember),
   /** Invitations (owners only): who may sign in, and whether they have. */
   invites: z.array(z.object({ email: z.email(), role: z.enum(['owner', 'team', 'payee']), payee: z.string().nullable(), added: Display, joined: z.boolean() })),
@@ -738,3 +740,9 @@ export const AssignedCode = z.object({ kind: z.enum(['isrc', 'upc']), id: z.stri
 export type CodesResponse = z.infer<typeof CodesResponse>;
 export type TaxYearResponse = z.infer<typeof TaxYearResponse>;
 export type SubmitTaxFormCommand = z.infer<typeof SubmitTaxFormCommand>;
+
+/** PUT /api/me/name: the name you go by in this app. Empty clears it. */
+export const SetMyNameCommand = z.object({ name: z.string().trim().max(80) }).strict();
+
+/** PUT /api/approvals/{id}/draft: new wording for an undecided application's answers, in order. */
+export const EditDraftCommand = z.object({ values: z.array(z.string().max(20000)).min(1).max(40) }).strict();

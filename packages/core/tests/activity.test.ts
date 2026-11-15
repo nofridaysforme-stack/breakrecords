@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { auditToActivity, stateLabel, whenLabel } from '../src/activity';
+import { auditToActivity, stateLabel, whenLabel, displayName, collapseRepeats } from '../src/activity';
 
 describe('activity log', () => {
   it('times read in UTC', () => {
@@ -23,5 +23,30 @@ describe('activity log', () => {
     expect(stateLabel('waitingOnYou')).toBe('waiting on you');
     expect(stateLabel('later')).toBe('coming later');
     expect(stateLabel('working')).toBe('working');
+  });
+});
+
+describe('display names and repeated edits', () => {
+  it('names a person by their name, else their catalog name, else their readable email', () => {
+    expect(displayName('Jana Avery', 'Kesi Vale', 'x@y.z')).toBe('Jana Avery');
+    expect(displayName(null, 'Kesi Vale', 'kesi@y.z')).toBe('Kesi Vale');
+    expect(displayName(null, null, 'dana.okafor+e2e@northline.example')).toBe('Dana Okafor');
+    expect(displayName('  ', null, null)).toBe('Someone');
+  });
+  it('folds rapid repeats of the same change by the same person into the newest, and keeps the rest', () => {
+    const at = (m: number, s = 0) => new Date(Date.UTC(2026, 10, 6, 9, m, s));
+    const row = (id: string, text: string) => ({ id, when: '', kind: 'Edit' as const, text, who: 'Jana', dept: 'Royalties', inputs: [], reasoning: '', output: '' });
+    const rows = [
+      { at: at(10, 50), key: 'jana|department.updated|royalties', row: row('a', 'Set Royalties to Suggest') },
+      { at: at(10, 30), key: 'jana|recording.updated|night-bus', row: row('b', 'Edited recording night-bus') },
+      { at: at(10, 20), key: 'jana|department.updated|royalties', row: row('c', 'Set Royalties to Observe') },
+      { at: at(10, 0), key: 'jana|department.updated|royalties', row: row('d', 'Set Royalties to Draft and wait') },
+      { at: at(1, 0), key: 'jana|department.updated|royalties', row: row('e', 'Set Royalties to Observe') }, // 9 minutes earlier: its own entry
+      { at: at(0, 30), key: null, row: row('f', 'Agent run') },
+    ];
+    const out = collapseRepeats(rows);
+    expect(out.map((r) => r.row.id)).toEqual(['a', 'b', 'e', 'f']);
+    expect(out[0].row.text).toBe('Set Royalties to Suggest (the last of 3 changes in 1 minute)');
+    expect(out[2].row.text).toBe('Set Royalties to Observe');
   });
 });

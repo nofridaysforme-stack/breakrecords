@@ -3,7 +3,7 @@
 import { useId } from 'react';
 import { Popover } from 'radix-ui';
 import { X } from 'lucide-react';
-import { formatMoney, moneyToWords, type Cents, type Currency } from '@breakrecords/core/money';
+import { formatMoney, type Cents, type Currency } from '@breakrecords/core/money';
 import type { WaterfallRow } from '@breakrecords/core/waterfall';
 import { cx } from './cx';
 import s from './Money.module.css';
@@ -17,26 +17,22 @@ type MoneyProps = {
   waterfall?: { title: string; rows: WaterfallRow[]; totalLabel: string };
 };
 
-/** Mono, tabular, read aloud in full words. Expands to its waterfall when one is given. */
+/**
+ * Mono and tabular. Screen readers read the figure itself ("$14,286.40" is read correctly), so
+ * there is no spelled-out copy to read twice. Expands to its waterfall when one is given.
+ */
 export function Money({ cents, currency = 'USD', wholeIfRound, className, waterfall }: MoneyProps) {
   const text = formatMoney(cents, { currency, wholeIfRound });
-  const words = moneyToWords(cents, currency);
   const descId = useId();
   if (!waterfall) {
-    // Screen readers get the full words; sighted users get the figure.
-    return (
-      <span className={cx(s.money, className)}>
-        <span aria-hidden="true">{text}</span>
-        <span className="visually-hidden">{words}</span>
-      </span>
-    );
+    return <span className={cx(s.money, className)}>{text}</span>;
   }
   return (
     <Popover.Root>
       <Popover.Trigger className={cx(s.trigger, className)} aria-describedby={descId}>
         {text}
       </Popover.Trigger>
-      <span id={descId} hidden>{words}. Opens how it was calculated.</span>
+      <span id={descId} hidden>Opens how it was calculated.</span>
       <Popover.Portal>
         <Popover.Content className={s.popover} sideOffset={8} align="start" aria-label={waterfall.title}>
           <div className={s.popHead}>

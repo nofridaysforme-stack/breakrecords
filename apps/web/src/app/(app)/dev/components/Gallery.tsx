@@ -273,7 +273,7 @@ export function Gallery() {
               title="Glasshouse single" pct={62}
               blocked={{
                 reason: <><strong>Delivery can&apos;t start.</strong> The split sheet needs Marco Dela&apos;s signature. Legal Agent sent it Nov 9 and reminded him Nov 12.</>,
-                actions: <><Button variant="primary">Send another reminder</Button><ButtonLink href="/releases">Open runbook</ButtonLink></>,
+                actions: <><Button variant="primary">Send another reminder</Button><ButtonLink href="/catalog/releases">Open runbook</ButtonLink></>,
               }}
             />
             <GoalCard title="Register catalog with MLC" pct={58} meta="7 of 12 songs · 3 waiting on you" />

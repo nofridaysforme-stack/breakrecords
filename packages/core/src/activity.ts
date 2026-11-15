@@ -23,6 +23,7 @@ const READ: Record<string, (ref: string, d: Data, title: string) => [text: strin
   'approval.rejected': (_r, d, t) => [`Rejected ${t}${d.reason ? `: "${str(d.reason)}"` : ''}`, 'Approvals'],
   'approval.undone': (_r, _d, t) => [`Undid the decision on ${t}`, 'Approvals'],
   'approval.proposed': (_r, _d, t) => [`Proposed ${t}`, 'Approvals'],
+  'approval_draft.edited': (r, d) => [`Edited the answers on ${str(d.title) || r}`, 'Approvals'],
   'income_lines.matched': (_r, d) => [`Matched ${str(d.lines)} statement lines to ${str(d.recording)}`, 'Royalties'],
   'payee_request.created': (r, d) => [`Asked ${r} for ${d.kind === 'tax_form' ? 'a tax form' : 'new bank details'}`, 'Finance'],
   'recoupable_cost.added': (r, d) => [`Added ${str(d.category)} to ${r} recoupment`, 'Finance'],
@@ -51,4 +52,40 @@ export function auditToActivity(e: { auditId: string; at: Date; kind: string; re
     id: e.auditId, when: whenLabel(e.at), kind: e.kind.startsWith('approval.') ? 'Approval' : 'Edit', text, who: e.who, dept,
     inputs: [e.ref], reasoning: `Done by ${e.who} in the app.`, output: `Recorded in the audit log as ${e.auditId}.`,
   };
+}
+
+/**
+ * How a person is named in the log and on the team: the name they gave, else the person they
+ * are in the catalog, else their email's first part made readable ("dana.okafor" → "Dana Okafor").
+ */
+export function displayName(name: string | null | undefined, partyName: string | null | undefined, email: string | null | undefined): string {
+  if (name?.trim()) return name.trim();
+  if (partyName?.trim()) return partyName.trim();
+  if (!email) return 'Someone';
+  const local = email.split('@')[0].replace(/\+.*$/, '');
+  const words = local.split(/[._-]+/).filter(Boolean);
+  return words.length ? words.map((w) => w[0].toUpperCase() + w.slice(1)).join(' ') : email;
+}
+
+/**
+ * Rapid repeats read as one entry: the same person making the same kind of change to the same
+ * thing, each within `windowMs` of the next (three autonomy changes in a minute). The newest
+ * stays, saying how many changes it stands for. Rows come newest first and keep their order.
+ */
+export function collapseRepeats<T extends { at: Date; key: string | null; row: ActivityRow }>(rows: T[], windowMs = 2 * 60_000): T[] {
+  const out: T[] = [];
+  const open = new Map<string, { head: T; oldest: Date; count: number }>();
+  const groups: { head: T; oldest: Date; count: number }[] = [];
+  for (const r of rows) {
+    const g = r.key ? open.get(r.key) : undefined;
+    if (r.key && g && g.oldest.getTime() - r.at.getTime() <= windowMs) { g.count += 1; g.oldest = r.at; continue; }
+    if (r.key) { const n = { head: r, oldest: r.at, count: 1 }; open.set(r.key, n); groups.push(n); }
+    out.push(r);
+  }
+  for (const g of groups) {
+    if (g.count < 2) continue;
+    const mins = Math.max(1, Math.ceil((g.head.at.getTime() - g.oldest.getTime()) / 60_000));
+    g.head.row = { ...g.head.row, text: `${g.head.row.text} (the last of ${g.count} changes in ${mins} minute${mins === 1 ? '' : 's'})` };
+  }
+  return out;
 }

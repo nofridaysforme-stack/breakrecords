@@ -13,10 +13,11 @@ test.describe('component gallery', () => {
     expect(bad.map((v) => `${v.id}: ${v.nodes.length} node(s), e.g. ${v.nodes[0]?.target}`)).toEqual([]);
   });
 
-  test('money reads in full words', async ({ page }) => {
+  test('money is read once, as the figure', async ({ page }) => {
     const trigger = page.getByRole('button', { name: '$2,346.75', exact: true });
-    await expect(trigger).toHaveAccessibleDescription(/two thousand three hundred forty-six dollars and seventy-five cents/);
-    await expect(page.getByText('minus five hundred dollars').first()).toBeAttached();
+    await expect(trigger).toHaveAccessibleDescription('Opens how it was calculated.');
+    // No spelled-out copy anywhere for a screen reader to read a second time.
+    await expect(page.getByText(/dollars and .* cents/)).toHaveCount(0);
   });
 
   test('money opens its waterfall', async ({ page }) => {
