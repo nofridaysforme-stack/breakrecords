@@ -1,4 +1,5 @@
 import 'server-only';
+import { displayName } from '@breakrecords/core/activity';
 import { formatMoney } from '@breakrecords/core/money';
 import { dayMonthYear } from '@breakrecords/core/payouts';
 import { withTenant, type Tx } from '@breakrecords/db/client';
@@ -29,9 +30,10 @@ async function settingsIn(tx: Tx, ctx: RequestContext): Promise<Settings> {
       defaultAutonomy: cfg?.default_autonomy ?? null, publishingMode: cfg?.publishing_mode ?? null,
     },
     integrations: ints.map((i) => ({ id: i.slug, name: i.name, abbr: i.abbr, state: i.state, status: i.status })),
-    team: team.map((t) => ({ id: t.user_id, name: t.name ?? t.email.split('@')[0], role: t.title ?? (t.role === 'owner' ? 'Owner' : 'Team') })),
+    team: team.map((t) => ({ id: t.user_id, name: displayName(t.name, null, t.email), role: t.title ?? (t.role === 'owner' ? 'Owner' : 'Team') })),
     invites: invites.map((i) => ({ email: i.email, role: i.role, payee: i.party_slug ? payees.find((p) => p.slug === i.party_slug)?.name ?? i.party_slug : null, added: dayMonthYear(i.added_at), joined: i.joined })),
     canInvite: ctx.role === 'owner',
+    me: { name: (await tx<{ name: string | null }[]>`SELECT name FROM users WHERE id = ${ctx.userId}`)[0]?.name ?? null },
     payeeOptions: payees.map((p) => ({ id: p.slug, name: p.name })),
   } as Settings;
 }
@@ -137,5 +139,12 @@ export function liveUninvite(ctx: RequestContext, email: string): Promise<Invite
     await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
       VALUES (${ctx.tenantId}, ${'AUD-INV-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'invite.withdrawn', ${email}, '{}')`;
     return { ok: true, value: await settingsIn(tx, ctx) } as const;
+  });
+}
+
+/** The name a person goes by in this app (the activity log, the team list). Their own account only. */
+export async function liveSetMyName(ctx: RequestContext, name: string | null): Promise<void> {
+  await withTenant(sql, ctx, async (tx) => {
+    await tx`UPDATE users SET name = ${name} WHERE id = ${ctx.userId}`;
   });
 }

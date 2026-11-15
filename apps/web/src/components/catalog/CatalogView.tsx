@@ -25,7 +25,7 @@ const AI_USE = ['Not declared', 'None', 'Partial, stems', 'Partial, vocals', 'Pa
 const scoreTone = (n: number) => (n >= 90 ? s.good : n >= 70 ? s.warn : s.critical);
 
 /** 5a. The recordings tab has a 380px detail panel; the other tabs are plain lists from the same parts. */
-export function CatalogView({ data, tab, initialId }: { data: Data; tab: CatalogTab; initialId?: string }) {
+export function CatalogView({ data, tab, initialId, inProgress }: { data: Data; tab: CatalogTab; initialId?: string; inProgress?: ReactNode }) {
   const [list, setList] = useState(data.recordings);
   const [selectedId, setSelectedId] = useState(initialId && data.recordings.some((r) => r.id === initialId) ? initialId : data.recordings[0]?.id);
   const selected = list.find((r) => r.id === selectedId) ?? list[0];
@@ -109,7 +109,7 @@ export function CatalogView({ data, tab, initialId }: { data: Data; tab: Catalog
   );
 
   if (tab !== 'recordings') {
-    return <div className={s.single}>{head}{tab === 'songs' ? <Songs data={data} /> : tab === 'releases' ? <Releases data={data} nextUpc={codes.data?.nextUpc ?? null} onAssigned={codes.refresh} /> : <Assets data={data} />}{dialogs}</div>;
+    return <div className={s.single}>{head}{tab === 'songs' ? <Songs data={data} /> : tab === 'releases' ? <>{inProgress}<Releases data={data} nextUpc={codes.data?.nextUpc ?? null} onAssigned={codes.refresh} /></> : <Assets data={data} />}{dialogs}</div>;
   }
 
   return (

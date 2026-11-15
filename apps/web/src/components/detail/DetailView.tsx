@@ -39,6 +39,21 @@ export function DetailView({ detail: d, next }: Props) {
   const [held, setHeld] = useState<Set<string>>(new Set());
   const [facts, setFacts] = useState<boolean[]>(d.body.kind === 'filing' ? d.body.facts.map(() => false) : []);
   const [choices, setChoices] = useState<Record<string, 'playbook' | 'drafted'>>({});
+  // An application's answers: shown in full and edited right on the card; saved before approving.
+  const [answers, setAnswers] = useState<string[]>(d.body.kind === 'application' ? d.body.fields.map((f) => f.value) : []);
+  const [savedAnswers, setSavedAnswers] = useState<string[]>(answers);
+  const [draftMsg, setDraftMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const draftDirty = answers.some((v, i) => v !== savedAnswers[i]);
+  const saveDraft = async () => {
+    setSavingDraft(true); setDraftMsg(null);
+    try {
+      const res = await fetch(`/api/approvals/${encodeURIComponent(d.id)}/draft`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ values: answers }) });
+      const out = await res.json().catch(() => null);
+      if (!res.ok) { setDraftMsg({ ok: false, text: out?.message ?? 'Your changes weren’t saved.' }); return; }
+      setSavedAnswers(answers); setDraftMsg({ ok: true, text: 'Saved. This wording is what you approve.' });
+    } catch { setDraftMsg({ ok: false, text: 'Couldn’t reach the server. Your changes weren’t saved.' }); } finally { setSavingDraft(false); }
+  };
   const drawer = useRef<HTMLDialogElement>(null);
   const evidenceBtn = useRef<HTMLButtonElement>(null);
   const reasonRef = useRef<HTMLTextAreaElement>(null);
@@ -54,6 +69,7 @@ export function DetailView({ detail: d, next }: Props) {
   if (!checks && !decision) blockReason = 'Running the checks for this card.';
   else if (mine && !mine.canApprove) blockReason = `Can’t approve yet: ${failed} ${failed === 1 ? 'check' : 'checks'} failed. See Checks.`;
   else if (d.body.kind === 'filing' && facts.some((f) => !f)) blockReason = `Confirm all ${facts.length} facts to file.`;
+  else if (draftDirty) blockReason = 'Save your changes to the answers first, so what you approve is what’s shown.';
   // 2f keeps Approve enabled; any term you haven't decided goes out as drafted, and we say so.
   const undecided = d.body.kind === 'contract' ? d.body.flags.filter((f) => !choices[f.id]).length : 0;
   if (d.body.kind === 'payout') {
@@ -186,7 +202,7 @@ export function DetailView({ detail: d, next }: Props) {
   ) : (
     <div className={s.actions}>
       <Button variant="primary" size="lg" onClick={doApprove} disabled={Boolean(blockReason)} disabledReason={blockReason ?? undefined} id="approve" aria-keyshortcuts="A">{primary}</Button>
-      <Button size="lg" aria-pressed={mode === 'edit'} onClick={() => setMode(mode === 'edit' ? 'view' : 'edit')} aria-keyshortcuts="E">{mode === 'edit' ? 'Done editing' : 'Edit then approve'}</Button>
+      {d.body.kind !== 'application' && <Button size="lg" aria-pressed={mode === 'edit'} onClick={() => setMode(mode === 'edit' ? 'view' : 'edit')} aria-keyshortcuts="E">{mode === 'edit' ? 'Done editing' : 'Edit then approve'}</Button>}
       <Button size="lg" onClick={() => askRef.current?.showModal()}>Ask the agent</Button>
       <Button variant="destructive" size="lg" onClick={openReject} aria-keyshortcuts="R">{d.rejectLabel}</Button>
       {blockReason && <p className={s.kbdHint} style={{ color: 'var(--text-2)' }}>{blockReason}</p>}
@@ -198,7 +214,7 @@ export function DetailView({ detail: d, next }: Props) {
   const editNote = mode === 'edit' && !decision && (
     <p className={s.editNote} role="status">
       {d.body.kind === 'payout' ? 'Editing. Hold any payee to carry their amount to next period, then approve the rest.'
-        : d.body.kind === 'application' ? 'Editing. Change the answers below; I keep your wording.'
+        : d.body.kind === 'application' ? 'Change any answer below, then save. What you approve is what’s shown.'
         : 'Editing. Your changes become a new version for you to approve.'}
     </p>
   );
@@ -270,7 +286,8 @@ export function DetailView({ detail: d, next }: Props) {
         {head}
         {d.body.kind === 'payout' && <PayoutBodyView body={d.body} editing={mode === 'edit' && !decision} held={held} setHeld={setHeld} />}
         {d.body.kind === 'filing' && <FilingBodyView body={d.body} facts={facts} setFacts={setFacts} locked={Boolean(decision)} />}
-        {d.body.kind === 'application' && <ApplicationBodyView body={d.body} editing={mode === 'edit' && !decision} />}
+        {d.body.kind === 'application' && <ApplicationBodyView body={d.body} values={answers} setValues={setAnswers} locked={Boolean(decision)}
+          dirty={draftDirty} saving={savingDraft} onSave={() => void saveDraft()} onReset={() => { setAnswers(savedAnswers); setDraftMsg(null); }} msg={draftMsg} />}
         {mine && <ChecksPanel results={mine.results} />}
         {editNote}
         {actions}
@@ -296,7 +313,7 @@ function PayoutBodyView({ body, editing, held, setHeld }: { body: PayoutBody; ed
         {body.stats.map((st) => <div key={st.label} className={s.stat}><dt className={s.statLabel}>{st.label}</dt><dd className={s.statValue} style={{ margin: 0 }}>{st.label === 'Payees' ? String(live) : st.value}</dd></div>)}
       </dl>
       <div className={s.tableWrap} role="region" aria-label="Payees in this batch" tabIndex={0}>
-        <table className={s.table}>
+        <table className={cx(s.table, s.stack)}>
           <caption className="visually-hidden">Payees in this batch</caption>
           <thead><tr>
             {editing && <th scope="col">Hold</th>}
@@ -305,18 +322,18 @@ function PayoutBodyView({ body, editing, held, setHeld }: { body: PayoutBody; ed
           <tbody>
             {body.payees.map((p) => (
               <tr key={p.name} className={cx(held.has(p.name) && s.held)}>
-                {editing && <td><Checkbox checked={held.has(p.name)} onChange={() => { const n = new Set(held); if (n.has(p.name)) n.delete(p.name); else n.add(p.name); setHeld(n); }} aria-label={`Hold ${p.name}`} /></td>}
+                {editing && <td data-label="Hold"><Checkbox checked={held.has(p.name)} onChange={() => { const n = new Set(held); if (n.has(p.name)) n.delete(p.name); else n.add(p.name); setHeld(n); }} aria-label={`Hold ${p.name}`} /></td>}
                 <th scope="row"><div className={s.payeeName}>{p.name}</div><div className={s.payeeRole}>{p.role}</div></th>
-                <td className={s.source}>{p.source}</td>
-                <td><RiskFlag risk={p.taxState === 'ok' ? 'low' : p.taxState === 'expiring' ? 'dueSoon' : 'blocked'} label={p.taxForm} /></td>
-                <td className={cx(s.r, s.mono, s.muted)}><Money cents={p.withheld} /></td>
-                <td className={cx(s.r, s.net)}>{held.has(p.name) ? <span>Held</span> : <Money cents={p.net} />}</td>
+                <td className={s.source} data-label="Source">{p.source}</td>
+                <td data-label="Tax form"><RiskFlag risk={p.taxState === 'ok' ? 'low' : p.taxState === 'expiring' ? 'dueSoon' : 'blocked'} label={p.taxForm} /></td>
+                <td className={cx(s.r, s.mono, s.muted)} data-label="Withheld"><Money cents={p.withheld} /></td>
+                <td className={cx(s.r, s.net)} data-label="Net">{held.has(p.name) ? <span>Held</span> : <Money cents={p.net} />}</td>
               </tr>
             ))}
           </tbody>
           <tfoot><tr className={s.totalRow}>
             <th scope="row" colSpan={editing ? 5 : 4}>Total to {live} {live === 1 ? 'payee' : 'payees'}</th>
-            <td className={cx(s.r, s.mono)}><Money cents={total} /></td>
+            <td className={cx(s.r, s.mono)} data-label="Total"><Money cents={total} /></td>
           </tr></tfoot>
         </table>
       </div>
@@ -368,11 +385,11 @@ function FilingBodyView({ body, facts, setFacts, locked }: { body: FilingBody; f
   return (
     <>
       <div className={s.tableWrap} role="region" aria-label={`${body.org} registration preview`} tabIndex={0}>
-        <table className={s.table}>
+        <table className={cx(s.table, s.stack)}>
           <caption className="visually-hidden">{body.org} registration preview</caption>
           <thead><tr><th scope="col">Song (composition)</th><th scope="col">Writers and shares</th><th scope="col">Linked recording (ISRC)</th><th scope="col">ISWC</th></tr></thead>
           <tbody>{body.works.map((w) => (
-            <tr key={w.title}><th scope="row" className={s.payeeName}>{w.title}</th><td>{w.writers}</td><td className={s.mono}>{w.isrc}</td><td className={s.muted}>{w.iswc}</td></tr>
+            <tr key={w.title}><th scope="row" className={s.payeeName}>{w.title}</th><td data-label="Writers and shares">{w.writers}</td><td className={s.mono} data-label="Recording (ISRC)">{w.isrc}</td><td className={s.muted} data-label="ISWC">{w.iswc}</td></tr>
           ))}</tbody>
         </table>
       </div>
@@ -390,23 +407,34 @@ function FilingBodyView({ body, facts, setFacts, locked }: { body: FilingBody; f
   );
 }
 
-function ApplicationBodyView({ body, editing }: { body: ApplicationBody; editing: boolean }) {
-  const [values, setValues] = useState(body.fields.map((f) => f.value));
+function ApplicationBodyView({ body, values, setValues, locked, dirty, saving, onSave, onReset, msg }: {
+  body: ApplicationBody; values: string[]; setValues: (v: string[]) => void; locked: boolean;
+  dirty: boolean; saving: boolean; onSave: () => void; onReset: () => void; msg: { ok: boolean; text: string } | null;
+}) {
   return (
     <>
       <p className={s.meta}><span>To: <strong>{body.to}</strong></span><span>Ask: <strong>{body.ask}</strong></span><span>Deadline: <strong>{body.deadline.date}</strong></span></p>
       <VerifiedStamp what="Deadline last verified" date={body.deadline.verified} href={body.deadline.href} />
+      <p className={s.count} style={{ textTransform: 'none' }}>{locked ? 'The full application as it was decided.' : 'The full application, exactly as it will be submitted. Change any answer right here, then save.'}</p>
       {body.fields.map((f, i) => (
         <div key={f.label} className={s.field}>
           <label className={s.label} htmlFor={`field-${i}`}>{f.label}</label>
           <textarea
-            id={`field-${i}`} className={s.textarea} value={values[i]} readOnly={!editing} maxLength={f.limit} rows={5}
+            id={`field-${i}`} className={`${s.textarea} ${s.autosize}`} value={values[i]} readOnly={locked} maxLength={f.limit}
+            rows={Math.max(3, Math.ceil(values[i].length / 70) + 1)}
             onChange={(e) => setValues(values.map((v, j) => (j === i ? e.target.value : v)))}
             aria-describedby={`count-${i}`}
           />
-          <p id={`count-${i}`} className={s.count}>{values[i].length.toLocaleString('en-US')} of {f.limit.toLocaleString('en-US')} characters{editing ? '' : ' · press Edit then approve to change'}</p>
+          <p id={`count-${i}`} className={s.count}>{values[i].length.toLocaleString('en-US')} of {f.limit.toLocaleString('en-US')} characters</p>
         </div>
       ))}
+      {!locked && dirty && (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <Button variant="primary" onClick={onSave} disabled={saving}>Save changes</Button>
+          <Button onClick={onReset} disabled={saving}>Undo my changes</Button>
+        </div>
+      )}
+      {msg && <p className={s.editNote} role={msg.ok ? 'status' : 'alert'}>{msg.text}</p>}
     </>
   );
 }

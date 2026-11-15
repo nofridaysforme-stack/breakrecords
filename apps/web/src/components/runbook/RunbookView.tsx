@@ -53,7 +53,7 @@ export function RunbookView({ release: r, initialChange }: { release: Release; i
       <header className={s.header}>
         <div className={s.cover} role="img" aria-label="Cover art placeholder">cover art</div>
         <div className={s.titleBlock}>
-          <nav aria-label="Breadcrumb" className={s.crumb}><Link href="/releases">Releases</Link> / {r.kind}</nav>
+          <nav aria-label="Breadcrumb" className={s.crumb}><Link href="/catalog/recordings">Catalog</Link> / <Link href="/catalog/releases">Releases</Link> / {r.kind}</nav>
           <h1 className={s.title}>{r.title}</h1>
           <p className={s.facts}><span>{r.artist}</span><span>{long(date)}</span><RiskFlag risk={risk} label={word} strong /></p>
           <div className={s.budget}>

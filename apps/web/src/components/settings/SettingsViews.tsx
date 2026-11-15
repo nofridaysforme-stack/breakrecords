@@ -2,6 +2,7 @@
 
 import { PUBLISHING_LABEL } from '@/components/onboarding/steps';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Check, CircleAlert, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -161,6 +162,7 @@ export function SettingsSectionView({ data, section, depts }: { data: Data; sect
       return (
         <section className={o.section} aria-labelledby="tm-h">
           <h1 id="tm-h" className={o.sectionTitleLg}>Team and roles</h1>
+          {data.me && <MyName initial={data.me.name} />}
           <div className={o.tableWrap} role="region" aria-label="Team" tabIndex={0}>
             <table className={o.table}>
               <thead><tr><th scope="col">Person</th><th scope="col">Role</th><th scope="col">Approves</th></tr></thead>
@@ -188,6 +190,30 @@ const DENSITY: { id: Density; name: string; text: string }[] = [
 ];
 
 /** flows.md: the data-density="compact" toggle. Saved on this device. */
+/** The name you go by here, so the activity log and the team list show it instead of your email. */
+function MyName({ initial }: { initial: string | null }) {
+  const router = useRouter();
+  const [name, setName] = useState(initial ?? '');
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const save = async () => {
+    setMsg(null);
+    const res = await fetch('/api/me/name', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: name.trim() }) }).catch(() => null);
+    const out = await res?.json().catch(() => null);
+    if (!res?.ok) { setMsg({ ok: false, text: out?.message ?? 'Your name wasn’t saved.' }); return; }
+    setMsg({ ok: true, text: name.trim() ? `Saved. You show as ${name.trim()}.` : 'Cleared. You show by your catalog name or email.' });
+    router.refresh();
+  };
+  return (
+    <form className={o.form} style={{ maxWidth: 420 }} onSubmit={(e) => { e.preventDefault(); void save(); }}>
+      <label className={o.field}>Your name <span className={o.hint}>How you show in the activity log and on the team.</span>
+        <input className={o.input} value={name} maxLength={80} autoComplete="name" onChange={(e) => setName(e.target.value)} />
+      </label>
+      <div className={o.formActions}><Button type="submit">Save my name</Button></div>
+      {msg && <p className={o.toast} role={msg.ok ? 'status' : 'alert'}>{msg.ok ? <Check size={16} className={o.good} aria-hidden="true" /> : <CircleAlert size={16} className={o.critical} aria-hidden="true" />}{msg.text}</p>}
+    </form>
+  );
+}
+
 function DensityControl() {
   const { density, setDensity } = useShellUI();
   return (

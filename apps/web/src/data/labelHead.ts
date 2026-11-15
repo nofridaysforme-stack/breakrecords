@@ -7,7 +7,7 @@ const CONTEXTS: [prefix: string, ctx: ScreenContext][] = [
     { q: 'What should I do first?', a: 'Marco’s producer agreement. It’s due Nov 9 and the split sheets for Glasshouse wait on it.', basis: 'Due dates and the Glasshouse runbook.' },
     { q: 'Can I approve everything at once?', a: 'Only the low-risk ones. Signatures are never bulk-approved, so the producer agreement stays out of a bulk approve.', basis: 'Your approval routing in Settings.' },
   ] }],
-  ['/releases', { title: 'Releases', summary: 'Glasshouse is on track for March 5 and on budget: $1,860.00 of $3,000.00 spent. Three things block the next gate.', qa: [
+  ['/catalog/releases', { title: 'Releases', summary: 'Glasshouse is on track for March 5 and on budget: $1,860.00 of $3,000.00 spent. Three things block the next gate.', qa: [
     { q: 'What’s blocking Glasshouse?', a: 'Marco hasn’t signed the split sheet, the master WAV isn’t uploaded, and credits wait on the producer agreement.', basis: 'The Glasshouse runbook.' },
     { q: 'Can we move the date?', a: 'Yes. Use Change date on the runbook. I’ll recalculate every task and send you the change as a Plan approval.', basis: 'How date changes work.' },
   ] }],
@@ -57,6 +57,8 @@ const CONTEXTS: [prefix: string, ctx: ScreenContext][] = [
 ];
 
 export function contextFor(path: string): ScreenContext {
+  // A release's runbook (/releases/{id}) is part of Catalog › Releases.
+  if (path.startsWith('/releases')) path = '/catalog/releases';
   const hit = CONTEXTS.find(([p]) => (p === '/' ? path === '/' : path === p || path.startsWith(p + '/')));
   return hit ? hit[1] : CONTEXTS[CONTEXTS.length - 1][1];
 }

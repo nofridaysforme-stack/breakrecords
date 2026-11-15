@@ -12,7 +12,7 @@ export async function POST(_req: Request, { params }: Params) {
   const { id } = await params;
   const w = await teamWriter('documents', 'documents');
   if ('refused' in w) return w.refused;
-  if (!aiAvailable()) return payoutErr(409, 'ai_off', 'AI review is switched off for the platform.');
+  if (!aiAvailable()) return payoutErr(409, 'ai_off', 'AI review isn’t available yet. Indie SRVCS turns it on for every workspace once it’s set up.');
   const live = w.ctx ? await import('@/server/live/documents') : null;
   const mock = w.ctx ? null : await import('@/server/mockDocuments');
   const on = live ? await live.liveAiOn(w.ctx!) : await mock!.mockAiOn();

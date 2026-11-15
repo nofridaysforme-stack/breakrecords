@@ -196,11 +196,11 @@ export function HomeView({ scenario, home, numbers, notes, approvals, reserves =
                 title={first.title} pct={first.pct}
                 blocked={{
                   reason: <><strong>Delivery can&apos;t start.</strong> The split sheet needs Marco Dela&apos;s signature. Legal Agent sent it Nov 9 and reminded him Nov 12.</>,
-                  actions: <><Button variant="primary">Send another reminder</Button><ButtonLink href={first.href ?? '/releases'}>Open runbook</ButtonLink></>,
+                  actions: <><Button variant="primary">Send another reminder</Button><ButtonLink href={first.href ?? '/catalog/releases'}>Open runbook</ButtonLink></>,
                 }}
               />
             ) : (
-              <Link href={first.href ?? '/releases'} className={s.goalLink}>
+              <Link href={first.href ?? '/catalog/releases'} className={s.goalLink}>
                 <GoalCard title={first.title} pct={first.pct} meta={first.meta} metaShort="Mar 5 · $1,860 of $3,000" />
                 <span className="visually-hidden">Open runbook</span>
               </Link>

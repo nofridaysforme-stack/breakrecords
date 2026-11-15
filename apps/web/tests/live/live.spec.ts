@@ -244,7 +244,7 @@ test.describe('rights (live)', () => {
     expect(r.rows[5].cells.every((c) => c.status === 'notStarted')).toBe(true);
     await page.goto('/rights/registrations');
     await expect(page.getByRole('heading', { name: /3 MLC filings need you/ })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'three hundred twelve dollars and forty cents unclaimed found' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '$312.40 unclaimed found' })).toBeVisible();
   });
 
   test('unclaimed money is read in cents and totals correctly', async ({ page }) => {
@@ -744,6 +744,33 @@ test.describe('activity (live)', () => {
     await expect(jana.getByText('Set Royalties to Suggest')).toBeVisible();
   });
 
+  test('people show by name, not username; rapid repeat edits read as one entry; a grant’s answers are saved on its card', async ({ page, browser }) => {
+    await signIn(page, USERS.owner);
+    expect((await page.request.put('/api/me/name', { data: { name: 'Mara Quinn' } })).status()).toBe(200);
+    for (const autonomy of ['observe', 'suggest', 'observe']) expect((await page.request.patch('/api/departments/audit', { data: { autonomy } })).status()).toBe(200);
+    const log = ActivityResponse.parse(await (await page.request.get('/api/activity')).json());
+    const audit = log.filter((e) => e.text.startsWith('Set Audit'));
+    expect(audit.map((e) => [e.text, e.who])).toEqual([['Set Audit to Observe (the last of 3 changes in 1 minute)', 'Mara Quinn']]);
+    await page.goto('/settings/team');
+    await expect(page.getByLabel('Your name')).toHaveValue('Mara Quinn');
+    await expect(page.getByRole('region', { name: 'Team', exact: true })).toContainText('Mara Quinn');
+
+    // The grant's answers: edited on the card, checked against each limit, then what's shown is what's approved.
+    const values = ['A shorter summary for the panel.', 'Free all-ages show; local crew are hired.'];
+    expect((await page.request.put('/api/approvals/apr_grant/draft', { data: { values: ['only one'] } })).status()).toBe(400);
+    expect((await page.request.put('/api/approvals/apr_grant/draft', { data: { values: ['x'.repeat(1501), 'y'] } })).status()).toBe(400);
+    expect((await page.request.put('/api/approvals/apr_grant/draft', { data: { values } })).status()).toBe(200);
+    const g = (await (await page.request.get('/api/approvals/apr_grant')).json()) as { body: { fields: { value: string }[] } };
+    expect(g.body.fields.map((f) => f.value)).toEqual(values);
+    expect(ActivityResponse.parse(await (await page.request.get('/api/activity')).json())[0]).toMatchObject({ text: 'Edited the answers on State arts council grant draft', who: 'Mara Quinn' });
+    await page.goto('/approvals/apr_grant');
+    await expect(page.getByLabel('Project summary')).toHaveValue(values[0]);
+    const payee = await (await browser.newContext()).newPage();
+    await signIn(payee, USERS.payee, { into: 'Northline Records' });
+    expect((await payee.request.put('/api/approvals/apr_grant/draft', { data: { values } })).status()).toBe(403);
+    expect((await page.request.put('/api/me/name', { data: { name: '' } })).status()).toBe(200);
+  });
+
   test('payees and other labels see no departments or activity', async ({ page, browser }) => {
     await signIn(page, USERS.payee, { into: 'Northline Records' });
     for (const path of ['/api/departments', '/api/activity']) expect((await page.request.get(path)).status()).toBe(403);
@@ -891,7 +918,7 @@ test('an owner invites a payee, who signs in to their own portal; a team member 
   expect((await ari.request.put('/api/onboarding', { data: { answers, complete: true } })).status()).toBe(200);
   await ari.goto('/');
   const sidebar = ari.getByRole('complementary', { name: 'Sidebar' });
-  for (const tool of ['Releases', 'Catalog', 'Money', 'Splits', 'Contracts', 'Rights', 'Roster']) await expect(sidebar.getByRole('link', { name: tool })).toBeVisible();
+  for (const tool of ['Catalog', 'Money', 'Splits', 'Contracts', 'Rights', 'Roster']) await expect(sidebar.getByRole('link', { name: tool })).toBeVisible();
   expect((await ari.request.get('/api/catalog')).status()).toBe(200);
   expect(CatalogResponse.parse(await (await ari.request.get('/api/catalog')).json()).recordings).toEqual([]); // their own, not Northline's
   await sidebar.getByRole('link', { name: 'Labels I work with' }).click();

@@ -39,7 +39,7 @@ export function RegistrationsView({ data, unclaimed }: { data: Awaited<ReturnTyp
   return (
     <>
       <div className={`${o.head} ${s.head}`}>
-        <div><PageTitle>Registrations</PageTitle><p className={o.sub}>Every place a recording or song needs to be registered so it gets paid.</p></div>
+        <div><PageTitle>Registrations</PageTitle><p className={o.sub}>Every place a recording or song needs to be registered so it gets paid. Rights is where you register and collect; the agreements behind it, publishing deals included, are in <Link href="/contracts" className={o.linkInline}>Contracts</Link>, and who gets what share is in <Link href="/splits" className={o.linkInline}>Splits</Link>.</p></div>
         <Legend />
       </div>
       <div className={s.matrixWrap} role="region" aria-label="Registrations by recording" tabIndex={0}>

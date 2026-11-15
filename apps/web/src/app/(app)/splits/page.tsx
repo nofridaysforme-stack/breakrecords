@@ -32,7 +32,7 @@ export default async function SplitsIndex({ searchParams }: Props) {
       <div className={o.head}>
         <div>
           <PageTitle>Splits</PageTitle>
-          <p className={o.sub}>Who gets what from each income stream. Open one to see its versions, signatures and draft.</p>
+          <p className={o.sub}>Who gets what from each income stream. Open one to see its versions, signatures and draft. The agreements behind a split are in <Link href="/contracts" className={o.linkInline}>Contracts</Link>; registering to get paid is in <Link href="/rights/registrations" className={o.linkInline}>Rights</Link>.</p>
         </div>
         {!creating && unsplit.length > 0 && <Link href="/splits?create=1" className={o.linkInline}>Create a split</Link>}
       </div>
