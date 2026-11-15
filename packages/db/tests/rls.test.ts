@@ -426,6 +426,16 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       await owner`DELETE FROM contract_templates WHERE id = ${tpl}`;
     });
 
+    it('no function of ours can be run by just anyone, now or when a migration adds one', async () => {
+      const open = async () => (await owner<{ proname: string }[]>`
+        SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public' AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
+          AND has_function_privilege('public', p.oid, 'EXECUTE')`).map((r) => r.proname);
+      expect(await open()).toEqual([]);
+      await owner`CREATE FUNCTION zz_new_helper() RETURNS int LANGUAGE sql AS 'SELECT 1'`;
+      try { expect(await open()).toEqual([]); } finally { await owner`DROP FUNCTION zz_new_helper()`; }
+    });
+
     it('a sync quote’s terms freeze once sent; the fee is recorded only on a signed license, which ends undo; payees and other labels see nothing', async () => {
       const [{ id: rec }] = await owner`INSERT INTO recordings (tenant_id, slug, title, artist_id) VALUES (${ids.a}, 'sync-rec', 'Sync Cue', ${kesi}) RETURNING id`;
       const [{ id: brief }] = await asOwner((tx) => tx`INSERT INTO sync_briefs (tenant_id, slug, title, client, media) VALUES (${ids.a}, 'brief-x', 'End credits', 'A supervisor', 'film') RETURNING id`);
