@@ -1,6 +1,8 @@
 import 'server-only';
 import type { z } from 'zod';
-import type { Proposal, RegistrationActionCommand } from '@breakrecords/contract';
+import type { Proposal, RegistrationActionCommand, UnclaimedActionCommand } from '@breakrecords/contract';
+import { claimFacts, claimState, claimSteps, SOURCE_LABEL, type ClaimSource, type ClaimStatus } from '@breakrecords/core/unclaimed';
+import { formatMoney } from '@breakrecords/core/money';
 import { FORM_FOR, ON_WORK, ORG_LABEL, ORGS, REF_LABEL, filingFacts, filingOutcome, regState, type FilingSubject, type RegOrg, type RegStatus } from '@breakrecords/core/registrations';
 import { withTenant, type Tx } from '@breakrecords/db/client';
 import { liveApprovals } from './approvals';
@@ -144,16 +146,80 @@ export async function liveRegistrationAction(ctx: RequestContext, c: RegCommand)
 const SOURCE: Record<string, string> = { soundexchange: 'SoundExchange', mlc: 'MLC', pro: 'PRO' };
 const monthYear = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 
-/** Money societies are holding for the label, still open (found, being claimed). */
-export function liveUnclaimed(ctx: RequestContext): Promise<Unclaimed> {
-  return withTenant(sql, ctx, async (tx) => {
-    const rows = await tx<{ slug: string; source: string; what: string; amount_cents: string; why: string; held_since: Date; claim_method: string }[]>`
-      SELECT slug, source::text, what, amount_cents, why, held_since, claim_method FROM unclaimed_royalties
-      WHERE status IN ('found', 'claim_prepared', 'claimed') ORDER BY amount_cents DESC, slug`;
-    const items = rows.map((u) => ({
+type ClaimDb = { slug: string; source: ClaimSource; what: string; amount_cents: string; why: string; held_since: Date; claim_method: string; status: ClaimStatus;
+  approval_id: string | null; submitted_on: Date | null; submit_ref: string | null; resolved_on: Date | null; paid_cents: string | null; resolution_note: string | null;
+  decision: 'approved' | 'rejected' | null; reason: string | null; work_id: string | null; recording_id: string | null };
+
+async function unclaimedIn(tx: Tx): Promise<Unclaimed> {
+  const rows = await tx<ClaimDb[]>`
+    SELECT u.slug, u.source::text AS source, u.what, u.amount_cents, u.why, u.held_since, u.claim_method, u.status::text AS status, u.approval_id, u.submitted_on, u.submit_ref,
+           u.resolved_on, u.paid_cents, u.resolution_note, d.status::text AS decision, d.reason, u.work_id, u.recording_id
+    FROM unclaimed_royalties u LEFT JOIN approval_decisions d ON d.tenant_id = u.tenant_id AND d.approval_id = u.approval_id
+    ORDER BY (u.status IN ('paid', 'dismissed')), u.amount_cents DESC, u.slug`;
+  const items = rows.map((u) => {
+    const st = claimState({ status: u.status, approvalId: u.approval_id, decision: u.decision, rejectReason: u.reason });
+    return {
       id: u.slug, source: SOURCE[u.source], what: u.what, amount: Number(u.amount_cents), why: u.why, since: monthYear(u.held_since), claim: u.claim_method,
-    }));
-    return { total: items.reduce((n, i) => n + i.amount, 0), items };
+      label: st.label, next: st.next, steps: claimSteps(u.source, u.what), ...(st.note ? { note: st.note } : {}), ...(u.approval_id ? { approvalId: u.approval_id } : {}),
+      ...(u.submitted_on ? { submittedOn: dateLabel(u.submitted_on) } : {}), ...(u.submit_ref ? { submitRef: u.submit_ref } : {}),
+      ...(u.resolved_on ? { resolvedOn: dateLabel(u.resolved_on) } : {}), ...(u.paid_cents ? { paid: Number(u.paid_cents) } : {}), ...(u.resolution_note ? { resolution: u.resolution_note } : {}),
+      open: st.open,
+    };
+  });
+  return { total: items.filter((i) => i.open).reduce((n, i) => n + i.amount, 0), items: items.map(({ open: _o, ...i }) => i) };
+}
+
+/** Money societies are holding for the label: open claims first (found, waiting, submitted), then closed ones. */
+export function liveUnclaimed(ctx: RequestContext): Promise<Unclaimed> {
+  return withTenant(sql, ctx, unclaimedIn);
+}
+
+export type ClaimOutcome = { ok: true; value: Unclaimed } | { ok: false; status: number; error: 'not_found' | 'conflict'; message: string };
+
+/** Prepare a claim (an approval card), record it submitted after approval, then paid or not ours. */
+export async function liveClaimAction(ctx: RequestContext, c: z.infer<typeof UnclaimedActionCommand>): Promise<ClaimOutcome> {
+  const [u] = await withTenant(sql, ctx, (tx) => tx<ClaimDb[]>`
+    SELECT u.slug, u.source::text AS source, u.what, u.amount_cents, u.why, u.held_since, u.claim_method, u.status::text AS status, u.approval_id, u.submitted_on, u.submit_ref,
+           u.resolved_on, u.paid_cents, u.resolution_note, d.status::text AS decision, d.reason, u.work_id, u.recording_id
+    FROM unclaimed_royalties u LEFT JOIN approval_decisions d ON d.tenant_id = u.tenant_id AND d.approval_id = u.approval_id WHERE u.slug = ${c.id}`);
+  if (!u) return { ok: false, status: 404, error: 'not_found', message: 'No such unclaimed royalty.' };
+  const st = claimState({ status: u.status, approvalId: u.approval_id, decision: u.decision });
+  const refuse = (message: string) => ({ ok: false as const, status: 409, error: 'conflict' as const, message });
+  const wanted = c.action === 'paid' ? 'resolve' : c.action === 'dismissed' ? (st.next === 'resolve' || st.next === 'prepare' ? st.next : 'resolve') : c.action;
+  if (!st.open) return refuse(`This claim is already closed (${st.label.toLowerCase()}).`);
+  if (st.next !== wanted) {
+    if (c.action === 'prepare') return refuse('A claim for this is already waiting on approval or approved.');
+    if (c.action === 'submitted') return refuse(st.next === 'approve' ? 'Approve the claim first, then submit it and record it here.' : 'Prepare and approve a claim first.');
+    if (c.action === 'paid') return refuse('Record the claim as submitted first.');
+    return refuse('Decide the waiting claim card first.');
+  }
+  let approvalId: string | null = null;
+  if (c.action === 'prepare') {
+    const [{ n }] = await withTenant(sql, ctx, (tx) => tx<{ n: number }[]>`SELECT count(*)::int AS n FROM approvals WHERE id LIKE ${'claim_' + c.id + '%'}`);
+    approvalId = `claim_${c.id}${n ? `_${n + 1}` : ''}`;
+    const proposal: Proposal = {
+      id: approvalId, type: 'filing', title: `Claim ${formatMoney(Number(u.amount_cents))} from ${SOURCE_LABEL[u.source]}`, agent: 'Rights Agent', due: 'This week',
+      impact: `Claims ${formatMoney(Number(u.amount_cents))}`, risk: 'low', riskLabel: 'Claim', context: 'Unclaimed money', href: '/rights/unclaimed', dept: 'Rights',
+    };
+    const out = await liveApprovals(ctx).propose(proposal);
+    if (!out.ok) return refuse(out.message);
+    const detail = {
+      breadcrumb: 'Filing', outcome: { text: `If you approve, the claim for ${formatMoney(Number(u.amount_cents))} is ready to submit to ${SOURCE_LABEL[u.source]}. You submit it on their site, then record it here.` },
+      primaryLabel: 'Approve the claim', rejectLabel: 'Reject with reason',
+      evidence: { whyLabel: 'Why this claim', why: u.why, inputs: [{ label: 'Unclaimed money', ref: SOURCE_LABEL[u.source], href: '/rights/unclaimed' }], steps: claimSteps(u.source, u.what), auditId: `AUD-CLM-${crypto.randomUUID().slice(0, 8).toUpperCase()}` },
+      body: { kind: 'filing', org: SOURCE_LABEL[u.source], works: [{ title: u.what, writers: formatMoney(Number(u.amount_cents)), isrc: `Held since ${monthYear(u.held_since)}`, iswc: 'Not a song' }], facts: claimFacts(u.source, u.what, ctx.tenantName) },
+    };
+    await withTenant(sql, ctx, (tx) => tx`UPDATE approvals SET detail = ${tx.json(detail as never)} WHERE id = ${approvalId}`);
+  }
+  return withTenant(sql, ctx, async (tx) => {
+    if (c.action === 'prepare') await tx`UPDATE unclaimed_royalties SET status = 'claim_prepared', approval_id = ${approvalId} WHERE slug = ${c.id}`;
+    else if (c.action === 'submitted') await tx`UPDATE unclaimed_royalties SET status = 'claimed', submitted_on = ${c.on}, submit_ref = ${c.reference || null} WHERE slug = ${c.id}`;
+    else if (c.action === 'paid') await tx`UPDATE unclaimed_royalties SET status = 'paid', paid_cents = ${c.amount}, resolved_on = ${c.on ?? null} WHERE slug = ${c.id}`;
+    else await tx`UPDATE unclaimed_royalties SET status = 'dismissed', resolution_note = ${c.reason} WHERE slug = ${c.id}`;
+    await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
+      VALUES (${ctx.tenantId}, ${'AUD-CLM-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, ${'claim.' + c.action}, ${c.id},
+              ${tx.json({ source: SOURCE_LABEL[u.source], what: u.what, ...(approvalId ? { approvalId } : {}), ...(c.action === 'paid' ? { paid: c.amount } : {}) })})`;
+    return { ok: true, value: await unclaimedIn(tx) } as const;
   });
 }
 

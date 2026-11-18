@@ -9,7 +9,6 @@ import { StatusPill, type Status } from '@/components/ui/Status';
 import { Term } from '@/components/ui/Controls';
 import { Money } from '@/components/ui/Money';
 import { LinkTabs } from '@/components/ops/LinkTabs';
-import { useDecisions } from '@/data/decisions';
 import type { getProfileClaims, getRegistrations, getUnclaimed } from '@/data/api';
 import o from '@/components/ops/Ops.module.css';
 import s from './Rights.module.css';
@@ -173,53 +172,96 @@ function RegPanel({ org, column, recording, cell, onDone, onClose }: { org: (typ
   );
 }
 
-/** Rights > Unclaimed money (undrawn). Each claim is a filing, so it becomes an approval. */
-export function UnclaimedView({ data }: { data: Awaited<ReturnType<typeof getUnclaimed>> }) {
-  const { propose, proposals, decisions } = useDecisions();
+/**
+ * Rights > Unclaimed money. Each claim is a filing: prepare it (a card in Approvals), approve
+ * it, submit it on the society's site and record that, then record what was paid, or that it
+ * isn't yours.
+ */
+export function UnclaimedView({ data: initial }: { data: Awaited<ReturnType<typeof getUnclaimed>> }) {
+  const [data, setData] = useState(initial);
   return (
     <>
       <div className={o.head}>
-        <div><PageTitle>Unclaimed money</PageTitle><p className={o.sub}>Royalties collection societies are holding for you. A claim is a filing, so each one comes to you first.</p></div>
-        <div className={s.total}><span className={o.eyebrow}>Found</span><span className={s.totalNum}><Money cents={data.total} /></span></div>
+        <div><PageTitle>Unclaimed money</PageTitle><p className={o.sub}>Royalties collection societies are holding that could be yours. A claim is a filing, so each one comes to you first.</p></div>
+        <div className={s.total}><span className={o.eyebrow}>Still to claim</span><span className={s.totalNum}><Money cents={data.total} /></span></div>
       </div>
-      <ul className={s.claims}>
-        {data.items.map((u) => {
-          const pid = `claim_${u.id}`;
-          const proposed = proposals.some((p) => p.id === pid);
-          const decided = decisions[pid]?.status;
-          const viaFiling = u.source === 'MLC';
-          return (
-            <li key={u.id} className={s.claim}>
-              <div className={s.claimMain}>
-                <div className={s.claimTop}><span className={o.eyebrow}>{u.source === 'MLC' ? <Term term="MLC" /> : <Term term="SoundExchange" />}</span><span className={s.claimAmount}><Money cents={u.amount} /></span></div>
-                <h2 className={s.claimTitle}>{u.what}</h2>
-                <p className={o.text2} style={{ fontSize: 'var(--fs-body)', lineHeight: 1.5 }}>{u.why}</p>
-                <dl className={o.kv} style={{ gridTemplateColumns: '120px minmax(0, 1fr)' }}>
-                  <dt>Held since</dt><dd>{u.since}</dd>
-                  <dt>How to claim</dt><dd>{u.claim}</dd>
-                </dl>
-              </div>
-              <div className={s.claimAct}>
-                {viaFiling ? (
-                  <ButtonLink href="/approvals/apr_mlc">Open MLC filing</ButtonLink>
-                ) : proposed ? (
-                  <p className={`${o.status} ${decided === 'approved' ? o.good : o.accent}`} role="status">
-                    <Check size={13} strokeWidth={2.5} aria-hidden="true" />{decided === 'approved' ? 'Approved. Rights Agent files it next.' : decided === 'rejected' ? 'Rejected' : <>Waiting in <Link href="/approvals" className={o.linkInline}>Approvals</Link></>}
-                  </p>
-                ) : (
-                  <Button variant="primary" onClick={() => propose({
-                    id: pid, type: 'filing', title: `${u.source} claim for Night Bus`, agent: 'Rights Agent', due: 'Nov 20',
-                    impact: `Claims ${(u.amount / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`, risk: 'low',
-                    context: 'Unclaimed money', href: '/rights/unclaimed', artists: ['The Low Hours'], releases: ['Night Bus EP'], dept: 'Rights',
-                  })}>Prepare claim</Button>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-      <p className={o.small}>Rights Agent searches SoundExchange and the MLC every week. Amounts are what each society reports; the final payment can differ slightly.</p>
+      {data.items.length ? (
+        <ul className={s.claims}>
+          {data.items.map((u) => <ClaimCard key={u.id} u={u} onDone={setData} />)}
+        </ul>
+      ) : <p className={o.muted}>Nothing found yet.</p>}
+      <p className={o.small}>Amounts are what each society reports; the final payment can differ slightly.</p>
     </>
+  );
+}
+
+type Claim = Awaited<ReturnType<typeof getUnclaimed>>['items'][number];
+function ClaimCard({ u, onDone }: { u: Claim; onDone: (v: Awaited<ReturnType<typeof getUnclaimed>>) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [on, setOn] = useState(todayIso());
+  const [reference, setReference] = useState('');
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [notOurs, setNotOurs] = useState(false);
+  const send = async (body: object, ok: string) => {
+    setBusy(true); setMsg(null);
+    try {
+      const res = await fetch('/api/rights/unclaimed', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: u.id, ...body }) });
+      const out = await res.json().catch(() => null);
+      if (!res.ok) { setMsg({ ok: false, text: out?.message ?? 'That didn’t go through.' }); return; }
+      onDone(out); setMsg({ ok: true, text: ok }); setNotOurs(false);
+    } catch { setMsg({ ok: false, text: 'Couldn’t reach the server. Nothing changed.' }); } finally { setBusy(false); }
+  };
+  const status: Status = u.next === null ? (u.label === 'Paid' ? 'confirmed' : 'notStarted') : u.next === 'approve' ? 'needsYou' : u.next === 'submitted' ? 'prepared' : u.next === 'resolve' ? 'submitted' : 'notStarted';
+  const cents = Math.round(Number(amount || '0') * 100);
+  return (
+    <li className={s.claim} aria-labelledby={`cl-${u.id}`}>
+      <div className={s.claimMain}>
+        <div className={s.claimTop}><span className={o.eyebrow}>{u.source === 'MLC' ? <Term term="MLC" /> : u.source === 'SoundExchange' ? <Term term="SoundExchange" /> : u.source}</span><span className={s.claimAmount}><Money cents={u.amount} /></span></div>
+        <h2 id={`cl-${u.id}`} className={s.claimTitle}>{u.what}</h2>
+        <p className={o.text2} style={{ fontSize: 'var(--fs-body)', lineHeight: 1.5 }}>{u.why}</p>
+        <p><StatusPill status={status} label={u.label} /></p>
+        {u.note && <p className={o.small}>{u.note}</p>}
+        <dl className={o.kv} style={{ gridTemplateColumns: '120px minmax(0, 1fr)' }}>
+          <dt>Held since</dt><dd>{u.since}</dd>
+          {u.submittedOn && <><dt>Claimed</dt><dd>{u.submittedOn}{u.submitRef ? `, ${u.submitRef}` : ''}</dd></>}
+          {u.paid != null && <><dt>Paid</dt><dd><Money cents={u.paid} />{u.resolvedOn ? `, ${u.resolvedOn}` : ''}</dd></>}
+          {u.resolution && <><dt>Not ours</dt><dd>{u.resolution}</dd></>}
+        </dl>
+        {u.next && u.steps && (
+          <details className={s.steps}>
+            <summary>How to claim it</summary>
+            <ol>{u.steps.map((st) => <li key={st}>{st}</li>)}</ol>
+          </details>
+        )}
+      </div>
+      <div className={s.claimAct}>
+        {u.next === 'prepare' && !notOurs && <Button variant="primary" disabled={busy} onClick={() => void send({ action: 'prepare' }, 'Claim prepared. It’s in Approvals with the facts to confirm.')}>Prepare claim</Button>}
+        {u.next === 'approve' && u.approvalId && <ButtonLink href={`/approvals/${u.approvalId}`}>Open the claim card</ButtonLink>}
+        {u.next === 'submitted' && (
+          <form className={o.form} aria-label={`Record the claim for ${u.what}`} onSubmit={(e) => { e.preventDefault(); void send({ action: 'submitted', on, ...(reference.trim() ? { reference: reference.trim() } : {}) }, 'Recorded as submitted. The claim can no longer be undone.'); }}>
+            <label className={o.field}>Submitted on<input className={o.input} type="date" value={on} max={todayIso()} onChange={(e) => setOn(e.target.value)} required /></label>
+            <label className={o.field}>Their reference <span className={o.hint}>Optional.</span><input className={o.input} value={reference} maxLength={120} onChange={(e) => setReference(e.target.value)} /></label>
+            <Button type="submit" variant="primary" disabled={busy}>I submitted the claim</Button>
+          </form>
+        )}
+        {u.next === 'resolve' && !notOurs && (
+          <form className={o.form} aria-label={`Record the payment for ${u.what}`} onSubmit={(e) => { e.preventDefault(); void send({ action: 'paid', amount: cents, on }, 'Payment recorded. The claim is closed.'); }}>
+            <label className={o.field}>Amount received ($)<input className={o.input} inputMode="decimal" value={amount} maxLength={12} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></label>
+            <label className={o.field}>Paid on<input className={o.input} type="date" value={on} max={todayIso()} onChange={(e) => setOn(e.target.value)} /></label>
+            <Button type="submit" variant="primary" disabled={busy || cents <= 0}>Record the payment</Button>
+          </form>
+        )}
+        {(u.next === 'prepare' || u.next === 'resolve') && (notOurs ? (
+          <form className={o.form} aria-label={`Not ours: ${u.what}`} onSubmit={(e) => { e.preventDefault(); void send({ action: 'dismissed', reason: reason.trim() }, 'Marked as not yours. It stays on the list as closed.'); }}>
+            <label className={o.field}>Why it isn’t yours<input className={o.input} value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} /></label>
+            <span style={{ display: 'flex', gap: 8 }}><Button type="submit" disabled={busy || !reason.trim()}>Mark as not ours</Button><Button onClick={() => setNotOurs(false)}>Cancel</Button></span>
+          </form>
+        ) : <Button size="sm" onClick={() => setNotOurs(true)}>Not ours</Button>)}
+        {msg && <p className={o.toast} role={msg.ok ? 'status' : 'alert'}>{msg.ok ? <Check size={16} className={o.good} aria-hidden="true" /> : <CircleAlert size={16} className={o.critical} aria-hidden="true" />}{msg.text}</p>}
+      </div>
+    </li>
   );
 }
 

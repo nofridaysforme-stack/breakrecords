@@ -448,6 +448,30 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       await owner`DELETE FROM recordings WHERE id = ${rec}`;
     });
 
+    it('a claim for unclaimed money: an approved card before it is submitted, then paid with an amount or not ours with a reason, both final', async () => {
+      await owner`INSERT INTO approvals (tenant_id, id, origin, type, title, agent, due, impact, risk) VALUES (${ids.a}, 'claim_t1', 'user', 'filing', 'Claim', 'Rights Agent', 'This week', 'x', 'low')`;
+      await owner`INSERT INTO unclaimed_royalties (tenant_id, slug, source, what, why, amount_cents, held_since, claim_method) VALUES (${ids.a}, 't1', 'soundexchange', 'Held', 'Why', 1000, '2026-01-01', 'Claim')`;
+      const upd = (q: (tx: Parameters<Parameters<typeof asOwner>[0]>[0]) => Promise<unknown>) => asOwner(q);
+      await expect(upd((tx) => tx`UPDATE unclaimed_royalties SET status = 'claimed' WHERE slug = 't1'`)).rejects.toThrow(/hasn’t been approved/);
+      await upd((tx) => tx`UPDATE unclaimed_royalties SET status = 'claim_prepared', approval_id = 'claim_t1' WHERE slug = 't1'`);
+      await expect(upd((tx) => tx`UPDATE unclaimed_royalties SET status = 'dismissed', resolution_note = 'x' WHERE slug = 't1'`)).rejects.toThrow(/decide the waiting claim card/);
+      await expect(upd((tx) => tx`UPDATE unclaimed_royalties SET amount_cents = 5 WHERE slug = 't1'`)).rejects.toThrow(/can’t be changed/);
+      await owner`INSERT INTO approval_decisions (tenant_id, approval_id, status, decided_by, audit_id) VALUES (${ids.a}, 'claim_t1', 'approved', ${ids.ua}, 'AUD-CLM')`;
+      await expect(upd((tx) => tx`UPDATE unclaimed_royalties SET status = 'paid', paid_cents = 900 WHERE slug = 't1'`)).rejects.toThrow(/as submitted before what was paid/);
+      await upd((tx) => tx`UPDATE unclaimed_royalties SET status = 'claimed' WHERE slug = 't1'`);
+      expect((await owner`SELECT executed_at FROM approvals WHERE id = 'claim_t1'`)[0].executed_at).not.toBeNull();
+      await expect(upd((tx) => tx`UPDATE unclaimed_royalties SET status = 'paid' WHERE slug = 't1'`)).rejects.toThrow(/unclaimed_paid_has_amount/);
+      await upd((tx) => tx`UPDATE unclaimed_royalties SET status = 'paid', paid_cents = 900 WHERE slug = 't1'`);
+      await expect(upd((tx) => tx`UPDATE unclaimed_royalties SET status = 'dismissed', resolution_note = 'x' WHERE slug = 't1'`)).rejects.toThrow(/already closed/);
+      // Deleting the song clears the link on a closed claim; pointing it somewhere else is still refused.
+      const [{ id: work }] = await owner`INSERT INTO works (tenant_id, slug, title) VALUES (${ids.a}, 'claim-link', 'Claim link') RETURNING id`;
+      await expect(owner`UPDATE unclaimed_royalties SET work_id = ${work} WHERE slug = 't1'`).rejects.toThrow(/already closed/);
+      await owner`UPDATE unclaimed_royalties SET work_id = NULL WHERE slug = 't1'`;
+      await expect(upd((tx) => tx`DELETE FROM unclaimed_royalties WHERE slug = 't1'`)).rejects.toThrow(/permission denied/);
+      await owner`DELETE FROM unclaimed_royalties WHERE slug = 't1'`;
+      await owner`DELETE FROM works WHERE slug = 'claim-link'`;
+    });
+
     it('each organization’s form belongs to one kind of thing', async () => {
       const [{ id: rec }] = await owner`SELECT id FROM recordings WHERE tenant_id = ${ids.a} LIMIT 1`;
       const row = (kind: string, subject: string) => owner`INSERT INTO documents (tenant_id, kind, subject, subject_id, version, title, pdf_key, sha256, created_by)

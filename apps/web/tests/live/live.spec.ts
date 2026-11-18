@@ -1577,6 +1577,30 @@ test('registrations move along in order: a filing card, approval, submitted (end
   expect((await harbor.request.post('/api/rights/registrations', { data: { action: 'prepare', org: 'pro', subject: 'work', id: 'paper-moons' } })).status()).toBe(404);
 });
 
+test('unclaimed money is claimed through a card, then paid or not ours; another label sees none of it', async ({ page, browser }) => {
+  await signIn(page, USERS.owner);
+  const claim = (data: object) => page.request.post('/api/rights/unclaimed', { data });
+  const list = async () => UnclaimedResponse.parse(await (await page.request.get('/api/rights/unclaimed')).json());
+  const before = await list();
+  const sx = before.items.find((i) => i.source === 'SoundExchange')!;
+  expect((await claim({ action: 'submitted', id: sx.id, on: '2026-11-18' })).status()).toBe(409);
+  expect((await claim({ action: 'prepare', id: sx.id })).status()).toBe(200);
+  const card = await (await page.request.get(`/api/approvals/claim_${sx.id}`)).json();
+  expect(card.body.facts).toHaveLength(3);
+  expect((await page.request.post(`/api/approvals/claim_${sx.id}/decision`, { data: { action: 'approve' } })).status()).toBe(200);
+  expect((await claim({ action: 'submitted', id: sx.id, on: '2026-11-18', reference: 'SX-1' })).status()).toBe(200);
+  expect((await claim({ action: 'paid', id: sx.id, amount: 19000 })).status()).toBe(200);
+  const after = await list();
+  expect(after.items.find((i) => i.id === sx.id)).toMatchObject({ label: 'Paid', paid: 19000, submitRef: 'SX-1', next: null });
+  expect(after.total).toBe(before.total - sx.amount);
+  const mlc = before.items.find((i) => i.source === 'MLC')!;
+  expect((await claim({ action: 'dismissed', id: mlc.id, reason: 'Another song with the same title' })).status()).toBe(200);
+  expect((await list()).total).toBe(0);
+  const harbor = await (await browser.newContext()).newPage();
+  await signIn(harbor, USERS.harbor);
+  expect((await harbor.request.post('/api/rights/unclaimed', { data: { action: 'prepare', id: mlc.id } })).status()).toBe(404);
+});
+
 // Last: staging is reseeded over data people made (flags, reserves, sync quotes, imports). After
 // every test above has written its rows, the seed must still run cleanly on top of them.
 test('the seed runs again over everything the tests made', async () => {

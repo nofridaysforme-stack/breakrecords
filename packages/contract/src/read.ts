@@ -541,8 +541,22 @@ export const RegistrationActionCommand = z.discriminatedUnion('action', [
 ]);
 export const UnclaimedResponse = z.object({
   total: Cents,
-  items: z.array(z.object({ id: Id, source: z.string(), what: z.string(), amount: Cents, why: z.string(), since: Display, claim: z.string() })),
+  items: z.array(z.object({
+    id: Id, source: z.string(), what: z.string(), amount: Cents, why: z.string(), since: Display, claim: z.string(),
+    /** Where the claim stands and the next step; a closed claim (paid, not ours) is listed but not counted. */
+    label: z.string().optional(), note: z.string().optional(),
+    next: z.enum(['prepare', 'approve', 'submitted', 'resolve']).nullable().optional(),
+    approvalId: z.string().optional(), steps: z.array(z.string()).optional(),
+    submittedOn: Display.optional(), submitRef: z.string().optional(), resolvedOn: Display.optional(), paid: Cents.optional(), resolution: z.string().optional(),
+  })),
 });
+/** POST /api/rights/unclaimed: move a claim along. */
+export const UnclaimedActionCommand = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('prepare'), id: z.string().min(1) }).strict(),
+  z.object({ action: z.literal('submitted'), id: z.string().min(1), on: IsoDate, reference: z.string().trim().max(120).optional() }).strict(),
+  z.object({ action: z.literal('paid'), id: z.string().min(1), amount: Cents.refine((n) => n > 0, 'Enter the amount received.'), on: IsoDate.optional() }).strict(),
+  z.object({ action: z.literal('dismissed'), id: z.string().min(1), reason: z.string().trim().min(1, 'Say why it isn’t yours.').max(500) }).strict(),
+]);
 export const ProfileClaimsResponse = z.object({ services: z.array(z.string()), rows: z.array(z.object({ artist: z.string(), cells: z.array(Cell) })) });
 /** POST /api/rights/claims/prepare: Rights Agent prepares every claim not yet started; the artist confirms by email. Returns the updated claims. */
 export const PrepareProfileClaimsCommand = z.object({}).strict();

@@ -41,3 +41,6 @@
 .regFacts { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; font-size: var(--fs-meta); }
 .regFacts dt { color: var(--text-muted); }
 .regFacts dd { margin: 0; font-family: var(--font-mono); }
+.steps { font-size: var(--fs-meta); color: var(--text-2); }
+.steps summary { cursor: pointer; color: var(--text); min-height: var(--tap-min); display: flex; align-items: center; }
+.steps ol { margin: 6px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
