@@ -1,14 +1,14 @@
 import 'server-only';
-import { DOC_LABEL, DOCS_FOR, gapSummary, type DocKind, type DocSubject, type Gap } from '@breakrecords/core/documents';
+import { DOC_LABEL, DOCS_FOR, gapSummary, type DocKind, type DocSubject, type Gap, type PrepareOptions } from '@breakrecords/core/documents';
 import type { DocReview, DocumentsResponse } from '@breakrecords/contract';
 
 // The Documents view, shared by the mock and live backends: every song, recording and release
 // with the documents it can have and the latest version of each.
 
-export type SubjectRef = { subject: DocSubject; id: string; title: string; artist: string; detail: string };
+export type SubjectRef = { subject: DocSubject; id: string; title: string; artist: string; detail: string; payees?: string[] };
 export type DocRow = {
   id: string; kind: DocKind; subjectId: string; version: number; preparedAt: Date; preparedBy: string;
-  gaps: Gap[]; hasCsv: boolean; review: DocReview | null;
+  gaps: Gap[]; hasCsv: boolean; review: DocReview | null; options?: PrepareOptions | null;
 };
 
 /** Whether AI review can run at all on this server: the platform switch and a key. */
@@ -35,7 +35,7 @@ export function documentsView(subjects: SubjectRef[], docs: DocRow[], ai: Docume
   return {
     ai,
     artists: [...new Set(subjects.map((s) => s.artist))].sort(),
-    subjects: subjects.map((s) => ({
+    subjects: subjects.map(({ payees, ...s }) => ({
       ...s,
       docs: DOCS_FOR[s.subject].map((kind) => {
         const mine = docs.filter((d) => d.kind === kind && d.subjectId === s.id).sort((a, b) => b.version - a.version);
@@ -43,6 +43,7 @@ export function documentsView(subjects: SubjectRef[], docs: DocRow[], ai: Docume
         return {
           kind, label: DOC_LABEL[kind], versions: mine.length,
           latest: d ? { id: d.id, version: d.version, preparedAt: at(d.preparedAt), preparedBy: d.preparedBy, gaps: d.gaps, summary: gapSummary(d.gaps), hasCsv: d.hasCsv, review: d.review } : null,
+          ...(kind === 'sx_lod' ? { lod: { payees: payees ?? [], last: d?.options?.lod ?? null } } : {}),
         };
       }),
     })),

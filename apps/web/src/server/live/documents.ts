@@ -1,7 +1,7 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { withTenant, type Tx } from '@breakrecords/db/client';
-import { prepare, toCsv, DOC_LABEL, type DocKind, type DocSubject, type Gap, type Person, type RecordingFacts, type ReleaseFacts, type ReleaseRef, type SongFacts } from '@breakrecords/core/documents';
+import { lodParticipants, prepare, toCsv, DOC_LABEL, type LodTerms, type DocKind, type DocSubject, type Gap, type Person, type RecordingFacts, type ReleaseFacts, type ReleaseRef, type SongFacts } from '@breakrecords/core/documents';
 import type { DocReview, DocumentsResponse } from '@breakrecords/contract';
 import { sql } from '../db';
 import type { RequestContext } from '../context';
@@ -41,7 +41,7 @@ async function catalog(tx: Tx, labelName: string): Promise<Catalog> {
     ids.set(`recording:${r.slug}`, { subject: 'recording', id: r.id });
   }
   for (const c of await tx<{ recording_id: string; party_id: string; role: string }[]>`SELECT recording_id, party_id, role FROM recording_credits ORDER BY position`) {
-    recordings.get(c.recording_id)?.credits.push({ name: people.get(c.party_id)!.name, role: c.role });
+    recordings.get(c.recording_id)?.credits.push({ name: people.get(c.party_id)!.name, role: c.role, person: people.get(c.party_id)! });
   }
   const releases = new Map<string, ReleaseFacts>();
   for (const r of await tx<{ id: string; slug: string; title: string; kind: ReleaseRef['kind']; upc: string | null; release_date: Date | null; artist_id: string }[]>`
@@ -62,14 +62,14 @@ function subjects(c: Catalog): SubjectRef[] {
   const kind = (k: ReleaseRef['kind']) => (k === 'ep' ? 'EP' : k[0].toUpperCase() + k.slice(1));
   return [
     ...[...c.songs.values()].map((s) => ({ subject: 'work' as const, id: s.id, title: s.title, artist: s.recordings[0]?.artist ?? s.writers[0]?.person.name ?? 'No artist', detail: `Song · ${s.writers.length} writer${s.writers.length === 1 ? '' : 's'}` })),
-    ...[...c.recordings.values()].map((r) => ({ subject: 'recording' as const, id: r.id, title: r.title, artist: r.artist.name, detail: `Recording · ${r.isrc ?? 'no ISRC'}` })),
+    ...[...c.recordings.values()].map((r) => ({ subject: 'recording' as const, id: r.id, title: r.title, artist: r.artist.name, detail: `Recording · ${r.isrc ?? 'no ISRC'}`, payees: lodParticipants(r).map((x) => x.name) })),
     ...[...c.releases.values()].map((r) => ({ subject: 'release' as const, id: r.id, title: r.title, artist: r.artist.name, detail: `${kind(r.kind)} · ${r.releaseDate ?? 'no date'}` })),
   ];
 }
 
 async function docRows(tx: Tx): Promise<DocRow[]> {
-  const rows = await tx<{ id: string; kind: DocKind; subject: DocSubject; slug: string; version: number; created_at: Date; by: string; gaps: Gap[]; csv_key: string | null; review: (DocReview & { at: Date }) | null }[]>`
-    SELECT d.id, d.kind::text AS kind, d.subject::text AS subject,
+  const rows = await tx<{ id: string; kind: DocKind; subject: DocSubject; slug: string; version: number; created_at: Date; by: string; gaps: Gap[]; csv_key: string | null; options: { lod?: LodTerms } | null; review: (DocReview & { at: Date }) | null }[]>`
+    SELECT d.id, d.kind::text AS kind, d.subject::text AS subject, d.options,
            coalesce(w.slug, r.slug, rl.slug) AS slug, d.version, d.created_at, coalesce(u.name, split_part(u.email, '@', 1)) AS by, d.gaps, d.csv_key,
            (SELECT jsonb_build_object('id', v.id, 'model', v.model, 'at', v.created_at, 'findings', v.findings, 'nextSteps', v.next_steps)
               FROM document_reviews v WHERE v.document_id = d.id ORDER BY v.created_at DESC LIMIT 1) AS review
@@ -78,7 +78,7 @@ async function docRows(tx: Tx): Promise<DocRow[]> {
       LEFT JOIN recordings r ON d.subject = 'recording' AND r.id = d.subject_id
       LEFT JOIN releases rl ON d.subject = 'release' AND rl.id = d.subject_id`;
   return rows.map((d) => ({
-    id: d.id, kind: d.kind, subjectId: d.slug, version: d.version, preparedAt: d.created_at, preparedBy: d.by ?? 'Someone', gaps: d.gaps, hasCsv: !!d.csv_key,
+    id: d.id, kind: d.kind, subjectId: d.slug, version: d.version, preparedAt: d.created_at, preparedBy: d.by ?? 'Someone', gaps: d.gaps, hasCsv: !!d.csv_key, options: d.options,
     review: d.review ? { ...d.review, at: new Date(d.review.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) } : null,
   }));
 }
@@ -101,7 +101,7 @@ const today = () => new Date().toLocaleDateString('en-US', { month: 'short', day
  * Prepares the next version of a document from the catalog as it is now: renders it, stores the
  * files, records the version with its gaps, and audits it. Earlier versions stay as they were.
  */
-export function livePrepareDocument(ctx: RequestContext, c: { kind: DocKind; subject: DocSubject; id: string }): Promise<DocWrite> {
+export function livePrepareDocument(ctx: RequestContext, c: { kind: DocKind; subject: DocSubject; id: string; lod?: LodTerms }): Promise<DocWrite> {
   return withTenant(sql, ctx, async (tx) => {
     const cat = await catalog(tx, ctx.tenantName);
     const ref = cat.ids.get(`${c.subject}:${c.id}`);
@@ -109,7 +109,8 @@ export function livePrepareDocument(ctx: RequestContext, c: { kind: DocKind; sub
     const facts = c.subject === 'work' ? { subject: 'work' as const, song: cat.songs.get(ref.id)! }
       : c.subject === 'recording' ? { subject: 'recording' as const, recording: cat.recordings.get(ref.id)! }
       : { subject: 'release' as const, release: cat.releases.get(ref.id)! };
-    const doc = prepare(c.kind, facts, today());
+    const opts = c.kind === 'sx_lod' && c.lod ? { lod: c.lod } : {};
+    const doc = prepare(c.kind, facts, today(), opts);
     if (!doc) return { ok: false, status: 400, error: 'invalid', message: `A ${DOC_LABEL[c.kind].toLowerCase()} isn’t made for that.` } as const;
     const [{ next }] = await tx<{ next: number }[]>`SELECT coalesce(max(version), 0) + 1 AS next FROM documents WHERE kind = ${c.kind} AND subject_id = ${ref.id}`;
     const pdf = await renderPdf(doc, { brand: BRAND, version: next });
@@ -123,9 +124,9 @@ export function livePrepareDocument(ctx: RequestContext, c: { kind: DocKind; sub
       throw e;
     }
     const [row] = await tx<{ id: string }[]>`
-      INSERT INTO documents (tenant_id, kind, subject, subject_id, version, title, pdf_key, csv_key, sha256, gaps, created_by)
+      INSERT INTO documents (tenant_id, kind, subject, subject_id, version, title, pdf_key, csv_key, sha256, gaps, created_by, options)
       VALUES (${ctx.tenantId}, ${c.kind}, ${c.subject}, ${ref.id}, ${next}, ${doc.title}, ${`${base}.pdf`}, ${doc.csv ? `${base}.csv` : null},
-              ${createHash('sha256').update(pdf).digest('hex')}, ${tx.json(doc.gaps)}, ${ctx.userId}) RETURNING id`;
+              ${createHash('sha256').update(pdf).digest('hex')}, ${tx.json(doc.gaps)}, ${ctx.userId}, ${opts.lod ? tx.json(opts as never) : null}) RETURNING id`;
     await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
       VALUES (${ctx.tenantId}, ${'AUD-DOC-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'document.prepared', ${row.id},
               ${tx.json({ title: doc.title, version: next, gaps: doc.gaps.length })})`;
@@ -149,14 +150,14 @@ export function liveDocumentFile(ctx: RequestContext, id: string, format: 'pdf' 
 export function liveDocumentForReview(ctx: RequestContext, id: string) {
   return withTenant(sql, ctx, async (tx) => {
     if (!/^[0-9a-f-]{36}$/.test(id)) return null;
-    const [d] = await tx<{ kind: DocKind; subject: DocSubject; subject_id: string; title: string; gaps: Gap[] }[]>`
-      SELECT kind::text AS kind, subject::text AS subject, subject_id, title, gaps FROM documents WHERE id = ${id}`;
+    const [d] = await tx<{ kind: DocKind; subject: DocSubject; subject_id: string; title: string; gaps: Gap[]; options: { lod?: LodTerms } | null }[]>`
+      SELECT kind::text AS kind, subject::text AS subject, subject_id, title, gaps, options FROM documents WHERE id = ${id}`;
     if (!d) return null;
     const cat = await catalog(tx, ctx.tenantName);
     const facts = d.subject === 'work' ? { subject: 'work' as const, song: cat.songs.get(d.subject_id)! }
       : d.subject === 'recording' ? { subject: 'recording' as const, recording: cat.recordings.get(d.subject_id)! }
       : { subject: 'release' as const, release: cat.releases.get(d.subject_id)! };
-    return prepare(d.kind, facts, today());
+    return prepare(d.kind, facts, today(), d.options ?? {});
   });
 }
 

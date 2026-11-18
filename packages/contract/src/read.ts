@@ -513,15 +513,50 @@ export const EditTemplateCommand = z.object({
 export const ReviewStarterCommand = z.object({ reviewed: z.boolean() }).strict();
 
 // ---------- Rights (5c and the undrawn tabs) ----------
-const Cell = z.object({ status: RegistrationStatus, ref: z.string().optional() });
+const Cell = z.object({
+  status: RegistrationStatus, ref: z.string().optional(),
+  /** Registrations only: what the cell says, what to do next, and the filing behind it. */
+  label: z.string().optional(),
+  note: z.string().optional(),
+  next: z.enum(['prepare', 'approve', 'submitted', 'confirmed']).nullable().optional(),
+  approvalId: z.string().optional(),
+  target: z.object({ subject: z.enum(['work', 'recording']), id: Id, title: z.string() }).nullable().optional(),
+  form: z.string().nullable().optional(),
+  refLabel: z.string().optional(),
+  submittedOn: Display.optional(),
+  submitRef: z.string().optional(),
+  confirmedOn: Display.optional(),
+});
 export const RegistrationsResponse = z.object({
   columns: z.array(z.object({ key: z.string(), name: z.string(), sub: z.string(), term: Term.optional() })),
   rows: z.array(z.object({ id: Id, name: z.string(), artist: z.string(), cells: z.array(Cell).length(6) })),
 });
+/** POST /api/rights/registrations: move one registration along. */
+export const RegistrationActionCommand = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('prepare'), org: z.enum(['pro', 'mlc', 'sx_owner', 'sx_artist', 'copyright', 'neighboring']), subject: z.enum(['work', 'recording']), id: z.string().min(1) }).strict(),
+  z.object({ action: z.literal('submitted'), org: z.enum(['pro', 'mlc', 'sx_owner', 'sx_artist', 'copyright', 'neighboring']), subject: z.enum(['work', 'recording']), id: z.string().min(1),
+    on: IsoDate, reference: z.string().trim().max(120).optional() }).strict(),
+  z.object({ action: z.literal('confirmed'), org: z.enum(['pro', 'mlc', 'sx_owner', 'sx_artist', 'copyright', 'neighboring']), subject: z.enum(['work', 'recording']), id: z.string().min(1),
+    reference: z.string().trim().min(1).max(120), on: IsoDate.optional(), iswc: z.string().trim().regex(/^T-?\d{3}\.?\d{3}\.?\d{3}-?\d$/, 'An ISWC looks like T-123.456.789-0.').optional() }).strict(),
+]);
 export const UnclaimedResponse = z.object({
   total: Cents,
-  items: z.array(z.object({ id: Id, source: z.string(), what: z.string(), amount: Cents, why: z.string(), since: Display, claim: z.string() })),
+  items: z.array(z.object({
+    id: Id, source: z.string(), what: z.string(), amount: Cents, why: z.string(), since: Display, claim: z.string(),
+    /** Where the claim stands and the next step; a closed claim (paid, not ours) is listed but not counted. */
+    label: z.string().optional(), note: z.string().optional(),
+    next: z.enum(['prepare', 'approve', 'submitted', 'resolve']).nullable().optional(),
+    approvalId: z.string().optional(), steps: z.array(z.string()).optional(),
+    submittedOn: Display.optional(), submitRef: z.string().optional(), resolvedOn: Display.optional(), paid: Cents.optional(), resolution: z.string().optional(),
+  })),
 });
+/** POST /api/rights/unclaimed: move a claim along. */
+export const UnclaimedActionCommand = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('prepare'), id: z.string().min(1) }).strict(),
+  z.object({ action: z.literal('submitted'), id: z.string().min(1), on: IsoDate, reference: z.string().trim().max(120).optional() }).strict(),
+  z.object({ action: z.literal('paid'), id: z.string().min(1), amount: Cents.refine((n) => n > 0, 'Enter the amount received.'), on: IsoDate.optional() }).strict(),
+  z.object({ action: z.literal('dismissed'), id: z.string().min(1), reason: z.string().trim().min(1, 'Say why it isn’t yours.').max(500) }).strict(),
+]);
 export const ProfileClaimsResponse = z.object({ services: z.array(z.string()), rows: z.array(z.object({ artist: z.string(), cells: z.array(Cell) })) });
 /** POST /api/rights/claims/prepare: Rights Agent prepares every claim not yet started; the artist confirms by email. Returns the updated claims. */
 export const PrepareProfileClaimsCommand = z.object({}).strict();
@@ -655,7 +690,14 @@ export const RosterResponse = z.array(z.object({
 
 // ---------- Prepared documents (Rights → Documents) ----------
 
-export const DocKind = z.enum(['split_sheet', 'registration_packet', 'copyright_worksheet', 'label_copy']);
+export const DocKind = z.enum(['split_sheet', 'registration_packet', 'copyright_worksheet', 'label_copy', 'pro_registration', 'mlc_registration', 'sx_registration', 'sx_lod', 'copyright_group']);
+/** A Letter of Direction's terms: the payee (a credited producer, mixer or engineer), their percentage of the featured artist's share, and from when. */
+export const LodTerms = z.object({
+  payee: z.string().trim().min(1).max(200),
+  percentBp: z.number().int().min(1).max(10000).nullable(),
+  effectiveDate: IsoDate.nullable(),
+  allRoyalties: z.boolean(),
+}).strict();
 export const DocSubject = z.enum(['work', 'recording', 'release']);
 export const DocGap = z.object({ severity: z.enum(['blocker', 'warning']), field: z.string(), message: z.string() });
 export const DocReview = z.object({
@@ -667,14 +709,18 @@ export const DocVersion = z.object({
   id: z.string(), version: z.number().int().positive(), preparedAt: z.string(), preparedBy: z.string(),
   gaps: z.array(DocGap), summary: z.string(), hasCsv: z.boolean(), review: DocReview.nullable(),
 });
-export const DocSlot = z.object({ kind: DocKind, label: z.string(), latest: DocVersion.nullable(), versions: z.number().int().nonnegative() });
+export const DocSlot = z.object({
+  kind: DocKind, label: z.string(), latest: DocVersion.nullable(), versions: z.number().int().nonnegative(),
+  /** For a Letter of Direction: who can be paid (credited producers, mixers, engineers) and the terms it was last made with. */
+  lod: z.object({ payees: z.array(z.string()), last: LodTerms.nullable() }).optional(),
+});
 export const DocSubjectRow = z.object({ subject: DocSubject, id: z.string(), title: z.string(), artist: z.string(), detail: z.string(), docs: z.array(DocSlot) });
 export const DocumentsResponse = z.object({
   ai: z.object({ available: z.boolean(), on: z.boolean(), canChange: z.boolean(), note: z.string() }),
   artists: z.array(z.string()),
   subjects: z.array(DocSubjectRow),
 });
-export const PrepareDocumentCommand = z.object({ kind: DocKind, subject: DocSubject, id: z.string().min(1) }).strict();
+export const PrepareDocumentCommand = z.object({ kind: DocKind, subject: DocSubject, id: z.string().min(1), lod: LodTerms.optional() }).strict();
 export const SetAiAssistCommand = z.object({ on: z.boolean() }).strict();
 export type DocumentsResponse = z.infer<typeof DocumentsResponse>;
 export type DocVersion = z.infer<typeof DocVersion>;

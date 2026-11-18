@@ -191,6 +191,8 @@ export async function liveFacts(tx: Tx): Promise<Record<string, ApprovalFacts>> 
       if (c.release_id && c.new_date) { const f = await releasePlanFacts(tx, c.release_id, c.new_date); if (f) out[c.id] = f; }
       else if (c.id.startsWith('offer_')) out[c.id] = await offerFacts(tx, c.id);
       else if (/^tax_\d{4}$/.test(c.id)) out[c.id] = await taxFilingFacts(tx, Number(c.id.slice(4)));
+      // A song's PRO or MLC filing prepared from Registrations: the publishing checks run on it.
+      else if (/^reg_(pro|mlc)_/.test(c.id) && body?.kind === 'filing' && body.works?.length) out[c.id] = await filingFacts(tx, c.id.startsWith('reg_mlc_') ? 'MLC' : 'PRO', body.works.map((w) => w.title));
       continue;
     }
     const batch = batches.find((b) => b.approval_id === c.id);

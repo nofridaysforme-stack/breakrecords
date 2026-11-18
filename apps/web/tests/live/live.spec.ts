@@ -243,7 +243,7 @@ test.describe('rights (live)', () => {
     // Paper Moons is on the Velvet Hours album but has no filings yet.
     expect(r.rows[5].cells.every((c) => c.status === 'notStarted')).toBe(true);
     await page.goto('/rights/registrations');
-    await expect(page.getByRole('heading', { name: /3 MLC filings need you/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '1 filing waits on your approval' })).toBeVisible(); // the sample MLC filing card
     await expect(page.getByRole('heading', { name: '$312.40 unclaimed found' })).toBeVisible();
   });
 
@@ -1522,6 +1522,83 @@ test('a payee whose record goes missing is told so, never stuck on "page not fou
   await page.goto('/portal');
   await expect(page).toHaveURL(/\/portal$/);
   await expect(page.getByRole('heading', { name: 'Nothing from Northline Records to show you' })).toHaveCount(0);
+});
+
+test('a form for each organization: the Letter of Direction keeps its terms; the MLC form and album group are stored', async ({ page }) => {
+  await signIn(page, USERS.owner);
+  const lod = { payee: 'Marco Dela', percentBp: 250, effectiveDate: null, allRoyalties: true };
+  const res = await page.request.post('/api/rights/documents', { data: { kind: 'sx_lod', subject: 'recording', id: 'velvet-hours', lod } });
+  expect(res.status()).toBe(200);
+  const body = await res.json();
+  const slot = DocumentsResponse.parse(body).subjects.find((x) => x.subject === 'recording' && x.id === 'velvet-hours')!.docs.find((d) => d.kind === 'sx_lod')!;
+  expect(slot.lod).toEqual({ payees: ['Marco Dela'], last: lod });
+  const csv = await (await page.request.get(`/api/rights/documents/${body.prepared}/file?format=csv`)).text();
+  expect(csv.split('\r\n')[1]).toBe('"Kesi Vale","Velvet Hours","All royalties received for this recording","USNL12400007","2.5%"');
+  for (const [kind, subject, id] of [['mlc_registration', 'work', 'night-bus'], ['pro_registration', 'work', 'night-bus'], ['sx_registration', 'recording', 'night-bus'], ['copyright_group', 'release', 'rel_velvet']]) {
+    expect((await page.request.post('/api/rights/documents', { data: { kind, subject, id } })).status()).toBe(200);
+  }
+  expect((await page.request.post('/api/rights/documents', { data: { kind: 'mlc_registration', subject: 'recording', id: 'night-bus' } })).status()).toBe(400);
+  const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+  const [row] = await db<{ options: unknown }[]>`SELECT options FROM documents WHERE id = ${body.prepared}`;
+  await db.end();
+  expect(row.options).toEqual({ lod });
+});
+
+test('registrations move along in order: a filing card, approval, submitted (ending undo), confirmed with its number; PRO and MLC filings get the publishing checks', async ({ page, browser }) => {
+  await signIn(page, USERS.owner);
+  const reg = (data: object) => page.request.post('/api/rights/registrations', { data });
+  const cell = async (rowId: string, col: number) => RegistrationsResponse.parse(await (await page.request.get('/api/rights/registrations')).json()).rows.find((r) => r.id === rowId)!.cells[col];
+  const base = { org: 'copyright', subject: 'recording', id: 'paper-moons' };
+  expect((await reg({ action: 'submitted', ...base, on: '2026-11-18' })).status()).toBe(409);
+  expect((await reg({ action: 'prepare', ...base })).status()).toBe(200);
+  expect(await cell('paper-moons', 4)).toMatchObject({ status: 'needsYou', next: 'approve', approvalId: 'reg_copyright_paper-moons' });
+  expect((await reg({ action: 'prepare', ...base })).status()).toBe(409);
+  const card = await (await page.request.get('/api/approvals/reg_copyright_paper-moons')).json();
+  expect(card.body.facts).toHaveLength(3);
+  expect((await page.request.post('/api/approvals/reg_copyright_paper-moons/decision', { data: { action: 'approve' } })).status()).toBe(200);
+  expect(await cell('paper-moons', 4)).toMatchObject({ status: 'prepared', label: 'Approved, ready to submit', next: 'submitted' });
+  expect((await reg({ action: 'submitted', ...base, on: '2026-11-18', reference: 'Case 1-55' })).status()).toBe(200);
+  expect((await page.request.delete('/api/approvals/reg_copyright_paper-moons/decision')).status()).toBe(409); // submitted ends undo
+  expect((await reg({ action: 'confirmed', ...base, reference: 'SR 1-7777' })).status()).toBe(200);
+  expect(await cell('paper-moons', 4)).toMatchObject({ status: 'confirmed', ref: 'SR 1-7777', submitRef: 'Case 1-55', submittedOn: 'Nov 18, 2026', next: null });
+  const log = ActivityResponse.parse(await (await page.request.get('/api/activity')).json());
+  expect(log.slice(0, 1)[0].who).toBeTruthy();
+
+  // A song's MLC filing carries the publishing checks.
+  expect((await reg({ action: 'prepare', org: 'mlc', subject: 'work', id: 'paper-moons' })).status()).toBe(200);
+  const checks = ApprovalChecksResponse.parse(await (await page.request.get('/api/approvals/checks')).json());
+  expect(checks.items['reg_mlc_paper-moons'].results.map((r) => r.id)).toEqual(expect.arrayContaining(['PUB-01', 'PUB-04']));
+  // A payee and another label can't touch Northline's registrations.
+  const payee = await (await browser.newContext()).newPage();
+  await signIn(payee, USERS.payee, { into: 'Northline Records' });
+  expect((await payee.request.post('/api/rights/registrations', { data: { action: 'prepare', org: 'pro', subject: 'work', id: 'paper-moons' } })).status()).toBe(403);
+  const harbor = await (await browser.newContext()).newPage();
+  await signIn(harbor, USERS.harbor);
+  expect((await harbor.request.post('/api/rights/registrations', { data: { action: 'prepare', org: 'pro', subject: 'work', id: 'paper-moons' } })).status()).toBe(404);
+});
+
+test('unclaimed money is claimed through a card, then paid or not ours; another label sees none of it', async ({ page, browser }) => {
+  await signIn(page, USERS.owner);
+  const claim = (data: object) => page.request.post('/api/rights/unclaimed', { data });
+  const list = async () => UnclaimedResponse.parse(await (await page.request.get('/api/rights/unclaimed')).json());
+  const before = await list();
+  const sx = before.items.find((i) => i.source === 'SoundExchange')!;
+  expect((await claim({ action: 'submitted', id: sx.id, on: '2026-11-18' })).status()).toBe(409);
+  expect((await claim({ action: 'prepare', id: sx.id })).status()).toBe(200);
+  const card = await (await page.request.get(`/api/approvals/claim_${sx.id}`)).json();
+  expect(card.body.facts).toHaveLength(3);
+  expect((await page.request.post(`/api/approvals/claim_${sx.id}/decision`, { data: { action: 'approve' } })).status()).toBe(200);
+  expect((await claim({ action: 'submitted', id: sx.id, on: '2026-11-18', reference: 'SX-1' })).status()).toBe(200);
+  expect((await claim({ action: 'paid', id: sx.id, amount: 19000 })).status()).toBe(200);
+  const after = await list();
+  expect(after.items.find((i) => i.id === sx.id)).toMatchObject({ label: 'Paid', paid: 19000, submitRef: 'SX-1', next: null });
+  expect(after.total).toBe(before.total - sx.amount);
+  const mlc = before.items.find((i) => i.source === 'MLC')!;
+  expect((await claim({ action: 'dismissed', id: mlc.id, reason: 'Another song with the same title' })).status()).toBe(200);
+  expect((await list()).total).toBe(0);
+  const harbor = await (await browser.newContext()).newPage();
+  await signIn(harbor, USERS.harbor);
+  expect((await harbor.request.post('/api/rights/unclaimed', { data: { action: 'prepare', id: mlc.id } })).status()).toBe(404);
 });
 
 // Last: staging is reseeded over data people made (flags, reserves, sync quotes, imports). After

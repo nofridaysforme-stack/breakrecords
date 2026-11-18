@@ -46,7 +46,20 @@ export function DocumentsView({ data }: { data: DocumentsResponse }) {
     } catch { setToast({ ok: false, text: 'Couldn’t reach the server. Nothing was changed.' }); } finally { setBusy(null); }
   };
 
-  const prepare = (sub: Subject, slot: Slot) => call(`${sub.id}:${slot.kind}`, '/api/rights/documents', { kind: slot.kind, subject: sub.subject, id: sub.id }, (v) => {
+  // A Letter of Direction needs its terms first: who is paid, what percentage, from when.
+  const [lodFor, setLodFor] = useState<string | null>(null);
+  const [lod, setLod] = useState({ payee: '', percent: '', effectiveDate: '', allRoyalties: false });
+  const openLod = (sub: Subject, slot: Slot) => {
+    const last = slot.lod?.last;
+    setLod({ payee: last?.payee ?? slot.lod?.payees[0] ?? '', percent: last?.percentBp != null ? String(last.percentBp / 100) : '', effectiveDate: last?.effectiveDate ?? '', allRoyalties: last?.allRoyalties ?? false });
+    setLodFor(`${sub.subject}:${sub.id}:${slot.kind}`);
+  };
+  const lodTerms = () => {
+    const pct = Number(lod.percent);
+    return { payee: lod.payee, percentBp: lod.percent && pct > 0 && pct <= 100 ? Math.round(pct * 100) : null, effectiveDate: lod.allRoyalties ? null : lod.effectiveDate || null, allRoyalties: lod.allRoyalties };
+  };
+  const prepare = (sub: Subject, slot: Slot, terms?: ReturnType<typeof lodTerms>) => call(`${sub.id}:${slot.kind}`, '/api/rights/documents', { kind: slot.kind, subject: sub.subject, id: sub.id, ...(terms ? { lod: terms } : {}) }, (v) => {
+    setLodFor(null);
     const d = v.subjects.find((x) => x.subject === sub.subject && x.id === sub.id)?.docs.find((x) => x.kind === slot.kind)?.latest;
     setOpen(`${sub.subject}:${sub.id}:${slot.kind}`);
     return `${slot.label} for ${sub.title} prepared${d ? `, version ${d.version}. ${d.summary}.` : '.'}`;
@@ -61,7 +74,7 @@ export function DocumentsView({ data }: { data: DocumentsResponse }) {
       <div className={o.head}>
         <div>
           <PageTitle>Documents</PageTitle>
-          <p className={o.sub}>Split sheets, registration packets, copyright worksheets and label copy for {words.catalogOf}, prepared from your catalog. You review and submit them.</p>
+          <p className={o.sub}>Split sheets, PRO and MLC registrations, SoundExchange registrations and Letters of Direction, copyright applications and label copy for {words.catalogOf}, filled in from your catalog. You review and submit them.</p>
         </div>
         <label className={s.filter}>
           <span className={s.filterLabel}>Artist</span>
@@ -130,11 +143,29 @@ export function DocumentsView({ data }: { data: DocumentsResponse }) {
                                   {busy === `${sub.id}:${slot.kind}:ai` ? 'Reviewing' : 'AI review'}
                                 </Button>
                               )}
-                              <Button size="sm" onClick={() => prepare(sub, slot)} disabled={busy === `${sub.id}:${slot.kind}`} aria-label={`${d ? 'Prepare again' : 'Prepare'}: ${slot.label} for ${sub.title}`}>
+                              <Button size="sm" onClick={() => (slot.lod?.payees.length ? openLod(sub, slot) : prepare(sub, slot))} disabled={busy === `${sub.id}:${slot.kind}`} aria-expanded={slot.lod?.payees.length ? lodFor === key : undefined} aria-label={`${d ? 'Prepare again' : 'Prepare'}: ${slot.label} for ${sub.title}`}>
                                 {busy === `${sub.id}:${slot.kind}` ? 'Preparing' : d ? 'Prepare again' : 'Prepare'}
                               </Button>
                             </span>
                           </div>
+                          {lodFor === key && slot.lod && (
+                            <form className={s.details} aria-label={`Letter of Direction terms for ${sub.title}`} onSubmit={(e) => { e.preventDefault(); prepare(sub, slot, lodTerms()); }}>
+                              <p className={s.muted}>The featured artist directs SoundExchange to pay part of their share to a producer, mixer or engineer credited on this recording.</p>
+                              <div className={o.field}><label htmlFor={`${key}-payee`}>Who is paid</label>
+                                <select id={`${key}-payee`} className={o.input} value={lod.payee} onChange={(e) => setLod({ ...lod, payee: e.target.value })}>
+                                  {slot.lod.payees.map((p) => <option key={p} value={p}>{p}</option>)}
+                                </select></div>
+                              <label className={o.field}>Percentage of the featured artist’s share <span className={o.hint}>A percentage, not points. Check the producer agreement.</span>
+                                <input className={o.input} inputMode="decimal" value={lod.percent} maxLength={6} onChange={(e) => setLod({ ...lod, percent: e.target.value.replace(/[^\d.]/g, '') })} /></label>
+                              <label className={o.field}>Effective date <span className={o.hint}>From when SoundExchange starts paying them. It can be in the past.</span>
+                                <input className={o.input} type="date" value={lod.effectiveDate} disabled={lod.allRoyalties} onChange={(e) => setLod({ ...lod, effectiveDate: e.target.value })} /></label>
+                              <label className={s.check2}><input type="checkbox" checked={lod.allRoyalties} onChange={(e) => setLod({ ...lod, allRoyalties: e.target.checked })} /> Apply it to all royalties received for this recording, whatever the date</label>
+                              <span className={s.actions}>
+                                <Button type="submit" variant="primary" size="sm" disabled={busy === `${sub.id}:${slot.kind}`}>Prepare the letter</Button>
+                                <Button size="sm" onClick={() => setLodFor(null)}>Cancel</Button>
+                              </span>
+                            </form>
+                          )}
                           {d && isOpen && (
                             <div id={`${key}-gaps`} className={s.details}>
                               <ul className={s.gaps}>
