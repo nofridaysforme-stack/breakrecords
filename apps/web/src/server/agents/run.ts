@@ -2,7 +2,7 @@ import 'server-only';
 import type { z } from 'zod';
 import type { AgentsResponse } from '@breakrecords/contract';
 import { deptState, planRun, runSummary, type Dept, type Finding, type StoredFinding } from '@breakrecords/core/agents';
-import { auditFindings, metadataFindings, rightsFindings, royaltiesFindings, type AuditFacts, type MetadataFacts, type RegNext, type RightsFacts, type RoyaltiesFacts } from '@breakrecords/core/agentRules';
+import { auditFindings, metadataFindings, releaseFindings, rightsFindings, rosterFindings, royaltiesFindings, type AuditFacts, type MetadataFacts, type RegNext, type ReleaseFacts, type RightsFacts, type RosterFacts, type RoyaltiesFacts } from '@breakrecords/core/agentRules';
 import { personMissing } from '@breakrecords/core/people';
 import { regState, type RegOrg, type RegStatus } from '@breakrecords/core/registrations';
 import type { Person } from '@breakrecords/core/documents';
@@ -17,12 +17,47 @@ import { liveRegistrationAction } from '../live/rights';
 
 export type RunResult = { found: number; closed: number; proposed: number; fixed: number; errors: string[] };
 
-const ACTIVE = ['metadata', 'rights', 'royalties', 'audit'] as const;
-const DEPT_NAME: Record<string, string> = { metadata: 'Metadata', rights: 'Rights', royalties: 'Royalties', audit: 'Audit' };
+const ACTIVE = ['metadata', 'rights', 'royalties', 'audit', 'release', 'artist-relations'] as const;
+const DEPT_NAME: Record<string, string> = { metadata: 'Metadata', rights: 'Rights', royalties: 'Royalties', audit: 'Audit', release: 'Release', 'artist-relations': 'Artist relations' };
 const INPUTS: Record<string, string[]> = {
   metadata: ['Catalog', 'People'], rights: ['Catalog', 'Registrations', 'Unclaimed money'],
   royalties: ['Statements', 'Splits', 'Payouts'], audit: ['Statements', 'Reserves'],
+  release: ['Releases', 'Assets', 'Release plans'], 'artist-relations': ['Splits', 'Payees'],
 };
+
+async function releaseFacts(tx: Tx): Promise<ReleaseFacts> {
+  const rows = await tx<{ id: string; title: string; days: number; cover: boolean; masters: number; tracks: number; missing_isrc: number; upc: boolean; overdue: number; has_runbook: boolean }[]>`
+    SELECT rl.slug AS id, rl.title, (rl.release_date - current_date)::int AS days,
+           EXISTS (SELECT 1 FROM assets a WHERE a.release_id = rl.id AND a.kind = 'cover_art' AND a.ready) AS cover,
+           (SELECT count(DISTINCT t.recording_id)::int FROM release_tracks t JOIN assets a ON a.recording_id = t.recording_id AND a.kind = 'master_audio' AND a.ready WHERE t.release_id = rl.id) AS masters,
+           (SELECT count(*)::int FROM release_tracks t WHERE t.release_id = rl.id) AS tracks,
+           (SELECT count(*)::int FROM release_tracks t JOIN recordings r ON r.id = t.recording_id WHERE t.release_id = rl.id AND r.isrc IS NULL) AS missing_isrc,
+           rl.upc IS NOT NULL AS upc,
+           (SELECT count(*)::int FROM runbook_tasks k JOIN runbook_phases p ON p.id = k.phase_id
+             WHERE p.release_id = rl.id AND k.state <> 'done' AND coalesce(p.starts_on, rl.release_date + p.offset_days) < current_date) AS overdue,
+           EXISTS (SELECT 1 FROM runbook_phases p WHERE p.release_id = rl.id) AS has_runbook
+    FROM releases rl WHERE rl.release_date BETWEEN current_date AND current_date + 28 ORDER BY rl.release_date, rl.slug`;
+  return { upcoming: rows.map((r) => ({ id: r.id, title: r.title, days: r.days, cover: r.cover, masters: r.masters, tracks: r.tracks, missingIsrc: r.missing_isrc, upc: r.upc, overdue: r.overdue, hasRunbook: r.has_runbook })) };
+}
+
+async function rosterFacts(tx: Tx): Promise<RosterFacts> {
+  const unsigned = await tx<{ node: string; title: string; version: number; waiting_on: string[]; days: number }[]>`
+    SELECT n.slug AS node, n.label AS title, v.version, (current_date - v.sent_at::date)::int AS days,
+           coalesce((SELECT array_agg(DISTINCT p.name ORDER BY p.name) FROM split_parties sp JOIN parties p ON p.id = sp.party_id WHERE sp.version_id = v.id AND sp.signed_at IS NULL), '{}') AS waiting_on
+    FROM split_versions v JOIN split_nodes n ON n.id = v.node_id WHERE v.status = 'sent' AND v.sent_at IS NOT NULL ORDER BY v.sent_at`;
+  const payees = await tx<{ id: string; name: string; owed: string; tax: 'missing' | 'expired' | 'ok'; bank: boolean; requested: boolean }[]>`
+    SELECT p.slug AS id, p.name,
+           coalesce((SELECT sum(l.amount_cents) FROM payout_lines l JOIN payout_batches b ON b.id = l.batch_id
+             WHERE l.party_id = p.id AND l.status IN ('included', 'held', 'carried') AND b.status IN ('draft', 'awaiting')), 0) AS owed,
+           CASE WHEN y.tax_form IS NULL THEN 'missing' WHEN y.tax_expires_on < current_date THEN 'expired' ELSE 'ok' END AS tax,
+           y.bank_last4 IS NOT NULL AS bank,
+           EXISTS (SELECT 1 FROM payee_requests r WHERE r.party_id = p.id AND r.kind = 'tax_form' AND r.done_at IS NULL) AS requested
+    FROM payees y JOIN parties p ON p.id = y.party_id ORDER BY p.name`;
+  return {
+    unsigned: unsigned.map((u) => ({ node: u.node, title: u.title, version: u.version, waitingOn: u.waiting_on, days: u.days })),
+    payees: payees.map((p) => ({ id: p.id, name: p.name, owedCents: Number(p.owed), taxForm: p.tax, bank: p.bank, taxRequested: p.requested })),
+  };
+}
 
 async function royaltiesFacts(tx: Tx): Promise<RoyaltiesFacts> {
   const unmatched = await tx<{ isrc: string | null; lines: number; cents: string; rec_id: string | null; rec_title: string | null }[]>`
@@ -135,7 +170,7 @@ export async function runAgents(ctx: RequestContext, trigger: 'schedule' | 'manu
       SELECT slug, agent, autonomy::text AS autonomy, can_act FROM departments WHERE slug = ANY(${[...ACTIVE]})`)
       .map((d) => ({ slug: d.slug, agent: d.agent ?? d.slug, autonomy: d.autonomy, canAct: d.can_act }));
     const stored = await tx<StoredFinding[]>`SELECT key, status::text AS status, approval_id AS "approvalId", fixed FROM agent_findings WHERE dept = ANY(${[...ACTIVE]})`;
-    const found: Finding[] = [...metadataFindings(await metadataFacts(tx)), ...rightsFindings(await rightsFacts(tx)), ...royaltiesFindings(await royaltiesFacts(tx)), ...auditFindings(await auditFacts(tx))];
+    const found: Finding[] = [...metadataFindings(await metadataFacts(tx)), ...rightsFindings(await rightsFacts(tx)), ...royaltiesFindings(await royaltiesFacts(tx)), ...auditFindings(await auditFacts(tx)), ...releaseFindings(await releaseFacts(tx)), ...rosterFindings(await rosterFacts(tx))];
     return { runId: run.id, depts, stored, found };
   });
   const plan = planRun(found, stored, depts);
@@ -156,6 +191,7 @@ export async function runAgents(ctx: RequestContext, trigger: 'schedule' | 'manu
   await withTenant(sql, ctx, async (tx) => {
     // Fixes: only small, reversible ones, only with Act within limits.
     const fixedKeys = new Set<string>();
+    const fixedNoClose = new Set<string>();
     for (const f of plan.fixes) {
       if (f.fix?.kind === 'set_p_year') {
         const res = await tx`UPDATE recordings SET p_year = ${Number(f.fix.args.year)}, updated_at = now() WHERE slug = ${String(f.fix.args.recording)} AND p_year IS NULL`;
@@ -166,19 +202,26 @@ export async function runAgents(ctx: RequestContext, trigger: 'schedule' | 'manu
           FROM recordings r WHERE r.slug = ${String(f.fix.args.recording)} AND r.isrc = ${String(f.fix.args.isrc)}
             AND l.recording_id IS NULL AND l.work_id IS NULL AND upper(regexp_replace(coalesce(l.isrc, ''), '[^A-Za-z0-9]', '', 'g')) = r.isrc`;
         if (res.count) fixedKeys.add(f.key);
+      } else if (f.fix?.kind === 'request_tax_form') {
+        // A routine reminder: the request shows in the payee's portal. Nothing is sent outside the app.
+        const res = await tx`INSERT INTO payee_requests (tenant_id, party_id, kind)
+          SELECT ${ctx.tenantId}, p.id, 'tax_form' FROM parties p WHERE p.slug = ${String(f.fix.args.party)}
+            AND NOT EXISTS (SELECT 1 FROM payee_requests r WHERE r.party_id = p.id AND r.kind = 'tax_form' AND r.done_at IS NULL)`;
+        // The finding stays open until the form is on file; the request is what was done.
+        if (res.count) fixedNoClose.add(f.key);
       }
     }
     const byKey = new Map(found.map((f) => [f.key, f]));
     for (const f of plan.open) {
       await tx`INSERT INTO agent_findings (tenant_id, key, dept, rule, title, detail, href, approval_id, fixed)
-        VALUES (${ctx.tenantId}, ${f.key}, ${f.dept}, ${f.rule}, ${f.title}, ${f.detail}, ${f.href}, ${carded.get(f.key) ?? null}, ${fixedKeys.has(f.key)})
+        VALUES (${ctx.tenantId}, ${f.key}, ${f.dept}, ${f.rule}, ${f.title}, ${f.detail}, ${f.href}, ${carded.get(f.key) ?? null}, ${fixedKeys.has(f.key) || fixedNoClose.has(f.key)})
         ON CONFLICT (tenant_id, key) DO UPDATE SET status = 'open', closed_at = NULL, last_seen = now(), title = EXCLUDED.title, detail = EXCLUDED.detail, href = EXCLUDED.href,
           approval_id = coalesce(EXCLUDED.approval_id, agent_findings.approval_id), fixed = EXCLUDED.fixed`;
     }
     for (const key of plan.keep) {
       const f = byKey.get(key)!;
       await tx`UPDATE agent_findings SET last_seen = now(), title = ${f.title}, detail = ${f.detail},
-        approval_id = coalesce(${carded.get(key) ?? null}, approval_id), fixed = fixed OR ${fixedKeys.has(key)} WHERE key = ${key}`;
+        approval_id = coalesce(${carded.get(key) ?? null}, approval_id), fixed = fixed OR ${fixedKeys.has(key) || fixedNoClose.has(key)} WHERE key = ${key}`;
     }
     // A fix closes its finding at once: it's done.
     const closing = [...plan.close, ...fixedKeys];
@@ -187,7 +230,7 @@ export async function runAgents(ctx: RequestContext, trigger: 'schedule' | 'manu
     for (const d of depts) {
       const mine = (keys: Iterable<string>) => [...keys].filter((k) => k.startsWith(`${d.slug}:`));
       const opened = plan.open.filter((f) => f.dept === d.slug);
-      const summary = runSummary(d.agent, { opened: opened.length, closed: mine(plan.close).length, cards: mine(carded.keys()).length, fixes: mine(fixedKeys).length });
+      const summary = runSummary(d.agent, { opened: opened.length, closed: mine(plan.close).length, cards: mine(carded.keys()).length, fixes: mine([...fixedKeys, ...fixedNoClose]).length });
       if (summary) {
         const cards = mine(carded.keys()).map((k) => carded.get(k)!);
         await tx`INSERT INTO agent_events (tenant_id, id, occurred_at, kind, text, who, dept, inputs, reasoning, output)
@@ -205,7 +248,7 @@ export async function runAgents(ctx: RequestContext, trigger: 'schedule' | 'manu
     result.found = plan.open.length;
     result.closed = closing.length;
     result.proposed = carded.size;
-    result.fixed = fixedKeys.size;
+    result.fixed = fixedKeys.size + fixedNoClose.size;
     await tx`UPDATE agent_runs SET finished_at = now(), found = ${result.found}, closed = ${result.closed}, proposed = ${result.proposed}, fixed = ${result.fixed},
       error = ${result.errors.length ? result.errors.join('\n').slice(0, 2000) : null} WHERE id = ${runId}`;
   });
@@ -223,7 +266,7 @@ export async function runAllAgents(): Promise<{ workspaces: number; failed: numb
   return { workspaces: targets.length, failed };
 }
 
-const AGENT: Record<string, string> = { metadata: 'Metadata Agent', rights: 'Rights Agent', royalties: 'Royalties Agent', audit: 'Audit Agent' };
+const AGENT: Record<string, string> = { metadata: 'Metadata Agent', rights: 'Rights Agent', royalties: 'Royalties Agent', audit: 'Audit Agent', release: 'Release Agent', 'artist-relations': 'Roster Agent' };
 const day = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 const when = (d: Date) => `${day(d)}, ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })} UTC`;
 

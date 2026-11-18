@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { deptState, MAX_CARDS_PER_RUN, planRun, runSummary, type Dept, type Finding } from '../src/agents';
-import { auditFindings, metadataFindings, rightsFindings, royaltiesFindings } from '../src/agentRules';
+import { auditFindings, metadataFindings, releaseFindings, rightsFindings, rosterFindings, royaltiesFindings } from '../src/agentRules';
 
 const dept = (slug: string, autonomy: Dept['autonomy'], canAct = true): Dept => ({ slug, agent: `${slug} agent`, autonomy, canAct });
 const f = (key: string, extra: Partial<Finding> = {}): Finding => ({ dept: 'rights', key, rule: 'RGT-01', title: key, detail: '', href: '/x', ...extra });
@@ -104,5 +104,32 @@ describe('Audit Agent', () => {
     });
     expect(out.map((x) => x.key)).toEqual(['audit:spike:a', 'audit:duplicate:ds-1:ds-2']);
     expect(out.every((x) => !x.card && !x.fix)).toBe(true);
+  });
+});
+
+describe('Release Agent', () => {
+  it('chases art, masters and codes as release day nears, and late plan tasks', () => {
+    const base = { id: 'tide', title: 'Tide', cover: false, masters: 1, tracks: 2, missingIsrc: 1, upc: false, overdue: 2, hasRunbook: true };
+    expect(releaseFindings({ upcoming: [{ ...base, days: 25 }] }).map((x) => x.rule)).toEqual(['REL-21', 'REL-23', 'REL-24']);
+    const close = releaseFindings({ upcoming: [{ ...base, days: 1 }] });
+    expect(close.map((x) => x.rule)).toEqual(['REL-21', 'REL-22', 'REL-23', 'REL-24']);
+    expect(close[2].title).toBe('Tide comes out tomorrow: 1 track has no ISRC and it has no UPC');
+    expect(releaseFindings({ upcoming: [{ ...base, days: 5, cover: true, masters: 2, missingIsrc: 0, upc: true, overdue: 0 }] })).toEqual([]);
+  });
+});
+
+describe('Roster Agent', () => {
+  it('chases signatures after a week, and tax forms and bank details for payees who are owed', () => {
+    const out = rosterFindings({
+      unsigned: [{ node: 'tide', title: 'Tide', version: 2, waitingOn: ['Ari'], days: 9 }, { node: 'new', title: 'New', version: 1, waitingOn: ['Bo'], days: 3 }],
+      payees: [
+        { id: 'ari', name: 'Ari', owedCents: 5000, taxForm: 'missing', bank: false, taxRequested: false },
+        { id: 'bo', name: 'Bo', owedCents: 5000, taxForm: 'expired', bank: true, taxRequested: true },
+        { id: 'cy', name: 'Cy', owedCents: 0, taxForm: 'missing', bank: false, taxRequested: false },
+      ],
+    });
+    expect(out.map((x) => x.key)).toEqual(['roster:sign:tide:v2', 'roster:tax:ari', 'roster:bank:ari', 'roster:tax:bo']);
+    expect(out[1].fix).toEqual({ kind: 'request_tax_form', args: { party: 'ari' } });
+    expect(out[3].fix).toBeUndefined(); // already asked
   });
 });

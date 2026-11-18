@@ -1775,6 +1775,41 @@ test('the Royalties and Audit agents read the statements: lines matched by ISRC 
   await db.end();
 });
 
+test('the Release and Roster agents chase what a release and its payees still need; a tax form request is the only thing done on their own', async ({ page, browser }) => {
+  await signIn(page, USERS.jana);
+  const code = ((await (await page.request.post('/api/admin/invite-codes', { data: { note: 'E2E release agents', maxUses: 1, expiresInDays: 7 } })).json()) as { code: string }).code;
+  const p = await signUp(browser, code, `e2e-release-agents-${Date.now()}@artist.example`);
+  const answers = { profile: 'solo', name: 'Nia Cole', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_yet' }, autonomy: 'draft_and_wait' };
+  expect((await p.request.put('/api/onboarding', { data: { answers, complete: true } })).status()).toBe(200);
+  const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+  const [{ d: soon }] = await db<{ d: string }[]>`SELECT to_char(current_date + 10, 'YYYY-MM-DD') AS d`;
+  const isrc = `USE2G26${String(Date.now() % 100000).padStart(5, '0')}`;
+  expect((await p.request.post('/api/catalog/releases', { data: { title: 'Lantern', kind: 'ep', artist: { name: 'Nia Cole' }, releaseDate: soon, tracks: [{ title: 'Lantern', isrc }, { title: 'Ember' }] } })).status()).toBe(200);
+  // Nia is owed money in a draft batch, with no tax form or bank details.
+  const [{ id: tenant }] = await db<{ id: string }[]>`SELECT id FROM tenants WHERE name = 'Nia Cole' ORDER BY created_at DESC LIMIT 1`;
+  const [{ id: party }] = await db<{ id: string }[]>`SELECT id FROM parties WHERE tenant_id = ${tenant} AND slug = 'nia-cole'`;
+  await db`INSERT INTO payees (tenant_id, party_id) VALUES (${tenant}, ${party})`;
+  const [{ id: batch }] = await db<{ id: string }[]>`INSERT INTO payout_batches (tenant_id, slug, name, cadence, period, pays_on)
+    VALUES (${tenant}, 'e2e-batch', 'E2E', 'monthly', date_trunc('month', current_date), current_date + 20) RETURNING id`;
+  await db`INSERT INTO payout_lines (tenant_id, batch_id, party_id, role, amount_cents) VALUES (${tenant}, ${batch}, ${party}, 'Artist', 12500)`;
+
+  const run = async () => RunAgentsResponse.parse(await (await p.request.post('/api/agents/run')).json());
+  const first = await run();
+  expect(first.findings.map((f) => f.key)).toEqual(expect.arrayContaining(['release:cover:lantern', 'release:masters:lantern', 'release:codes:lantern', 'roster:tax:nia-cole', 'roster:bank:nia-cole']));
+  expect(first.findings.find((f) => f.key === 'release:codes:lantern')!.title).toBe('Lantern comes out in 10 days: 1 track has no ISRC and it has no UPC');
+  expect(first.findings.find((f) => f.key === 'roster:tax:nia-cole')!.title).toBe('Nia Cole is owed $125.00 and their tax form is missing');
+  expect((await db`SELECT 1 FROM payee_requests WHERE party_id = ${party}`).length).toBe(0); // Suggest: nothing done alone
+
+  // With Act within limits, the Roster Agent asks for the tax form in the portal; the finding stays open until it arrives.
+  expect((await p.request.patch('/api/departments/artist-relations', { data: { autonomy: 'act_within_limits' } })).status()).toBe(200);
+  const second = await run();
+  expect(second.result.fixed).toBe(1);
+  expect((await db`SELECT kind::text FROM payee_requests WHERE party_id = ${party} AND done_at IS NULL`).map((r) => r.kind)).toEqual(['tax_form']);
+  expect(second.findings.map((f) => f.key)).toContain('roster:tax:nia-cole');
+  expect((await run()).result.fixed).toBe(0); // asked once
+  await db.end();
+});
+
 // Last: staging is reseeded over data people made (flags, reserves, sync quotes, imports). After
 // every test above has written its rows, the seed must still run cleanly on top of them.
 test('the seed runs again over everything the tests made', async () => {

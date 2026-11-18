@@ -11,7 +11,7 @@ import s from './Departments.module.css';
 
 type Agents = z.infer<typeof AgentsResponse>;
 /** Departments whose agent runs today; the rest start in later parts of the build. */
-const RUNNING = ['metadata', 'rights', 'royalties', 'audit'];
+const RUNNING = ['metadata', 'rights', 'royalties', 'audit', 'release', 'artist-relations'];
 
 /** What the agents found that's still open, for the department being edited, and Run now. */
 export function AgentFindings({ data, dept, deptName, onRun }: { data: Agents; dept: string; deptName: string; onRun?: (a: Agents) => void }) {

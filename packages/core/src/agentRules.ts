@@ -148,3 +148,69 @@ export function auditFindings(f: AuditFacts): Finding[] {
   }
   return out;
 }
+
+// ---------- Release Agent ----------
+// Rule ids REL-21 and up (REL-01 to REL-03 are the checks on date plan cards).
+export type ReleaseFacts = {
+  /** Releases going out in the next 28 days. `days` is how many days until release day. */
+  upcoming: { id: string; title: string; days: number; cover: boolean; masters: number; tracks: number; missingIsrc: number; upc: boolean; overdue: number; hasRunbook: boolean }[];
+};
+
+/** How close a release must be before each thing is chased. */
+export const RELEASE_WINDOW = { assets: 28, masters: 21, codes: 28 };
+
+export function releaseFindings(f: ReleaseFacts): Finding[] {
+  const out: Finding[] = [];
+  const when = (d: number) => (d === 0 ? 'today' : d === 1 ? 'tomorrow' : `in ${d} days`);
+  for (const r of f.upcoming) {
+    const add = (rule: string, what: string, title: string, detail: string, href: string) =>
+      out.push({ dept: 'release', rule, key: `release:${what}:${r.id}`, title, detail, href });
+    if (!r.cover && r.days <= RELEASE_WINDOW.assets) {
+      add('REL-21', 'cover', `${r.title} comes out ${when(r.days)} and has no cover art ready`, 'Stores need 3000 by 3000 pixel art before delivery. Upload it in Catalog › Assets.', '/catalog/assets');
+    }
+    if (r.masters < r.tracks && r.days <= RELEASE_WINDOW.masters) {
+      add('REL-22', 'masters', `${r.title}: ${r.tracks - r.masters} of ${r.tracks} masters aren’t ready`, 'Each track needs its final master audio before delivery. Upload it in Catalog › Assets.', '/catalog/assets');
+    }
+    if ((r.missingIsrc || !r.upc) && r.days <= RELEASE_WINDOW.codes) {
+      const parts = [r.missingIsrc ? `${r.missingIsrc} ${r.missingIsrc === 1 ? 'track has' : 'tracks have'} no ISRC` : null, !r.upc ? 'it has no UPC' : null].filter(Boolean);
+      add('REL-23', 'codes', `${r.title} comes out ${when(r.days)}: ${parts.join(' and ')}`, 'Stores can’t take a release without its codes. Assign them in Catalog, or get them from your distributor.',
+        `/catalog/releases?edit=${encodeURIComponent(r.id)}`);
+    }
+    if (r.overdue && r.hasRunbook) {
+      add('REL-24', 'overdue', `${r.title}: ${r.overdue} release ${r.overdue === 1 ? 'task is' : 'tasks are'} past their date`, 'Open the release plan to see what’s late and who it’s waiting on.',
+        `/releases/${encodeURIComponent(r.id)}`);
+    }
+  }
+  return out;
+}
+
+// ---------- Roster Agent (Artist relations) ----------
+// Rule ids ROS-21 and up.
+export type RosterFacts = {
+  /** Split versions sent for signatures, with who hasn't signed and how many days it's been. */
+  unsigned: { node: string; title: string; version: number; waitingOn: string[]; days: number }[];
+  /** Payees with money waiting who are missing what payment needs. */
+  payees: { id: string; name: string; owedCents: number; taxForm: 'missing' | 'expired' | 'ok'; bank: boolean; taxRequested: boolean }[];
+};
+
+export function rosterFindings(f: RosterFacts): Finding[] {
+  const out: Finding[] = [];
+  for (const s of f.unsigned) {
+    if (s.days < 7 || !s.waitingOn.length) continue;
+    out.push({ dept: 'artist-relations', rule: 'ROS-21', key: `roster:sign:${s.node}:v${s.version}`, title: `${s.title} split v${s.version} is waiting on ${s.waitingOn.join(', ')}`,
+      detail: `Sent ${s.days} days ago. Nobody on it is paid from it until everyone signs.`, href: `/splits/${encodeURIComponent(s.node)}` });
+  }
+  for (const p of f.payees) {
+    if (p.owedCents <= 0) continue;
+    if (p.taxForm !== 'ok') {
+      out.push({ dept: 'artist-relations', rule: 'ROS-22', key: `roster:tax:${p.id}`, title: `${p.name} is owed ${usd(p.owedCents)} and their tax form is ${p.taxForm}`,
+        detail: p.taxRequested ? 'A request is already waiting in their portal.' : 'They can’t be paid without a current W-9 or W-8. Ask them for it from Payouts.', href: '/money/payouts',
+        ...(p.taxRequested ? {} : { fix: { kind: 'request_tax_form', args: { party: p.id } } }) });
+    }
+    if (!p.bank) {
+      out.push({ dept: 'artist-relations', rule: 'ROS-23', key: `roster:bank:${p.id}`, title: `${p.name} is owed ${usd(p.owedCents)} and has no bank details`,
+        detail: 'Ask them to add where to be paid; they do it in their own portal, never by email.', href: '/money/payouts' });
+    }
+  }
+  return out;
+}
