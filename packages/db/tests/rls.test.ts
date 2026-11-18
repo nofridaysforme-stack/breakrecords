@@ -691,6 +691,16 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       }
       // The schedule lists every workspace with departments and an owner to act for.
       expect((await app`SELECT tenant_id, user_id FROM app_agent_tenants()`).filter((r) => r.tenant_id === ids.a)).toEqual([{ tenant_id: ids.a, user_id: ids.ua }]);
+      // Label Head plans: tied to their plan card, kept as approved, and only the team sees them.
+      await asA((tx) => tx`INSERT INTO approvals (tenant_id, id, origin, type, title, agent, due, impact, risk) VALUES (${ids.a}, 'plan_registrations_x', 'user', 'plan', 'Get everything registered', 'Label Head', 'This week', '1 step', 'low')`);
+      await expect(asA((tx) => tx`INSERT INTO plans (tenant_id, id, goal, area, title, steps, approval_id) VALUES (${ids.a}, 'plan_x', 'g', 'registrations', 't', '[{"key":"a"}]', 'missing')`)).rejects.toThrow(/foreign key/);
+      await asA((tx) => tx`INSERT INTO plans (tenant_id, id, goal, area, title, steps, approval_id) VALUES (${ids.a}, 'plan_registrations_x', 'register', 'registrations', 't', '[{"key":"a"}]', 'plan_registrations_x')`);
+      await expect(asA((tx) => tx`UPDATE plans SET goal = 'other'`)).rejects.toThrow(/permission denied/);
+      await expect(asA((tx) => tx`DELETE FROM plans`)).rejects.toThrow(/permission denied/);
+      for (const who of [{ userId: ids.payee, tenantId: ids.a }, { userId: ids.ub, tenantId: ids.b }]) {
+        expect(await withTenant(app, who, (tx) => tx`SELECT 1 FROM plans`)).toHaveLength(0);
+      }
+      await owner`DELETE FROM approvals WHERE id = 'plan_registrations_x'`;
       // A new workspace's departments always include Audit and Artist relations.
       await owner`INSERT INTO departments (tenant_id, slug, name, agent, phase, autonomy, can_act, state) VALUES (${ids.b}, 'content', 'Content studio', NULL, 2, NULL, false, 'later')`;
       expect((await owner`SELECT slug, autonomy::text FROM departments WHERE tenant_id = ${ids.b} AND slug IN ('audit', 'artist-relations') ORDER BY slug`))

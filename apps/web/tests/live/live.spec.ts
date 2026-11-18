@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse, SplitVersionsResponse, ImportsResponse, SyncResponse, Template, PeopleResponse, PersonResponse, AgentsResponse, RunAgentsResponse } from '@breakrecords/contract';
+import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse, SplitVersionsResponse, ImportsResponse, SyncResponse, Template, PeopleResponse, PersonResponse, AgentsResponse, RunAgentsResponse, PlanDraftResponse, PlansResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 import { MAILBOX } from '../../playwright.live.config';
@@ -1808,6 +1808,49 @@ test('the Release and Roster agents chase what a release and its payees still ne
   expect(second.findings.map((f) => f.key)).toContain('roster:tax:nia-cole');
   expect((await run()).result.fixed).toBe(0); // asked once
   await db.end();
+});
+
+test('the Label Head turns a goal into a plan from what the agents found; approving saves it, and steps tick off as findings close', async ({ page, browser }) => {
+  await signIn(page, USERS.jana);
+  const code = ((await (await page.request.post('/api/admin/invite-codes', { data: { note: 'E2E plans', maxUses: 1, expiresInDays: 7 } })).json()) as { code: string }).code;
+  const p = await signUp(browser, code, `e2e-plans-${Date.now()}@artist.example`);
+  const answers = { profile: 'solo', name: 'Oren Vale', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_yet' }, autonomy: 'draft_and_wait' };
+  expect((await p.request.put('/api/onboarding', { data: { answers, complete: true } })).status()).toBe(200);
+  const draftOf = async (goal: string) => PlanDraftResponse.parse(await (await p.request.get(`/api/plans/draft?goal=${encodeURIComponent(goal)}`)).json());
+  expect((await draftOf('Get everything registered')).assumptions.join(' ')).toMatch(/haven’t run yet/);
+
+  const isrc = `USE2H25${String(Date.now() % 100000).padStart(5, '0')}`;
+  expect((await p.request.post('/api/catalog/releases', { data: { title: 'Drift', kind: 'single', artist: { name: 'Oren Vale' }, releaseDate: '2025-06-06', tracks: [{ title: 'Drift', isrc }] } })).status()).toBe(200);
+  expect((await p.request.post('/api/agents/run')).status()).toBe(200);
+  const draft = await draftOf('Get everything registered');
+  expect(draft).toMatchObject({ area: 'registrations', title: 'Get everything registered', empty: null });
+  expect(draft.phases.map((ph) => ph.name)).toEqual(['Get the facts right', 'File the registrations']);
+  const filing = draft.phases[1].steps.find((st) => st.key === 'rights:sx_owner:drift')!;
+  expect(filing).toMatchObject({ href: '/approvals/reg_sx_owner_drift', waitingOnYou: true });
+
+  // Approving saves the plan and an approved plan card; drafting changed nothing.
+  await p.goto('/plan?goal=Get%20everything%20registered');
+  await expect(p.getByRole('heading', { level: 1, name: 'Get everything registered' })).toBeVisible();
+  await p.getByRole('button', { name: /Approve the plan/ }).click();
+  await expect(p.getByRole('status')).toContainText('Plan approved');
+  const plans = PlansResponse.parse(await (await p.request.get('/api/plans')).json()).plans;
+  expect(plans).toHaveLength(1);
+  const total = plans[0].total;
+  expect(plans[0].done).toBe(0);
+  const state = await (await p.request.get('/api/approvals/state')).json();
+  expect(state.proposals.find((x: { id: string }) => x.id === plans[0].id)).toMatchObject({ type: 'plan', agent: 'Label Head' });
+  expect(state.decisions[plans[0].id]).toMatchObject({ status: 'approved' });
+
+  // Fix one step (the genre) and run again: the plan moves on.
+  expect((await p.request.patch('/api/catalog/recordings/drift', { data: { genre: 'Ambient' } })).status()).toBe(200);
+  expect((await p.request.post('/api/agents/run')).status()).toBe(200);
+  const after = PlansResponse.parse(await (await p.request.get('/api/plans')).json()).plans[0];
+  expect(after).toMatchObject({ done: 1, total });
+  expect(after.steps.find((st) => st.key === 'metadata:genre:drift')!.done).toBe(true);
+
+  // A goal with nothing open can't be approved, and nobody else sees the plans.
+  expect((await p.request.post('/api/plans', { data: { goal: 'Get everyone paid' } })).status()).toBe(409);
+  expect(PlansResponse.parse(await (await page.request.get('/api/plans')).json()).plans.map((x) => x.id)).not.toContain(plans[0].id);
 });
 
 // Last: staging is reseeded over data people made (flags, reserves, sync quotes, imports). After

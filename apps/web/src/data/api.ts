@@ -12,7 +12,7 @@ import { approvalDetails, home, homeNumberNotes, homeNumbers, releases, TODAY } 
 import type { ApprovalDetail, Release, Scenario } from './types';
 import type { ApprovalSummary } from '@/components/ui/Approval';
 import * as ops from './ops';
-import type { AgentsResponse, PeopleResponse, PersonResponse, RegistrationsResponse, UnclaimedResponse, SplitVersionsResponse, Module, ReservesResponse, SplitNodeResponse, SplitTreeNode, TaxYearResponse } from '@breakrecords/contract';
+import type { AgentsResponse, PlanDraftResponse, PlansResponse, PeopleResponse, PersonResponse, RegistrationsResponse, UnclaimedResponse, SplitVersionsResponse, Module, ReservesResponse, SplitNodeResponse, SplitTreeNode, TaxYearResponse } from '@breakrecords/contract';
 import { advance, baselineIncome, sale, type AdvanceOffer, type OfferAssumptions, type SaleOffer } from '@breakrecords/core/offers';
 
 export { TODAY };
@@ -413,4 +413,16 @@ export async function getAgents(): Promise<z.infer<typeof AgentsResponse>> {
   const ctx = await liveCtx('activity');
   if (ctx) return (await import('@/server/agents/run')).liveAgents(ctx);
   return { live: false, lastRun: null, findings: [] };
+}
+
+/** Label Head plans that were approved, with progress. Live workspaces only; sample data has none. */
+export async function getPlans(): Promise<z.infer<typeof PlansResponse>> {
+  const ctx = await liveCtx('activity');
+  if (ctx) return (await import('@/server/agents/plans')).livePlans(ctx);
+  return { live: false, plans: [] };
+}
+/** A goal as a plan from what the agents have open, or null on sample data (the sample's own drafts apply there). */
+export async function getPlanDraft(goal: string): Promise<z.infer<typeof PlanDraftResponse> | null> {
+  const ctx = await liveCtx('activity');
+  return ctx ? (await import('@/server/agents/plans')).liveDraftPlan(ctx, goal) : null;
 }

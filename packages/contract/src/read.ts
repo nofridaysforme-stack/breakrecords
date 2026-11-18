@@ -646,6 +646,21 @@ export const FundingError = z.object({ error: z.enum(['invalid', 'unauthorized',
 
 // ---------- Departments, activity, settings, theme, roster (5f to 5i) ----------
 const TeamMember = z.object({ id: Id, name: z.string(), role: z.string() });
+/** A Label Head plan's step: one open finding, where it's done, and whether a card waits on you. */
+const PlanStep = z.object({ key: z.string(), title: z.string(), agent: z.string(), href: Link, waitingOnYou: z.boolean(), done: z.boolean().optional() });
+/** GET /api/plans/draft?goal=: a goal turned into a plan from what the agents have open (live workspaces). */
+export const PlanDraftResponse = z.object({
+  goal: z.string(), area: z.enum(['registrations', 'money', 'release', 'payees', 'catalog', 'everything']), title: z.string(),
+  phases: z.array(z.object({ name: z.string(), steps: z.array(PlanStep) })), assumptions: z.array(z.string()), empty: z.string().nullable(),
+});
+/** POST /api/plans: approve a drafted plan. It's saved with its steps and an approved plan card. */
+export const ApprovePlanCommand = z.object({ goal: z.string().trim().min(1).max(200) }).strict();
+/** GET /api/plans: approved plans, newest first, with how far along each is. */
+export const PlansResponse = z.object({
+  live: z.boolean(),
+  plans: z.array(z.object({ id: z.string(), goal: z.string(), title: z.string(), approved: Display, done: z.number().int(), total: z.number().int(), steps: z.array(PlanStep) })),
+});
+
 /** GET /api/agents: what the agents found that's still open, and their last run. Owners and team. */
 export const AgentsResponse = z.object({
   live: z.boolean(),
