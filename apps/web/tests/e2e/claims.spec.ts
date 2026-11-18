@@ -43,3 +43,29 @@ test('money that isn’t ours is closed with a reason; bad requests are refused'
   expect(res.status()).toBe(200);
   expect(UnclaimedResponse.parse(await res.json()).items.find((i) => i.id === 'unc_mlc')).toMatchObject({ label: 'Not ours', resolution: 'A different song with the same title' });
 });
+
+test('money found in a society’s own search is added by hand, then claimed like any other', async ({ page }) => {
+  await page.goto('/rights/unclaimed');
+  await page.waitForLoadState('networkidle');
+  const look = page.getByRole('region', { name: 'Where to look' });
+  await expect(look.getByRole('link', { name: /The MLC artist lookup/ })).toHaveAttribute('href', 'https://durp.themlc.com/artist-lookup');
+  await expect(look.getByRole('link', { name: /SoundExchange/ })).toHaveAttribute('target', '_blank');
+  const add = page.getByRole('region', { name: 'Add money you found' });
+  await expect(add.getByRole('button', { name: 'Add to the list' })).toBeDisabled();
+  await add.getByLabel('Where you found it').selectOption('mlc');
+  await add.getByLabel('Song or recording').fill('Paper Moons');
+  await add.getByLabel('Amount shown ($)').fill('42.15');
+  await add.getByLabel(/Held since/).fill('2026-03-01');
+  await add.getByRole('button', { name: 'Add to the list' }).click();
+  await expect(add.getByRole('status')).toContainText('Added to the list');
+  const card = page.getByRole('listitem').filter({ has: page.getByRole('heading', { name: 'Paper Moons' }) });
+  await expect(card).toContainText('You found this in The MLC’s search.');
+  await expect(card).toContainText('Mar 2026');
+  const again = await page.request.post('/api/rights/unclaimed', { data: { action: 'add', source: 'mlc', what: 'paper moons', amount: 4215, heldSince: '2026-03-01' } });
+  expect(again.status()).toBe(409);
+  expect((await page.request.post('/api/rights/unclaimed', { data: { action: 'add', source: 'mlc', what: 'x', amount: 0, heldSince: '2026-03-01' } })).status()).toBe(400);
+  await card.getByRole('button', { name: 'Prepare claim' }).click();
+  await expect(card.getByRole('status')).toContainText('Claim prepared');
+  const item = (await unclaimed(page)).items.find((i) => i.what === 'Paper Moons')!;
+  expect(item).toMatchObject({ source: 'MLC', amount: 4215, next: 'approve' });
+});

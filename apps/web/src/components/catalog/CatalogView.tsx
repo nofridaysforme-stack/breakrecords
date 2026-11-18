@@ -10,6 +10,11 @@ import { StatusPill, type Status } from '@/components/ui/Status';
 import { Term } from '@/components/ui/Controls';
 import { LinkTabs } from '@/components/ops/LinkTabs';
 import { AddRelease, type EditTarget } from './AddRelease';
+import { PartyPicker, PeopleTable, type PartyValue, type PeopleList } from './People';
+import { SongEditor } from './SongEditor';
+import { CREDIT_ROLES, parseLength } from '@breakrecords/core/people';
+import type { RecordingRights, SongEdit, UpdateRecordingCommand } from '@breakrecords/contract';
+import type { z } from 'zod';
 import type { getCatalog } from '@/data/api';
 import type { Recording } from '@/data/ops';
 import { formatIsrc, normalizeIsrc } from '@breakrecords/core/codes';
@@ -18,14 +23,14 @@ import o from '@/components/ops/Ops.module.css';
 import s from './Catalog.module.css';
 
 type Data = Awaited<ReturnType<typeof getCatalog>>;
-export type CatalogTab = 'songs' | 'recordings' | 'releases' | 'assets';
+export type CatalogTab = 'songs' | 'recordings' | 'releases' | 'assets' | 'people';
 
 const AI_USE = ['Not declared', 'None', 'Partial, stems', 'Partial, vocals', 'Partial, artwork', 'Full'];
 
 const scoreTone = (n: number) => (n >= 90 ? s.good : n >= 70 ? s.warn : s.critical);
 
 /** 5a. The recordings tab has a 380px detail panel; the other tabs are plain lists from the same parts. */
-export function CatalogView({ data, tab, initialId, inProgress }: { data: Data; tab: CatalogTab; initialId?: string; inProgress?: ReactNode }) {
+export function CatalogView({ data, tab, initialId, inProgress, people = [], openEdit }: { data: Data; tab: CatalogTab; initialId?: string; inProgress?: ReactNode; people?: PeopleList; openEdit?: string }) {
   const [list, setList] = useState(data.recordings);
   const [selectedId, setSelectedId] = useState(initialId && data.recordings.some((r) => r.id === initialId) ? initialId : data.recordings[0]?.id);
   const selected = list.find((r) => r.id === selectedId) ?? list[0];
@@ -36,6 +41,8 @@ export function CatalogView({ data, tab, initialId, inProgress }: { data: Data; 
   const [saved, setSaved] = useState<string | null>(null);
   const codes = useCodes();
   const [adding, setAdding] = useState(false);
+  // Opened from a "Fix it" link: show this recording's edit panel straight away.
+  useEffect(() => { if (tab === 'recordings' && openEdit && openEdit === selectedId) edit.current?.showModal(); }, [tab, openEdit, selectedId]);
 
   /** Gives the recording the next ISRC from the workspace's prefix. */
   const assignIsrc = async (r: Recording) => {
@@ -49,14 +56,14 @@ export function CatalogView({ data, tab, initialId, inProgress }: { data: Data; 
   };
 
   /** Shows the edit at once, then takes the server's version (rescored when live) or puts the old one back. */
-  const save = async (next: Recording) => {
+  const save = async (next: Recording, rights: Partial<UpdateRecordingCommand> = {}) => {
     const before = list.find((x) => x.id === next.id);
     const put = (r: Recording) => setList((l) => l.map((x) => (x.id === r.id ? r : x)));
     put(next); setSaveError(null);
     try {
       const res = await fetch(`/api/catalog/recordings/${encodeURIComponent(next.id)}`, {
         method: 'PATCH', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ genre: next.genre, ai: next.ai, ...(next.isrc !== before?.isrc ? { isrc: next.isrc } : {}) }),
+        body: JSON.stringify({ genre: next.genre, ai: next.ai, ...(next.isrc !== before?.isrc ? { isrc: next.isrc } : {}), ...rights }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) { if (before) put(before); setSaveError(json?.message ?? 'That didn’t save. Nothing was changed.'); return; }
@@ -82,6 +89,7 @@ export function CatalogView({ data, tab, initialId, inProgress }: { data: Data; 
         { label: 'Recordings', href: '/catalog/recordings', count: data.counts.recordings },
         { label: 'Releases', href: '/catalog/releases', count: data.counts.releases },
         { label: 'Assets', href: '/catalog/assets', count: data.counts.assets },
+        { label: 'People', href: '/catalog/people', count: people.length || undefined },
       ]} />
       {saved && !saveError && <p className={o.toast} role="status"><Check size={16} className={o.good} aria-hidden="true" />{saved}</p>}
       {saveError && <p className={o.toast} role="alert"><CircleAlert size={16} className={o.critical} aria-hidden="true" />{saveError}</p>}
@@ -104,12 +112,12 @@ export function CatalogView({ data, tab, initialId, inProgress }: { data: Data; 
     <>
       <UploadDialog ref={upload} onQueue={(names) => setQueued((q) => [...q, ...names])} />
       <AddRelease people={data.people ?? []} open={adding} onClose={() => setAdding(false)} />
-      {selected && <EditDialog ref={edit} recording={selected} onSave={(r) => void save(r)} nextIsrc={codes.data?.nextIsrc ?? null} onAssign={(r) => void assignIsrc(r)} />}
+      {selected && <EditDialog ref={edit} recording={selected} people={people} onSave={(r, rights) => void save(r, rights)} nextIsrc={codes.data?.nextIsrc ?? null} onAssign={(r) => void assignIsrc(r)} />}
     </>
   );
 
   if (tab !== 'recordings') {
-    return <div className={s.single}>{head}{tab === 'songs' ? <Songs data={data} /> : tab === 'releases' ? <>{inProgress}<Releases data={data} nextUpc={codes.data?.nextUpc ?? null} onAssigned={codes.refresh} /></> : <Assets data={data} />}{dialogs}</div>;
+    return <div className={s.single}>{head}{tab === 'songs' ? <Songs data={data} people={people} openEdit={openEdit} /> : tab === 'releases' ? <>{inProgress}<Releases data={data} nextUpc={codes.data?.nextUpc ?? null} onAssigned={codes.refresh} openEdit={openEdit} /></> : tab === 'people' ? <PeopleTable people={people} /> : <Assets data={data} />}{dialogs}</div>;
   }
 
   return (
@@ -160,11 +168,15 @@ export function CatalogView({ data, tab, initialId, inProgress }: { data: Data; 
             <dt><Term term="UPC" /></dt><dd className={o.kvMono}>{selected.upc ?? 'No release yet'}</dd>
             <dt>Song <span className={s.paren}>(composition)</span></dt><dd>{selected.song} · {selected.iswc ? <span className={o.kvMono}>{selected.iswc}</span> : <>ISWC pending</>}</dd>
             <dt>Genre</dt><dd>{selected.genre ?? 'Not set'}</dd>
+            <dt>Master owner</dt><dd>{rightsOf(selected)?.owner ? <Link href={`/catalog/people/${rightsOf(selected)!.owner!.partyId}`} className={o.linkInline}>{rightsOf(selected)!.owner!.name}</Link> : 'Not set'}</dd>
             <dt>AI use</dt><dd>{selected.ai === 'None' ? 'None declared' : selected.ai} · <button type="button" className={o.linkInline} onClick={() => edit.current?.showModal()} aria-label={`Edit AI use for ${selected.title}`}>edit</button></dd>
           </dl>
           <section aria-labelledby="credits-h" className={s.credits}>
             <h3 id="credits-h" className={o.eyebrow}>Credits</h3>
-            <ul>{selected.credits.map((c) => <li key={c.name} className={s.credit}><span>{c.name}</span><span className={o.text2}>{c.role}</span></li>)}</ul>
+            {selected.credits.length ? <ul>{selected.credits.map((c) => {
+              const id = rightsOf(selected)?.credits.find((x) => x.name === c.name)?.partyId;
+              return <li key={c.name} className={s.credit}>{id ? <Link href={`/catalog/people/${id}`} className={o.linkInline}>{c.name}</Link> : <span>{c.name}</span>}<span className={o.text2}>{c.role}</span></li>;
+            })}</ul> : <p className={o.small}>No one credited yet.</p>}
           </section>
           <p className={o.note}><strong>{selected.score}% complete.</strong> {selected.note}</p>
           <Button variant="primary" block className={s.editBtn} onClick={() => edit.current?.showModal()}>Edit metadata</Button>
@@ -175,31 +187,47 @@ export function CatalogView({ data, tab, initialId, inProgress }: { data: Data; 
   );
 }
 
-function Songs({ data }: { data: Data }) {
+type Rights = z.infer<typeof RecordingRights>;
+type SongRow = Data['songs'][number] & { edit?: z.infer<typeof SongEdit> };
+const rightsOf = (r: Recording) => (r as Recording & { rights?: Rights }).rights;
+
+function Songs({ data, people, openEdit }: { data: Data; people: PeopleList; openEdit?: string }) {
+  const [songs, setSongs] = useState(data.songs as SongRow[]);
+  const [editing, setEditing] = useState<string | null>(openEdit && data.songs.some((x) => x.id === openEdit) ? openEdit : null);
+  const [toast, setToast] = useState<string | null>(null);
+  const song = songs.find((x) => x.id === editing);
   return (
+    <>
+    {toast && <p className={o.toast} role="status"><Check size={16} className={o.good} aria-hidden="true" />{toast}</p>}
+    {song?.edit && <SongEditor key={song.id} song={{ id: song.id, title: song.title, ...song.edit }} people={people} onClose={() => setEditing(null)}
+      onSaved={(cat) => { setSongs(cat.songs as SongRow[]); setToast(`${song.title} saved.`); setEditing(null); }} />}
     <div className={o.tableWrap} role="region" aria-label="Songs" tabIndex={0}>
       <table className={o.table}>
         <thead><tr><th scope="col">Song (composition)</th><th scope="col">Writers</th><th scope="col"><Term term="ISWC" /></th><th scope="col">Recordings</th><th scope="col"><Term term="MLC" /></th></tr></thead>
         <tbody>
-          {data.songs.map((x) => (
+          {songs.map((x) => (
             <tr key={x.id}>
               <th scope="row" className={o.rowName}>{x.title}</th>
               <td className={o.text2}>{x.writers}</td>
               <td>{x.iswc ? <span className={o.cellMono}>{x.iswc}</span> : <span className={o.muted}>Pending</span>}</td>
               <td className={o.mono}>{x.recordings}</td>
-              <td><StatusPill status={x.mlc as Status} /></td>
+              <td><StatusPill status={x.mlc as Status} />{x.edit && <Button size="sm" onClick={() => setEditing(x.id)} style={{ marginLeft: 10 }}>Edit<span className="visually-hidden"> {x.title}</span></Button>}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
-function Releases({ data, nextUpc, onAssigned }: { data: Data; nextUpc: string | null; onAssigned: () => void }) {
+function Releases({ data, nextUpc, onAssigned, openEdit }: { data: Data; nextUpc: string | null; onAssigned: () => void; openEdit?: string }) {
   const router = useRouter();
   const [rows, setRows] = useState(data.releases);
-  const [changing, setChanging] = useState<EditTarget | null>(null);
+  const [changing, setChanging] = useState<EditTarget | null>(() => {
+    const r = openEdit ? data.releases.find((x) => x.id === openEdit) : undefined;
+    return r && 'edit' in r && r.edit ? { id: r.id, title: r.title, ...(r.edit as Omit<EditTarget, 'id' | 'title'>) } : null;
+  });
   const [removing, setRemoving] = useState<string | null>(null);
   const remove = async (id: string, title: string) => {
     setToast(null);
@@ -327,28 +355,80 @@ function UploadDialog({ ref, onQueue }: { ref: React.RefObject<HTMLDialogElement
   );
 }
 
-function EditDialog({ ref, recording, onSave, nextIsrc, onAssign }: { ref: React.RefObject<HTMLDialogElement | null>; recording: Recording; onSave: (r: Recording) => void; nextIsrc: string | null; onAssign: (r: Recording) => void }) {
-  const [genre, setGenre] = useState(recording.genre ?? '');
-  const [ai, setAi] = useState(recording.ai);
-  const [isrc, setIsrc] = useState(recording.isrc ?? '');
-  const [last, setLast] = useState(`${recording.id}:${recording.isrc}`);
-  if (last !== `${recording.id}:${recording.isrc}`) { setLast(`${recording.id}:${recording.isrc}`); setGenre(recording.genre ?? ''); setAi(recording.ai); setIsrc(recording.isrc ?? ''); }
+type CreditRow = { key: number; party: PartyValue; role: string };
+const fmtLength = (sec: number | null) => (sec ? `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` : '');
+
+function EditDialog({ ref, recording, people, onSave, nextIsrc, onAssign }: { ref: React.RefObject<HTMLDialogElement | null>; recording: Recording; people: PeopleList; onSave: (r: Recording, rights: Partial<UpdateRecordingCommand>) => void; nextIsrc: string | null; onAssign: (r: Recording) => void }) {
+  const rights = rightsOf(recording);
+  const init = () => ({
+    genre: recording.genre ?? '', ai: recording.ai, isrc: recording.isrc ?? '',
+    credits: (rights?.credits ?? []).map((c, i) => ({ key: i, party: { partyId: c.partyId } as PartyValue, role: c.role })),
+    owner: (rights?.owner ? { partyId: rights.owner.partyId } : null) as PartyValue,
+    pYear: rights?.pYear ? String(rights.pYear) : '', length: fmtLength(rights?.durationS ?? null),
+  });
+  const [f, setF] = useState(init);
+  const [error, setError] = useState<string | null>(null);
+  const sig = `${recording.id}:${recording.isrc}:${JSON.stringify(rights ?? null)}`;
+  const [last, setLast] = useState(sig);
+  if (last !== sig) { setLast(sig); setF(init()); }
+  const pick = people.map((p) => ({ id: p.id, name: p.name }));
+  const ref2 = (v: PartyValue) => (v && 'name' in v ? { name: v.name.trim() } : v);
+  const submit = () => {
+    setError(null);
+    const out: Partial<UpdateRecordingCommand> = {};
+    if (rights) {
+      const credits = f.credits.filter((c) => c.party && ('partyId' in c.party || c.party.name.trim()));
+      if (credits.some((c) => !c.role.trim())) { setError('Give each credit a role, like Producer.'); return; }
+      const now = credits.map((c) => ({ party: ref2(c.party)!, role: c.role.trim() }));
+      if (JSON.stringify(now) !== JSON.stringify(rights.credits.map((c) => ({ party: { partyId: c.partyId }, role: c.role })))) out.credits = now;
+      const owner = f.owner && 'name' in f.owner && !f.owner.name.trim() ? null : ref2(f.owner);
+      if (JSON.stringify(owner) !== JSON.stringify(rights.owner ? { partyId: rights.owner.partyId } : null)) out.owner = owner;
+      const year = f.pYear.trim() ? Number(f.pYear) : null;
+      if (year !== null && (!Number.isInteger(year) || year < 1900 || year > 2100)) { setError('The ℗ year is a year, like 2026.'); return; }
+      if (year !== rights.pYear) out.pYear = year;
+      const len = f.length.trim() ? parseLength(f.length) : null;
+      if (f.length.trim() && len === null) { setError('Write the length as minutes and seconds, like 3:45.'); return; }
+      if (len !== rights.durationS) out.durationS = len;
+    }
+    onSave({ ...recording, genre: f.genre.trim() || null, ai: f.ai, isrc: f.isrc.trim() ? normalizeIsrc(f.isrc) : null }, out);
+    ref.current?.close();
+  };
   return (
     <Drawer ref={ref} title={`Edit ${recording.title}`} id="edit-h">
-      <form className={o.form} onSubmit={(e) => { e.preventDefault(); onSave({ ...recording, genre: genre.trim() || null, ai, isrc: isrc.trim() ? normalizeIsrc(isrc) : null }); ref.current?.close(); }}>
-        <label className={o.field}>Genre<input className={o.input} value={genre} onChange={(e) => setGenre(e.target.value)} /></label>
+      <form className={`${o.form} ${s.drawerScroll}`} onSubmit={(e) => { e.preventDefault(); submit(); }}>
+        <label className={o.field}>Genre<input className={o.input} value={f.genre} onChange={(e) => setF({ ...f, genre: e.target.value })} /></label>
         <label className={o.field}>AI use
-          <select className={o.input} value={ai} onChange={(e) => setAi(e.target.value)}>{AI_USE.filter((v) => v !== 'Not declared' || ai === 'Not declared').map((v) => <option key={v} value={v}>{v === 'None' ? 'None declared' : v}</option>)}</select>
+          <select className={o.input} value={f.ai} onChange={(e) => setF({ ...f, ai: e.target.value })}>{AI_USE.filter((v) => v !== 'Not declared' || f.ai === 'Not declared').map((v) => <option key={v} value={v}>{v === 'None' ? 'None declared' : v}</option>)}</select>
           <span className={o.hint}>Stores ask for this. Declare any AI in the audio, lyrics or art.</span>
         </label>
         <label className={o.field}><span><Term term="ISRC" /></span>
-          <input className={o.input} value={isrc} onChange={(e) => setIsrc(e.target.value)} placeholder="US-XXX-26-00001" autoCapitalize="characters" spellCheck={false} />
+          <input className={o.input} value={f.isrc} onChange={(e) => setF({ ...f, isrc: e.target.value })} placeholder="US-XXX-26-00001" autoCapitalize="characters" spellCheck={false} />
           <span className={o.hint}>From your distributor, or your own. Change it only if it’s wrong: stores pay by it.</span>
         </label>
         {!recording.isrc && nextIsrc && (
           <Button onClick={() => { onAssign(recording); ref.current?.close(); }}>Assign the next ISRC ({formatIsrc(nextIsrc)})</Button>
         )}
-        <p className={o.small}>Credits come from signed agreements, so Metadata Agent updates them.</p>
+        {rights ? (
+          <>
+            <label className={o.field}>Length <span className={o.hint}>Minutes and seconds, like 3:45.</span><input className={o.input} value={f.length} inputMode="numeric" maxLength={8} onChange={(e) => setF({ ...f, length: e.target.value })} /></label>
+            <PartyPicker label="Master owner" hint="Who owns the recording: usually the label or the artist. They're the claimant on copyright and SoundExchange forms." people={pick} value={f.owner} onChange={(v) => setF({ ...f, owner: v })} allowNone />
+            <label className={o.field}>℗ year <span className={o.hint}>The year the recording was first released.</span><input className={o.input} value={f.pYear} inputMode="numeric" maxLength={4} onChange={(e) => setF({ ...f, pYear: e.target.value })} /></label>
+            <fieldset className={s.fieldset}>
+              <legend className={s.legend}>Credits</legend>
+              <p className={o.small}>Producers, mixers and engineers listed here can be paid through a SoundExchange Letter of Direction.</p>
+              <datalist id="credit-roles">{CREDIT_ROLES.map((r) => <option key={r} value={r} />)}</datalist>
+              {f.credits.map((c, i) => (
+                <div key={c.key} className={s.creditRow}>
+                  <PartyPicker label={`Credit ${i + 1}`} people={pick} value={c.party} onChange={(v) => setF({ ...f, credits: f.credits.map((x) => (x.key === c.key ? { ...x, party: v } : x)) })} />
+                  <label className={o.field}>Role<input className={o.input} list="credit-roles" value={c.role} maxLength={60} onChange={(e) => setF({ ...f, credits: f.credits.map((x) => (x.key === c.key ? { ...x, role: e.target.value } : x)) })} /></label>
+                  <Button size="sm" variant="ghost" onClick={() => setF({ ...f, credits: f.credits.filter((x) => x.key !== c.key) })}>Remove<span className="visually-hidden"> credit {i + 1}</span></Button>
+                </div>
+              ))}
+              <Button size="sm" onClick={() => setF({ ...f, credits: [...f.credits, { key: Date.now(), party: { name: '' }, role: 'Producer' }] })}>Add a credit</Button>
+            </fieldset>
+          </>
+        ) : <p className={o.small}>Credits and the master owner can be changed once this recording is saved to your catalog.</p>}
+        {error && <p className={o.toast} role="alert"><CircleAlert size={16} className={o.critical} aria-hidden="true" />{error}</p>}
         <div className={o.formActions}><Button variant="primary" type="submit">Save</Button><Button onClick={() => ref.current?.close()}>Cancel</Button></div>
       </form>
     </Drawer>

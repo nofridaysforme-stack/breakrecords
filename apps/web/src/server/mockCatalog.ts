@@ -31,6 +31,8 @@ export async function mockUpdateRecording(slug: string, cmd: UpdateRecordingComm
   }
   if (cmd.genre !== undefined) next.genre = cmd.genre?.trim() || null;
   if (cmd.ai !== undefined) next.ai = cmd.ai;
+  const rights = await (await import('./mockPeople')).mockUpdateRecordingRights(slug, cmd);
+  if (!rights.ok) return rights;
   store.set(session, { ...edits, [slug]: next });
   // The sample's scores are fixed by design, so the mock keeps them.
   return { ...base, ...next };

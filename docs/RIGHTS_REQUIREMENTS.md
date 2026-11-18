@@ -58,3 +58,9 @@ The platform prepares; a person submits. Memberships and logins belong to the wr
 ## Split sheets
 
 No organization page was read for this. The split sheet carries the song's title, alternate titles and ISWC, and for each writer: legal name, what they wrote, PRO, IPI, publisher and share. Shares total exactly 100%, and every writer signs.
+
+## Where to look for unclaimed money (read Nov 18, 2026)
+
+- **SoundExchange:** the [artists, labels and producers page](https://www.soundexchange.com/what-we-do/for-artists-labels-and-producers/) has a search for owners and featured artists who haven't registered, to see if digital performance royalties are owed. Registering is free; registered members search and claim recordings in SoundExchange Direct.
+- **The MLC:** the [artist lookup](https://durp.themlc.com/artist-lookup) shows a selection of unmatched recordings; members see the fuller list and use the Matching and Claiming tools in the portal. If a name isn't listed, The MLC suggests its public song search.
+- **PROs:** no public unclaimed list was found. Songview (ASCAP and BMI repertory search) shows whether a song is registered and with which shares.

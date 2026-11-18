@@ -9,6 +9,8 @@ import { StatusPill, type Status } from '@/components/ui/Status';
 import { Term } from '@/components/ui/Controls';
 import { Money } from '@/components/ui/Money';
 import { LinkTabs } from '@/components/ops/LinkTabs';
+import { EmptyState } from '@/components/ui/Blocks';
+import { WHERE_TO_LOOK } from '@breakrecords/core/unclaimed';
 import type { getProfileClaims, getRegistrations, getUnclaimed } from '@/data/api';
 import o from '@/components/ops/Ops.module.css';
 import s from './Rights.module.css';
@@ -55,6 +57,11 @@ export function RegistrationsView({ data: initial, unclaimed }: { data: Reg; unc
         <div><PageTitle>Registrations</PageTitle><p className={o.sub}>Every place a recording or song needs to be registered so it gets paid. Choose a cell to file it or record where it stands. Rights is where you register and collect; the agreements behind it, publishing deals included, are in <Link href="/contracts" className={o.linkInline}>Contracts</Link>, and who gets what share is in <Link href="/splits" className={o.linkInline}>Splits</Link>.</p></div>
         <Legend />
       </div>
+      {data.rows.length === 0 ? (
+        <EmptyState title="Nothing to register yet" action={<ButtonLink href="/catalog" variant="primary">Go to Catalog</ButtonLink>}>
+          A recording shows up here once it’s on a release. Add your releases and songs in Catalog, then file each one from this page.
+        </EmptyState>
+      ) : (
       <div className={s.matrixWrap} role="region" aria-label="Registrations by recording" tabIndex={0}>
         <table className={s.matrix}>
           <thead>
@@ -83,6 +90,7 @@ export function RegistrationsView({ data: initial, unclaimed }: { data: Reg; unc
           </tbody>
         </table>
       </div>
+      )}
       <div className={o.callouts}>
         <section className={`${o.callout} ${waiting ? o.calloutCritical : ''}`} aria-labelledby="fil-h">
           <div className={o.calloutBody}>
@@ -93,10 +101,15 @@ export function RegistrationsView({ data: initial, unclaimed }: { data: Reg; unc
         </section>
         <section className={o.callout} aria-labelledby="unc-h">
           <div className={o.calloutBody}>
-            <h2 id="unc-h" className={o.calloutTitle}><Money cents={unclaimed} /> unclaimed found</h2>
-            <p className={o.calloutText}>Societies are holding royalties that could be yours. Claim each one with a filing.</p>
+            {unclaimed > 0 ? <>
+              <h2 id="unc-h" className={o.calloutTitle}><Money cents={unclaimed} /> unclaimed found</h2>
+              <p className={o.calloutText}>Societies are holding royalties that could be yours. Claim each one with a filing.</p>
+            </> : <>
+              <h2 id="unc-h" className={o.calloutTitle}>Look for unclaimed money</h2>
+              <p className={o.calloutText}>SoundExchange and The MLC hold royalties nobody has claimed. Search them for free and add what you find.</p>
+            </>}
           </div>
-          <ButtonLink href="/rights/unclaimed" className={s.nowrap}>Start claim</ButtonLink>
+          <ButtonLink href="/rights/unclaimed" className={s.nowrap}>{unclaimed > 0 ? 'Start claim' : 'Where to look'}</ButtonLink>
         </section>
       </div>
       <dialog ref={panel} className={o.drawer} aria-labelledby="reg-h" onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close(); }} onClose={() => setSel(null)}>
@@ -189,9 +202,66 @@ export function UnclaimedView({ data: initial }: { data: Awaited<ReturnType<type
         <ul className={s.claims}>
           {data.items.map((u) => <ClaimCard key={u.id} u={u} onDone={setData} />)}
         </ul>
-      ) : <p className={o.muted}>Nothing found yet.</p>}
+      ) : (
+        <EmptyState title="Nothing found yet">Search the places below for royalties held in your name or your artists’ names, then add what you find.</EmptyState>
+      )}
       <p className={o.small}>Amounts are what each society reports; the final payment can differ slightly.</p>
+      <div className={s.findGrid}>
+        <section className={s.findBox} aria-labelledby="look-h">
+          <h2 id="look-h" className={s.findTitle}>Where to look</h2>
+          <ul className={s.lookList}>
+            {WHERE_TO_LOOK.map((w) => (
+              <li key={w.source}>
+                <a href={w.href} target="_blank" rel="noopener noreferrer" className={o.linkInline}>{w.name}<span className="visually-hidden"> (opens in a new tab)</span></a>
+                <p className={o.small}>{w.text}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+        <AddFound onDone={setData} />
+      </div>
     </>
+  );
+}
+
+/** Add money found in a society's own search. It joins the list as Found and is claimed like any other. */
+function AddFound({ onDone }: { onDone: (v: Awaited<ReturnType<typeof getUnclaimed>>) => void }) {
+  const [source, setSource] = useState<'soundexchange' | 'mlc' | 'pro'>('soundexchange');
+  const [what, setWhat] = useState('');
+  const [amount, setAmount] = useState('');
+  const [since, setSince] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const cents = Math.round(Number(amount || '0') * 100);
+  const submit = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const res = await fetch('/api/rights/unclaimed', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'add', source, what: what.trim(), amount: cents, heldSince: since, ...(note.trim() ? { note: note.trim() } : {}) }) });
+      const out = await res.json().catch(() => null);
+      if (!res.ok) { setMsg({ ok: false, text: out?.message ?? 'That didn’t go through. Nothing was added.' }); return; }
+      onDone(out); setWhat(''); setAmount(''); setSince(''); setNote('');
+      setMsg({ ok: true, text: 'Added to the list. Prepare a claim when you’re ready.' });
+    } catch { setMsg({ ok: false, text: 'Couldn’t reach the server. Nothing was added.' }); } finally { setBusy(false); }
+  };
+  return (
+    <section className={s.findBox} aria-labelledby="add-h">
+      <h2 id="add-h" className={s.findTitle}>Add money you found</h2>
+      <form className={o.form} aria-labelledby="add-h" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+        <label className={o.field}>Where you found it
+          <select className={o.input} value={source} onChange={(e) => setSource(e.target.value as typeof source)}>
+            <option value="soundexchange">SoundExchange</option><option value="mlc">The MLC</option><option value="pro">A PRO (ASCAP, BMI, SESAC, GMR)</option>
+          </select>
+        </label>
+        <label className={o.field}>Song or recording<input className={o.input} value={what} maxLength={200} onChange={(e) => setWhat(e.target.value)} required /></label>
+        <label className={o.field}>Amount shown ($)<input className={o.input} inputMode="decimal" value={amount} maxLength={12} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} required /></label>
+        <label className={o.field}>Held since <span className={o.hint}>The earliest date shown.</span><input className={o.input} type="date" value={since} max={todayIso()} onChange={(e) => setSince(e.target.value)} required /></label>
+        <label className={o.field}>Note <span className={o.hint}>Optional. For example, the period or a reference.</span><input className={o.input} value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} /></label>
+        <Button type="submit" variant="primary" disabled={busy || !what.trim() || cents <= 0 || !since}>Add to the list</Button>
+      </form>
+      {msg && <p className={o.toast} role={msg.ok ? 'status' : 'alert'}>{msg.ok ? <Check size={16} className={o.good} aria-hidden="true" /> : <CircleAlert size={16} className={o.critical} aria-hidden="true" />}{msg.text}</p>}
+    </section>
   );
 }
 
@@ -288,7 +358,12 @@ export function ClaimsView({ data }: { data: Awaited<ReturnType<typeof getProfil
         <div><PageTitle>Profile claims</PageTitle><p className={o.sub}>Verified artist profiles let you update photos and bios and see listener data.</p></div>
         <Legend />
       </div>
-      <div className={s.matrixWrap} role="region" aria-label="Profile claims by artist" tabIndex={0}>
+{rows.length === 0 ? (
+        <EmptyState title="No artists yet" action={<ButtonLink href="/catalog" variant="primary">Go to Catalog</ButtonLink>}>
+          An artist shows up here once they have a recording in Catalog.
+        </EmptyState>
+      ) : (
+            <div className={s.matrixWrap} role="region" aria-label="Profile claims by artist" tabIndex={0}>
         <table className={s.matrix}>
           <thead><tr><th scope="col">Artist</th>{data.services.map((sv) => <th key={sv} scope="col">{sv}</th>)}</tr></thead>
           <tbody>
@@ -301,6 +376,7 @@ export function ClaimsView({ data }: { data: Awaited<ReturnType<typeof getProfil
           </tbody>
         </table>
       </div>
+      )}
       {error && <p className={o.toast} role="alert"><CircleAlert size={16} className={o.critical} aria-hidden="true" />{error}</p>}
       <div className={o.callouts}>
         <section className={o.callout} aria-labelledby="pc-h">

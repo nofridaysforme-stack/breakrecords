@@ -6,6 +6,7 @@ import { catalogReleases, recordings, songs } from '@/data/ops';
 import { SAMPLE_LYRICS, SAMPLE_MASTER_OWNER, SAMPLE_PEOPLE, SAMPLE_P_YEAR, SAMPLE_RELEASE_TRACKS, SAMPLE_SIGNED, SAMPLE_SIGNED_BY, SAMPLE_SONGS } from '@/data/rightsDetails';
 import { cookies } from 'next/headers';
 import { mockSession } from './session';
+import { mockOverlay, slugify, type Overlay } from './mockPeople';
 import { renderPdf } from './documents/render';
 import { documentStore, StorageRefused } from './documents/storage';
 import { aiState, documentsView, type DocRow, type SubjectRef } from './documents/view';
@@ -15,31 +16,43 @@ import { aiState, documentsView, type DocRow, type SubjectRef } from './document
 
 const LABEL = 'Northline Records';
 const BRAND = 'Indie SRVCS';
-const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const seconds = (d: string) => { const [m, s] = d.split(':').map(Number); return m * 60 + s; };
 
-function facts() {
+function facts(o: Overlay) {
   const people = new Map<string, Person>();
+  const withEdits = (p: Person): Person => { const e = o.people[p.id]; if (!e) return p; const { isni: _i, ...rest } = e; return { ...p, ...rest }; };
   const person = (name: string): Person => {
-    if (!people.has(name)) {
+    const id = slugify(name);
+    if (!people.has(id)) {
       const p = SAMPLE_PEOPLE.find((x) => x.name === name);
-      people.set(name, { id: slugify(name), name, type: p?.type ?? (name === 'The Low Hours' ? 'group' : 'person'), legalName: p?.legalName ?? null, pro: p?.pro ?? null, ipi: p?.ipi ?? null, email: p?.email ?? null, address: p?.address ?? null, citizenship: p?.citizenship ?? null, domicile: p?.domicile ?? null });
+      people.set(id, withEdits({ id, name, type: p?.type ?? (name === 'The Low Hours' ? 'group' : 'person'), legalName: p?.legalName ?? null, pro: p?.pro ?? null, ipi: p?.ipi ?? null, email: p?.email ?? null, phone: null, address: p?.address ?? null, citizenship: p?.citizenship ?? null, domicile: p?.domicile ?? null }));
     }
-    return people.get(name)!;
+    return people.get(id)!;
   };
+  for (const p of SAMPLE_PEOPLE) person(p.name);
+  for (const a of o.added) if (!people.has(a.id)) people.set(a.id, withEdits({ id: a.id, name: a.name, type: a.type, legalName: null, pro: null, ipi: null, email: null, phone: null, address: null, citizenship: null, domicile: null }));
+  const byId = (id: string | null | undefined) => (id ? people.get(id) ?? null : null);
   const songMap = new Map<string, SongFacts>();
   for (const s of songs) {
     const detail = SAMPLE_SONGS[s.id];
+    const ed = o.songs[s.id];
     const writers = s.writers.split(',').map((x) => /^(.*) (\d+)%$/.exec(x.trim())).filter((m): m is RegExpExecArray => !!m).map((m) => {
       const d = detail?.writers[m[1]];
-      return { person: person(m[1]), shareBp: Number(m[2]) * 100, confirmed: SAMPLE_SIGNED.has(s.id) || SAMPLE_SIGNED_BY.get(s.id) === m[1], role: d?.role ?? null, publisher: d?.publisher ? person(d.publisher) : null };
+      const w = person(m[1]);
+      const e = ed?.writers?.[w.id];
+      return { person: w, shareBp: Number(m[2]) * 100, confirmed: SAMPLE_SIGNED.has(s.id) || SAMPLE_SIGNED_BY.get(s.id) === m[1],
+        role: e ? e.role : d?.role ?? null, publisher: e ? byId(e.publisher) : d?.publisher ? person(d.publisher) : null };
     });
-    songMap.set(s.title, { id: s.id, title: s.title, iswc: s.iswc, altTitles: detail?.altTitles ?? [], completionYear: detail?.completed ?? null, hasLyrics: SAMPLE_LYRICS.has(s.id), writers, recordings: [] });
+    songMap.set(s.title, { id: s.id, title: s.title, iswc: s.iswc, altTitles: ed?.altTitles ?? detail?.altTitles ?? [], completionYear: ed && ed.completionYear !== undefined ? ed.completionYear : detail?.completed ?? null, hasLyrics: SAMPLE_LYRICS.has(s.id), writers, recordings: [] });
   }
   const recMap = new Map<string, RecordingFacts>();
   for (const r of recordings) {
     const song = r.song ? songMap.get(r.song) ?? null : null;
-    const rec: RecordingFacts = { id: r.id, title: r.title, isrc: r.isrc, durationS: r.duration ? seconds(r.duration) : null, genre: r.genre, artist: person(r.artist), owner: person(SAMPLE_MASTER_OWNER), pYear: SAMPLE_P_YEAR[r.id] ?? null, credits: r.credits.map((c) => ({ ...c, person: person(c.name) })), song, releases: [] };
+    const ed = o.recordings[r.id];
+    const credits = ed?.credits ? ed.credits.map((c) => { const p = byId(c.partyId); return { name: p?.name ?? c.partyId, role: c.role, person: p }; }) : r.credits.map((c) => ({ ...c, person: person(c.name) }));
+    const durationS = ed && ed.durationS !== undefined ? ed.durationS : r.duration ? seconds(r.duration) : null;
+    const rec: RecordingFacts = { id: r.id, title: r.title, isrc: r.isrc, durationS, genre: r.genre, artist: person(r.artist),
+      owner: ed && ed.owner !== undefined ? byId(ed.owner) : person(SAMPLE_MASTER_OWNER), pYear: ed && ed.pYear !== undefined ? ed.pYear : SAMPLE_P_YEAR[r.id] ?? null, credits, song, releases: [] };
     recMap.set(r.id, rec);
     song?.recordings.push({ title: r.title, isrc: r.isrc, artist: r.artist, durationS: rec.durationS });
   }
@@ -55,8 +68,11 @@ function facts() {
     });
     relMap.set(r.id, rel);
   }
-  return { songs: [...songMap.values()], recordings: [...recMap.values()], releases: [...relMap.values()] };
+  return { songs: [...songMap.values()], recordings: [...recMap.values()], releases: [...relMap.values()], people };
 }
+
+/** The sample catalog's document facts with this session's edits. */
+export async function mockFacts() { return facts(await mockOverlay()); }
 
 function subjects(f: ReturnType<typeof facts>): SubjectRef[] {
   const kind = (k: string) => (k === 'ep' ? 'EP' : k[0].toUpperCase() + k.slice(1));
@@ -78,13 +94,13 @@ const mine = async () => { const s = await mockSession(); if (!store.has(s)) sto
 const current = async () => { const s = (await cookies()).get('br_mock_session')?.value ?? ''; return { session: s, docs: store.get(s) ?? [] }; };
 const view = async (): Promise<DocumentsResponse> => {
   const { session, docs } = await current();
-  return documentsView(subjects(facts()), docs, aiState(aiOn.get(session) ?? false, true));
+  return documentsView(subjects(await mockFacts()), docs, aiState(aiOn.get(session) ?? false, true));
 };
 
 export const mockDocuments = () => view();
 
-function factsFor(subject: DocSubject, id: string) {
-  const f = facts();
+async function factsFor(subject: DocSubject, id: string) {
+  const f = await mockFacts();
   if (subject === 'work') { const song = f.songs.find((s) => s.id === id); return song ? { subject, song } : null; }
   if (subject === 'recording') { const recording = f.recordings.find((r) => r.id === id); return recording ? { subject, recording } : null; }
   const release = f.releases.find((r) => r.id === id);
@@ -94,7 +110,7 @@ function factsFor(subject: DocSubject, id: string) {
 const today = () => new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 export async function mockPrepareDocument(c: { kind: DocKind; subject: DocSubject; id: string; lod?: LodTerms }): Promise<{ ok: true; value: DocumentsResponse; id: string } | { ok: false; status: number; error: string; message: string }> {
-  const f = factsFor(c.subject, c.id);
+  const f = await factsFor(c.subject, c.id);
   if (!f) return { ok: false, status: 404, error: 'not_found', message: 'No such song, recording or release.' };
   const options = c.kind === 'sx_lod' && c.lod ? { lod: c.lod } : null;
   const doc = prepare(c.kind, f as Parameters<typeof prepare>[1], today(), options ?? {});
@@ -127,7 +143,7 @@ export async function mockDocumentFile(id: string, format: 'pdf' | 'csv'): Promi
 export async function mockDocumentForReview(id: string) {
   const d = (await current()).docs.find((x) => x.id === id);
   if (!d) return null;
-  const f = factsFor(d.subject, d.subjectId);
+  const f = await factsFor(d.subject, d.subjectId);
   return f ? prepare(d.kind, f as Parameters<typeof prepare>[1], today(), d.options ?? {}) : null;
 }
 

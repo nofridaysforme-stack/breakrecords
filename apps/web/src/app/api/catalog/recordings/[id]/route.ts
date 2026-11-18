@@ -4,10 +4,11 @@ import { authRequired, getContext } from '@/server/context';
 import { isLive } from '@/server/modules';
 import { mockUpdateRecording } from '@/server/mockCatalog';
 import { liveUpdateRecording } from '@/server/live/catalog';
+import { getCatalog } from '@/data/api';
 
 const err = (status: number, error: string, message: string) => NextResponse.json({ error, message }, { status });
 
-/** Change a recording's genre, AI use declaration or ISRC. Owners and team only. */
+/** Change a recording's genre, AI use, ISRC, credits, master owner, ℗ year or length. Owners and team only. */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const cmd = UpdateRecordingCommand.safeParse(await req.json().catch(() => null));
@@ -24,5 +25,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   const r = await mockUpdateRecording(id, cmd.data);
   if (r && 'ok' in r) { const e = r as { status: number; error: string; message: string }; return err(e.status, e.error, e.message); }
-  return r ? NextResponse.json(r) : err(404, 'not_found', `No recording ${id}.`);
+  if (!r) return err(404, 'not_found', `No recording ${id}.`);
+  // The recording as the catalog shows it now, with its credits and owner.
+  return NextResponse.json((await getCatalog()).recordings.find((x) => x.id === id) ?? r);
 }

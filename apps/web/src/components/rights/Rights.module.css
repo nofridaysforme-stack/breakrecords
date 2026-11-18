@@ -44,3 +44,14 @@
 .steps { font-size: var(--fs-meta); color: var(--text-2); }
 .steps summary { cursor: pointer; color: var(--text); min-height: var(--tap-min); display: flex; align-items: center; }
 .steps ol { margin: 6px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+
+/* Unclaimed money: where to look, and add what you found */
+.findGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; margin-top: 24px; }
+.findBox { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 20px 22px; display: flex; flex-direction: column; gap: 12px; }
+.findTitle { font-size: var(--fs-card-title); font-weight: 600; color: var(--text); margin: 0; }
+.lookList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.lookList p { margin: 4px 0 0; }
+/* A long status word ("Waiting on your approval") wraps inside its cell instead of running into the next one. */
+.matrix td > .cellBtn { display: flex; width: calc(100% + 8px); min-width: 0; }
+.cellBtn > span { max-width: 100%; white-space: normal; overflow-wrap: anywhere; align-items: flex-start; }
+.cellBtn > span svg { margin-top: 2px; }

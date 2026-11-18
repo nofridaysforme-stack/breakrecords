@@ -14,7 +14,7 @@ export type DocSubject = 'work' | 'recording' | 'release';
 
 export type Person = {
   id: string; name: string; type: 'person' | 'group' | 'company';
-  legalName: string | null; pro: Pro | null; ipi: string | null; email: string | null;
+  legalName: string | null; pro: Pro | null; ipi: string | null; email: string | null; phone?: string | null;
   address: string | null; citizenship: string | null; domicile: string | null;
 };
 
@@ -36,7 +36,9 @@ export type RecordingFacts = {
 
 export type ReleaseFacts = ReleaseRef & { id: string; artist: Person; labelName: string; tracks: { position: number; recording: RecordingFacts }[] };
 
-export type Gap = { severity: 'blocker' | 'warning'; field: string; message: string };
+/** Where a missing fact is entered: a person, a recording, a song, a release, or the letter's own terms. */
+export type GapFix = { to: 'person' | 'recording' | 'song' | 'release' | 'lod'; id: string };
+export type Gap = { severity: 'blocker' | 'warning'; field: string; message: string; fix?: GapFix };
 export type Row = [label: string, value: string | null];
 export type Section = {
   heading: string;
@@ -78,19 +80,19 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 /** Gaps every song document shares: names, PROs, IPIs, roles, shares that total exactly 100%. */
 function songGaps(s: SongFacts, opts: { pro: boolean }): Gap[] {
   const gaps: Gap[] = [];
-  if (!s.writers.length) gaps.push({ severity: 'blocker', field: 'Writers', message: `${s.title} has no writers on file.` });
+  if (!s.writers.length) gaps.push({ severity: 'blocker', field: 'Writers', message: `${s.title} has no writers on file.`, fix: { to: 'song', id: s.id } });
   const sum = total(s);
   if (s.writers.length && sum !== FULL) {
-    gaps.push({ severity: 'blocker', field: 'Shares', message: `Writer shares add up to ${formatPercent(sum)}, not 100%.` });
+    gaps.push({ severity: 'blocker', field: 'Shares', message: `Writer shares add up to ${formatPercent(sum)}, not 100%.`, fix: { to: 'song', id: s.id } });
   }
   for (const w of s.writers) {
     const who = w.person.name;
-    if (!w.person.legalName) gaps.push({ severity: 'warning', field: 'Legal name', message: `${who}'s legal name isn't on file; the stage name is used.` });
-    if (!w.role) gaps.push({ severity: 'warning', field: 'Role', message: `Whether ${who} wrote music, lyrics or both isn't on file.` });
+    if (!w.person.legalName) gaps.push({ severity: 'warning', field: 'Legal name', message: `${who}'s legal name isn't on file; the stage name is used.`, fix: { to: 'person', id: w.person.id } });
+    if (!w.role) gaps.push({ severity: 'warning', field: 'Role', message: `Whether ${who} wrote music, lyrics or both isn't on file.`, fix: { to: 'song', id: s.id } });
     if (opts.pro) {
-      if (!w.person.pro) gaps.push({ severity: 'blocker', field: 'PRO', message: `${who}'s PRO isn't on file. Each writer registers through their own PRO.` });
-      else if (w.person.pro === 'none') gaps.push({ severity: 'warning', field: 'PRO', message: `${who} isn't in a PRO, so their performance royalties have no one to collect them.` });
-      if (!w.person.ipi && w.person.pro !== 'none') gaps.push({ severity: 'blocker', field: 'IPI', message: `${who}'s IPI number isn't on file. Their PRO lists it in their account.` });
+      if (!w.person.pro) gaps.push({ severity: 'blocker', field: 'PRO', message: `${who}'s PRO isn't on file. Each writer registers through their own PRO.`, fix: { to: 'person', id: w.person.id } });
+      else if (w.person.pro === 'none') gaps.push({ severity: 'warning', field: 'PRO', message: `${who} isn't in a PRO, so their performance royalties have no one to collect them.`, fix: { to: 'person', id: w.person.id } });
+      if (!w.person.ipi && w.person.pro !== 'none') gaps.push({ severity: 'blocker', field: 'IPI', message: `${who}'s IPI number isn't on file. Their PRO lists it in their account.`, fix: { to: 'person', id: w.person.id } });
     }
   }
   return gaps;
@@ -161,8 +163,8 @@ export function mlcShares(s: SongFacts) {
 export function songPacket(s: SongFacts, preparedOn: string): PreparedDoc {
   const gaps = songGaps(s, { pro: true });
   for (const w of s.writers) {
-    if (!w.publisher) gaps.push({ severity: 'warning', field: 'Publisher', message: `${w.person.name} has no publisher, so the publisher half of their performance royalties can go unpaid unless they register as their own publisher.` });
-    else if (!w.publisher.ipi) gaps.push({ severity: 'blocker', field: 'Publisher IPI', message: `${w.publisher.name}'s IPI number isn't on file.` });
+    if (!w.publisher) gaps.push({ severity: 'warning', field: 'Publisher', message: `${w.person.name} has no publisher, so the publisher half of their performance royalties can go unpaid unless they register as their own publisher.`, fix: { to: 'song', id: s.id } });
+    else if (!w.publisher.ipi) gaps.push({ severity: 'blocker', field: 'Publisher IPI', message: `${w.publisher.name}'s IPI number isn't on file.`, fix: { to: 'person', id: w.publisher.id } });
   }
   if (!s.recordings.some((r) => r.isrc)) gaps.push({ severity: 'warning', field: 'ISRC', message: 'No recording of this song has an ISRC yet, so the MLC can’t match streams to it.' });
   const pros = [...new Set(s.writers.map((w) => w.person.pro).filter((p): p is Pro => !!p && p !== 'none' && p !== 'other'))];
@@ -214,9 +216,9 @@ export function songPacket(s: SongFacts, preparedOn: string): PreparedDoc {
 
 export function recordingPacket(r: RecordingFacts, preparedOn: string): PreparedDoc {
   const gaps: Gap[] = [];
-  if (!r.isrc) gaps.push({ severity: 'blocker', field: 'ISRC', message: `${r.title} has no ISRC. Recordings are claimed by ISRC; get codes from your distributor or a US ISRC prefix (usisrc.org, one-time $95).` });
-  if (!r.owner) gaps.push({ severity: 'blocker', field: 'Owner', message: 'Who owns this master isn’t on file. SoundExchange pays the owner’s share to them.' });
-  if (!r.durationS) gaps.push({ severity: 'warning', field: 'Length', message: 'The recording’s length isn’t on file.' });
+  if (!r.isrc) gaps.push({ severity: 'blocker', field: 'ISRC', message: `${r.title} has no ISRC. Recordings are claimed by ISRC; get codes from your distributor or a US ISRC prefix (usisrc.org, one-time $95).`, fix: { to: 'recording', id: r.id } });
+  if (!r.owner) gaps.push({ severity: 'blocker', field: 'Owner', message: 'Who owns this master isn’t on file. SoundExchange pays the owner’s share to them.', fix: { to: 'recording', id: r.id } });
+  if (!r.durationS) gaps.push({ severity: 'warning', field: 'Length', message: 'The recording’s length isn’t on file.', fix: { to: 'recording', id: r.id } });
   if (!r.releases.length) gaps.push({ severity: 'warning', field: 'Release', message: 'This recording isn’t on a release yet.' });
   const rel = r.releases[0] ?? null;
   const producers = r.credits.filter((c) => /produc/i.test(c.role));
@@ -259,8 +261,8 @@ const authorRows = (p: Person, created: string): (string | null)[] => [legal(p),
 export function songCopyright(s: SongFacts, preparedOn: string): PreparedDoc {
   const gaps = songGaps(s, { pro: false });
   for (const w of s.writers) {
-    if (!w.person.citizenship && !w.person.domicile) gaps.push({ severity: 'blocker', field: 'Citizenship', message: `${w.person.name}'s citizenship or home country isn't on file. The application asks for one of them.` });
-    if (!w.person.address) gaps.push({ severity: 'warning', field: 'Address', message: `${w.person.name}'s address isn't on file. Each claimant's address goes on the application.` });
+    if (!w.person.citizenship && !w.person.domicile) gaps.push({ severity: 'blocker', field: 'Citizenship', message: `${w.person.name}'s citizenship or home country isn't on file. The application asks for one of them.`, fix: { to: 'person', id: w.person.id } });
+    if (!w.person.address) gaps.push({ severity: 'warning', field: 'Address', message: `${w.person.name}'s address isn't on file. Each claimant's address goes on the application.`, fix: { to: 'person', id: w.person.id } });
   }
   // Single Application: one author, who is also the claimant, one work, not made for hire.
   const single = s.writers.length === 1 && !s.writers[0].publisher;
@@ -289,12 +291,12 @@ export function songCopyright(s: SongFacts, preparedOn: string): PreparedDoc {
 export function recordingCopyright(r: RecordingFacts, preparedOn: string): PreparedDoc {
   const gaps: Gap[] = [];
   const owner = r.owner;
-  if (!owner) gaps.push({ severity: 'blocker', field: 'Claimant', message: 'Who owns this master isn’t on file. The owner is the claimant.' });
+  if (!owner) gaps.push({ severity: 'blocker', field: 'Claimant', message: 'Who owns this master isn’t on file. The owner is the claimant.', fix: { to: 'recording', id: r.id } });
   else {
-    if (!owner.address) gaps.push({ severity: 'blocker', field: 'Claimant address', message: `${owner.name}'s address isn't on file.` });
+    if (!owner.address) gaps.push({ severity: 'blocker', field: 'Claimant address', message: `${owner.name}'s address isn't on file.`, fix: { to: 'person', id: owner.id } });
     if (owner.id !== r.artist.id) gaps.push({ severity: 'warning', field: 'Transfer', message: `The claimant (${owner.name}) isn't the performing artist. The application asks how ownership passed: work made for hire, or a written transfer. Check the recording agreement.` });
   }
-  if (!r.artist.citizenship && !r.artist.domicile) gaps.push({ severity: 'blocker', field: 'Citizenship', message: `${r.artist.name}'s citizenship or home country isn't on file.` });
+  if (!r.artist.citizenship && !r.artist.domicile) gaps.push({ severity: 'blocker', field: 'Citizenship', message: `${r.artist.name}'s citizenship or home country isn't on file.`, fix: { to: 'person', id: r.artist.id } });
   const rel = r.releases.find((x) => x.releaseDate) ?? null;
   return {
     kind: 'copyright_worksheet', subject: 'recording', subjectId: r.id,
@@ -319,15 +321,15 @@ export function recordingCopyright(r: RecordingFacts, preparedOn: string): Prepa
 
 export function labelCopy(r: ReleaseFacts, preparedOn: string): PreparedDoc {
   const gaps: Gap[] = [];
-  if (!r.upc) gaps.push({ severity: 'blocker', field: 'UPC', message: `${r.title} has no UPC. Your distributor assigns one.` });
-  if (!r.releaseDate) gaps.push({ severity: 'blocker', field: 'Release date', message: 'The release date isn’t set.' });
-  if (!r.tracks.length) gaps.push({ severity: 'blocker', field: 'Tracks', message: 'The release has no tracks.' });
+  if (!r.upc) gaps.push({ severity: 'blocker', field: 'UPC', message: `${r.title} has no UPC. Your distributor assigns one.`, fix: { to: 'release', id: r.id } });
+  if (!r.releaseDate) gaps.push({ severity: 'blocker', field: 'Release date', message: 'The release date isn’t set.', fix: { to: 'release', id: r.id } });
+  if (!r.tracks.length) gaps.push({ severity: 'blocker', field: 'Tracks', message: 'The release has no tracks.', fix: { to: 'release', id: r.id } });
   for (const t of r.tracks) {
     const rec = t.recording;
-    if (!rec.isrc) gaps.push({ severity: 'blocker', field: 'ISRC', message: `Track ${t.position}, ${rec.title}, has no ISRC.` });
-    if (!rec.genre) gaps.push({ severity: 'warning', field: 'Genre', message: `Track ${t.position}, ${rec.title}, has no genre.` });
+    if (!rec.isrc) gaps.push({ severity: 'blocker', field: 'ISRC', message: `Track ${t.position}, ${rec.title}, has no ISRC.`, fix: { to: 'recording', id: rec.id } });
+    if (!rec.genre) gaps.push({ severity: 'warning', field: 'Genre', message: `Track ${t.position}, ${rec.title}, has no genre.`, fix: { to: 'recording', id: rec.id } });
     if (!rec.song) gaps.push({ severity: 'warning', field: 'Writers', message: `Track ${t.position}, ${rec.title}, isn't linked to a song, so it has no writers.` });
-    else if (total(rec.song) !== FULL) gaps.push({ severity: 'blocker', field: 'Shares', message: `${rec.song.title}'s writer shares don't total 100%.` });
+    else if (total(rec.song) !== FULL) gaps.push({ severity: 'blocker', field: 'Shares', message: `${rec.song.title}'s writer shares don't total 100%.`, fix: { to: 'song', id: rec.song.id } });
   }
   const year = r.releaseDate?.slice(0, 4) ?? null;
   const owner = r.tracks[0]?.recording.owner;
@@ -368,8 +370,8 @@ const recordingsOf = (s: SongFacts): Section => ({
 export function proRegistration(s: SongFacts, preparedOn: string): PreparedDoc {
   const gaps = songGaps(s, { pro: true });
   for (const w of s.writers) {
-    if (w.publisher && !w.publisher.ipi) gaps.push({ severity: 'blocker', field: 'Publisher IPI', message: `${w.publisher.name}'s IPI number isn't on file.` });
-    if (!w.publisher) gaps.push({ severity: 'warning', field: 'Publisher', message: `${w.person.name} has no publisher. The publisher share of their performance royalties goes unpaid unless they set up their own publishing company with their PRO.` });
+    if (w.publisher && !w.publisher.ipi) gaps.push({ severity: 'blocker', field: 'Publisher IPI', message: `${w.publisher.name}'s IPI number isn't on file.`, fix: { to: 'person', id: w.publisher.id } });
+    if (!w.publisher) gaps.push({ severity: 'warning', field: 'Publisher', message: `${w.person.name} has no publisher. The publisher share of their performance royalties goes unpaid unless they set up their own publishing company with their PRO.`, fix: { to: 'song', id: s.id } });
   }
   if (!s.recordings.some((r) => r.isrc)) gaps.push({ severity: 'warning', field: 'ISRC', message: 'No recording of this song has an ISRC yet. Adding one helps the PRO match performances.' });
   const pros = [...new Set(s.writers.map((w) => w.person.pro).filter((p): p is Pro => !!p && p !== 'none'))];
@@ -429,11 +431,11 @@ export const MLC_ROLE: Record<WriterRole, string> = { composer: 'C', lyricist: '
  */
 export function mlcRegistration(s: SongFacts, preparedOn: string): PreparedDoc {
   const gaps = songGaps(s, { pro: false });
-  for (const w of s.writers) if (!w.person.ipi) gaps.push({ severity: 'warning', field: 'IPI', message: `${w.person.name}'s IPI number isn't on file. The MLC finds writers by name or IPI; the IPI avoids picking the wrong person.` });
+  for (const w of s.writers) if (!w.person.ipi) gaps.push({ severity: 'warning', field: 'IPI', message: `${w.person.name}'s IPI number isn't on file. The MLC finds writers by name or IPI; the IPI avoids picking the wrong person.`, fix: { to: 'person', id: w.person.id } });
   if (s.writers.length && !s.writers.some((w) => w.role === 'composer' || w.role === 'composer_lyricist')) {
-    gaps.push({ severity: 'blocker', field: 'Writer role', message: 'At least one writer must be a Composer (C) or Composer/Author (CA). Set who wrote the music.' });
+    gaps.push({ severity: 'blocker', field: 'Writer role', message: 'At least one writer must be a Composer (C) or Composer/Author (CA). Set who wrote the music.', fix: { to: 'song', id: s.id } });
   }
-  if (s.altTitles.length) gaps.push({ severity: 'warning', field: 'Alternative titles', message: 'The MLC only wants an alternative title for a language variation, a live variation, or a remix with the same writers. Leave out any others.' });
+  if (s.altTitles.length) gaps.push({ severity: 'warning', field: 'Alternative titles', message: 'The MLC only wants an alternative title for a language variation, a live variation, or a remix with the same writers. Leave out any others.', fix: { to: 'song', id: s.id } });
   if (!s.recordings.some((r) => r.isrc)) gaps.push({ severity: 'warning', field: 'ISRC', message: 'No recording of this song has an ISRC yet, so The MLC can’t match streams to it.' });
   const owners = mlcShares(s);
   const anyPublisherIpi = owners.some((o) => !o.selfAdministered && o.owner.ipi);
@@ -471,10 +473,10 @@ export function mlcRegistration(s: SongFacts, preparedOn: string): PreparedDoc {
 /** SoundExchange: the featured artist and the master owner each register, then the owner submits the recording by ISRC. */
 export function sxRegistration(r: RecordingFacts, preparedOn: string): PreparedDoc {
   const gaps: Gap[] = [];
-  if (!r.isrc) gaps.push({ severity: 'blocker', field: 'ISRC', message: `${r.title} has no ISRC. SoundExchange identifies every recording by its ISRC.` });
-  if (!r.owner) gaps.push({ severity: 'blocker', field: 'Owner', message: 'Who owns this master isn’t on file. SoundExchange pays the owner’s share to them.' });
+  if (!r.isrc) gaps.push({ severity: 'blocker', field: 'ISRC', message: `${r.title} has no ISRC. SoundExchange identifies every recording by its ISRC.`, fix: { to: 'recording', id: r.id } });
+  if (!r.owner) gaps.push({ severity: 'blocker', field: 'Owner', message: 'Who owns this master isn’t on file. SoundExchange pays the owner’s share to them.', fix: { to: 'recording', id: r.id } });
   if (!r.releases.length) gaps.push({ severity: 'blocker', field: 'Release', message: 'This recording isn’t on a release. A submitted recording needs at least one release.' });
-  if (r.owner && !r.owner.citizenship && !r.owner.domicile) gaps.push({ severity: 'warning', field: 'Owner nationality', message: `${r.owner.name}'s country isn't on file. It's optional on the form.` });
+  if (r.owner && !r.owner.citizenship && !r.owner.domicile) gaps.push({ severity: 'warning', field: 'Owner nationality', message: `${r.owner.name}'s country isn't on file. It's optional on the form.`, fix: { to: 'person', id: r.owner.id } });
   const rel = r.releases[0] ?? null;
   const participants = r.credits.filter((c) => CREATIVE.test(c.role));
   return {
@@ -514,18 +516,18 @@ export function sxLod(r: RecordingFacts, preparedOn: string, terms?: LodTerms): 
   const participants = lodParticipants(r);
   const credit = terms ? participants.find((c) => c.name === terms.payee) : participants[0];
   const payee = credit?.person ?? null;
-  if (!participants.length) gaps.push({ severity: 'blocker', field: 'Payee', message: 'No producer, mixer or engineer is credited on this recording. A Letter of Direction can only pay a creative participant.' });
-  else if (!credit) gaps.push({ severity: 'blocker', field: 'Payee', message: `${terms?.payee} isn't credited as a producer, mixer or engineer on this recording.` });
-  if (!r.isrc) gaps.push({ severity: 'warning', field: 'ISRC', message: `${r.title} has no ISRC. The repertoire chart asks for it where there is one.` });
-  if (credit && terms?.percentBp == null) gaps.push({ severity: 'blocker', field: 'Percentage', message: `The percentage of ${r.artist.name}'s share for ${credit.name} isn't set. SoundExchange wants a percentage of the featured artist's share, not points; check the producer agreement.` });
-  if (!terms?.effectiveDate && !terms?.allRoyalties) gaps.push({ severity: 'blocker', field: 'Effective date', message: 'Choose an effective date, or that it applies to all royalties for the recording. SoundExchange can’t start the letter without one.' });
+  if (!participants.length) gaps.push({ severity: 'blocker', field: 'Payee', message: 'No producer, mixer or engineer is credited on this recording. A Letter of Direction can only pay a creative participant.', fix: { to: 'recording', id: r.id } });
+  else if (!credit) gaps.push({ severity: 'blocker', field: 'Payee', message: `${terms?.payee} isn't credited as a producer, mixer or engineer on this recording.`, fix: { to: 'recording', id: r.id } });
+  if (!r.isrc) gaps.push({ severity: 'warning', field: 'ISRC', message: `${r.title} has no ISRC. The repertoire chart asks for it where there is one.`, fix: { to: 'recording', id: r.id } });
+  if (credit && terms?.percentBp == null) gaps.push({ severity: 'blocker', field: 'Percentage', message: `The percentage of ${r.artist.name}'s share for ${credit.name} isn't set. SoundExchange wants a percentage of the featured artist's share, not points; check the producer agreement.`, fix: { to: 'lod', id: r.id } });
+  if (credit && !terms?.effectiveDate && !terms?.allRoyalties) gaps.push({ severity: 'blocker', field: 'Effective date', message: 'Choose an effective date, or that it applies to all royalties for the recording. SoundExchange can’t start the letter without one.', fix: { to: 'lod', id: r.id } });
   if (r.artist.type === 'group') gaps.push({ severity: 'warning', field: 'Performers', message: `${r.artist.name} is a group. Each performer’s legal name and signature goes on the letter; list every member.` });
-  else if (!r.artist.legalName) gaps.push({ severity: 'warning', field: 'Performer legal name', message: `${r.artist.name}'s legal name isn't on file.` });
+  else if (!r.artist.legalName) gaps.push({ severity: 'warning', field: 'Performer legal name', message: `${r.artist.name}'s legal name isn't on file.`, fix: { to: 'person', id: r.artist.id } });
   if (credit) {
-    if (!payee?.address) gaps.push({ severity: 'blocker', field: 'Payee address', message: `${credit.name}'s address isn't on file.` });
-    if (!payee?.email) gaps.push({ severity: 'blocker', field: 'Payee email', message: `${credit.name}'s email isn't on file.` });
-    gaps.push({ severity: 'warning', field: 'Payee phone', message: `Add ${credit.name}'s phone number on the letter by hand.` });
-    if (payee?.type === 'company') gaps.push({ severity: 'warning', field: 'Payee', message: `SoundExchange only pays a company if it is solely owned by the creative participant. Check that ${credit.name} is.` });
+    if (payee && !payee.address) gaps.push({ severity: 'blocker', field: 'Payee address', message: `${credit.name}'s address isn't on file.`, fix: { to: 'person', id: payee.id } });
+    if (payee && !payee.email) gaps.push({ severity: 'blocker', field: 'Payee email', message: `${credit.name}'s email isn't on file.`, fix: { to: 'person', id: payee.id } });
+    if (payee && !payee.phone) gaps.push({ severity: 'warning', field: 'Payee phone', message: `${credit.name}'s phone number isn't on file. The letter asks for one.`, fix: { to: 'person', id: payee.id } });
+    if (payee?.type === 'company') gaps.push({ severity: 'warning', field: 'Payee', message: `SoundExchange only pays a company if it is solely owned by the creative participant. Check that ${credit.name} is.`, fix: { to: 'person', id: payee.id } });
   }
   const pct = terms?.percentBp != null ? formatPercent(terms.percentBp) : null;
   const effective = terms?.allRoyalties ? 'All royalties received for this recording' : terms?.effectiveDate ?? null;
@@ -534,7 +536,7 @@ export function sxLod(r: RecordingFacts, preparedOn: string, terms?: LodTerms): 
     sections: [
       { heading: 'Letter of Direction', intro: `${r.artist.name} directs SoundExchange to pay part of their featured artist royalties for the recording below to the payee.`,
         rows: [['Featured artist (solo artist or group)', r.artist.name], ['Performer legal name(s)', r.artist.type === 'group' ? null : legal(r.artist)], ['Effective date', effective],
-          ['Payee (producer, mixer or engineer)', credit ? (payee ? legal(payee) : credit.name) : null], ['Payee role', credit?.role ?? null], ['Payee address', payee?.address ?? null], ['Payee telephone', null], ['Payee email', payee?.email ?? null]] },
+          ['Payee (producer, mixer or engineer)', credit ? (payee ? legal(payee) : credit.name) : null], ['Payee role', credit?.role ?? null], ['Payee address', payee?.address ?? null], ['Payee telephone', payee?.phone ?? null], ['Payee email', payee?.email ?? null]] },
       { heading: 'Repertoire chart', intro: 'The percentage is of the featured artist’s share, as a percentage, never points.',
         table: { columns: ['Solo Artist or Group Name', 'Sound Recording Track Name', 'Effective Date', 'ISRC', 'Percentage'], rows: [[r.artist.name, r.title, effective, r.isrc, pct]] } },
       { heading: 'Signatures', intro: 'Signed by each performer, or the authorized signatory SoundExchange has on file for them. If signed electronically, send the signing service’s certificate of completion with it.', signatures: r.artist.type === 'group' ? ['Performer', 'Performer'] : [legal(r.artist)] },
@@ -554,8 +556,8 @@ export function sxLod(r: RecordingFacts, preparedOn: string, terms?: LodTerms): 
 export function copyrightGroup(r: ReleaseFacts, preparedOn: string): PreparedDoc {
   const gaps: Gap[] = [];
   if (r.kind === 'single') gaps.push({ severity: 'warning', field: 'Release type', message: 'This is a single. The group option is for the works on an album; a single is filed on its own worksheets.' });
-  if (!r.releaseDate) gaps.push({ severity: 'blocker', field: 'Release date', message: 'The release date isn’t set. The application asks when the album was published.' });
-  if (!r.tracks.length) gaps.push({ severity: 'blocker', field: 'Tracks', message: 'The release has no tracks.' });
+  if (!r.releaseDate) gaps.push({ severity: 'blocker', field: 'Release date', message: 'The release date isn’t set. The application asks when the album was published.', fix: { to: 'release', id: r.id } });
+  if (!r.tracks.length) gaps.push({ severity: 'blocker', field: 'Tracks', message: 'The release has no tracks.', fix: { to: 'release', id: r.id } });
   const owners = new Set(r.tracks.map((t) => t.recording.owner?.id ?? null));
   if (owners.has(null)) gaps.push({ severity: 'blocker', field: 'Claimant', message: 'Some tracks have no master owner on file.' });
   if (owners.size > 1) gaps.push({ severity: 'warning', field: 'Claimant', message: 'The tracks don’t all have the same owner. Check on the form whether they can be filed as one group.' });

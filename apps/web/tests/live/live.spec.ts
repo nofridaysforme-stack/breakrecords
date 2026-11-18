@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse, SplitVersionsResponse, ImportsResponse, SyncResponse, Template } from '@breakrecords/contract';
+import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse, SplitVersionsResponse, ImportsResponse, SyncResponse, Template, PeopleResponse, PersonResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 import { MAILBOX } from '../../playwright.live.config';
@@ -1599,6 +1599,74 @@ test('unclaimed money is claimed through a card, then paid or not ours; another 
   const harbor = await (await browser.newContext()).newPage();
   await signIn(harbor, USERS.harbor);
   expect((await harbor.request.post('/api/rights/unclaimed', { data: { action: 'prepare', id: mlc.id } })).status()).toBe(404);
+});
+
+test('a new workspace sees how to start on every Rights page, and adds money it found itself', async ({ page, browser }) => {
+  await signIn(page, USERS.jana);
+  const code = ((await (await page.request.post('/api/admin/invite-codes', { data: { note: 'E2E rights empty', maxUses: 1, expiresInDays: 7 } })).json()) as { code: string }).code;
+  const p = await signUp(browser, code, `e2e-rights-${Date.now()}@artist.example`);
+  const answers = { profile: 'solo', name: 'Mara Lune', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_yet' }, autonomy: 'draft_and_wait' };
+  expect((await p.request.put('/api/onboarding', { data: { answers, complete: true } })).status()).toBe(200);
+  await p.goto('/rights/registrations');
+  await expect(p.getByRole('heading', { name: 'Nothing to register yet' })).toBeVisible();
+  await expect(p.getByRole('heading', { name: 'Look for unclaimed money' })).toBeVisible();
+  await p.goto('/rights/documents');
+  await expect(p.getByRole('heading', { name: 'No songs or recordings yet' })).toBeVisible();
+  await p.goto('/rights/claims');
+  await expect(p.getByRole('heading', { name: 'No artists yet' })).toBeVisible();
+  await p.goto('/rights/unclaimed');
+  await expect(p.getByRole('heading', { name: 'Nothing found yet' })).toBeVisible();
+  const add = p.getByRole('region', { name: 'Add money you found' });
+  await add.getByLabel('Where you found it').selectOption('soundexchange');
+  await add.getByLabel('Song or recording').fill('Glass Tide');
+  await add.getByLabel('Amount shown ($)').fill('88.20');
+  await add.getByLabel(/Held since/).fill('2026-02-01');
+  await add.getByRole('button', { name: 'Add to the list' }).click();
+  await expect(add.getByRole('status')).toContainText('Added to the list');
+  const list = UnclaimedResponse.parse(await (await p.request.get('/api/rights/unclaimed')).json());
+  expect(list).toMatchObject({ total: 8820, items: [{ source: 'SoundExchange', what: 'Glass Tide', label: 'Found', next: 'prepare', claim: 'Claim the recording in SoundExchange Direct' }] });
+  expect((await p.request.post('/api/rights/unclaimed', { data: { action: 'add', source: 'soundexchange', what: 'glass tide', amount: 8820, heldSince: '2026-02-01' } })).status()).toBe(409);
+  const id = list.items[0].id;
+  expect((await p.request.post('/api/rights/unclaimed', { data: { action: 'prepare', id } })).status()).toBe(200);
+  expect((await (await p.request.get(`/api/approvals/claim_${id}`)).json()).title).toBe('Claim $88.20 from SoundExchange');
+  // Nobody else sees it.
+  expect((await page.request.post('/api/rights/unclaimed', { data: { action: 'prepare', id } })).status()).toBe(404);
+});
+
+test('the details the rights forms need are entered on people, recordings and songs; each gap links to its place', async ({ page, browser }) => {
+  await signIn(page, USERS.owner);
+  // A person's page: what's on file and what's missing; bad values are refused.
+  expect((await page.request.patch('/api/catalog/people/marco-dela', { data: { ipi: 'abc' } })).status()).toBe(400);
+  const saved = await page.request.patch('/api/catalog/people/marco-dela', { data: { pro: 'bmi', ipi: '00612345678', phone: '+1 207 555 0142', address: '9 Pine Street, Portland, ME' } });
+  expect(saved.status()).toBe(200);
+  const marco = PersonResponse.parse(await saved.json());
+  expect(marco).toMatchObject({ pro: 'bmi', ipi: '00612345678', phone: '+1 207 555 0142' });
+  expect(marco.missing).not.toContain('IPI');
+  // A recording's credits and owner: a new name joins the workspace.
+  const rec = await page.request.patch('/api/catalog/recordings/low-light', { data: { credits: [{ party: { partyId: 'marco-dela' }, role: 'Producer, writer' }, { party: { name: 'Ivy Park' }, role: 'Mix engineer' }], owner: { partyId: 'northline-records' }, pYear: 2026, durationS: 178 } });
+  expect(rec.status()).toBe(200);
+  expect(Recording.parse(await rec.json()).rights).toMatchObject({ owner: { partyId: 'northline-records' }, pYear: 2026, durationS: 178, credits: [{ partyId: 'marco-dela' }, { partyId: 'ivy-park', role: 'Mix engineer' }] });
+  const people = PeopleResponse.parse(await (await page.request.get('/api/catalog/people')).json()).people;
+  expect(people.find((x) => x.id === 'ivy-park')).toMatchObject({ roles: 'Mix engineer' });
+  // A song's writer role and publisher; only its writers can be changed.
+  const song = await page.request.patch('/api/catalog/songs/glasshouse', { data: { writers: [{ partyId: 'marco-dela', role: 'composer', publisher: { name: 'Dela Music' } }], completionYear: 2026 } });
+  expect(song.status()).toBe(200);
+  expect(CatalogResponse.parse(await song.json()).songs.find((x) => x.id === 'glasshouse')!.edit!.writers.find((w) => w.partyId === 'marco-dela')!.publisher).toEqual({ partyId: 'dela-music', name: 'Dela Music' });
+  expect((await page.request.patch('/api/catalog/songs/glasshouse', { data: { writers: [{ partyId: 'dana-okafor', role: 'composer', publisher: null }] } })).status()).toBe(400);
+  // The documents use it all, and each gap says where to fix it.
+  const lod = await page.request.post('/api/rights/documents', { data: { kind: 'sx_lod', subject: 'recording', id: 'low-light' } });
+  const slot = DocumentsResponse.parse(await lod.json()).subjects.find((x) => x.subject === 'recording' && x.id === 'low-light')!.docs.find((d) => d.kind === 'sx_lod')!;
+  expect(slot.lod!.payees).toEqual(['Ivy Park']);
+  expect(slot.latest!.gaps.find((g) => g.field === 'Payee address')?.fix).toEqual({ to: 'person', id: 'ivy-park' });
+  expect(slot.latest!.gaps.find((g) => g.field === 'Effective date')?.fix).toEqual({ to: 'lod', id: 'low-light' });
+  const pro = await page.request.post('/api/rights/documents', { data: { kind: 'pro_registration', subject: 'work', id: 'glasshouse' } });
+  const proGaps = DocumentsResponse.parse(await pro.json()).subjects.find((x) => x.subject === 'work' && x.id === 'glasshouse')!.docs.find((d) => d.kind === 'pro_registration')!.latest!.gaps;
+  expect(proGaps.find((g) => g.field === 'Publisher IPI')?.fix).toEqual({ to: 'person', id: 'dela-music' });
+  // Another label can't see or change any of it.
+  const harbor = await (await browser.newContext()).newPage();
+  await signIn(harbor, USERS.harbor);
+  expect((await harbor.request.get('/api/catalog/people/marco-dela')).status()).toBe(404);
+  expect((await harbor.request.patch('/api/catalog/people/marco-dela', { data: { phone: '555' } })).status()).toBe(404);
 });
 
 // Last: staging is reseeded over data people made (flags, reserves, sync quotes, imports). After

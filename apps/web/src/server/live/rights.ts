@@ -1,7 +1,7 @@
 import 'server-only';
 import type { z } from 'zod';
 import type { Proposal, RegistrationActionCommand, UnclaimedActionCommand } from '@breakrecords/contract';
-import { claimFacts, claimState, claimSteps, SOURCE_LABEL, type ClaimSource, type ClaimStatus } from '@breakrecords/core/unclaimed';
+import { CLAIM_METHOD, claimFacts, claimState, claimSteps, SOURCE_LABEL, type ClaimSource, type ClaimStatus } from '@breakrecords/core/unclaimed';
 import { formatMoney } from '@breakrecords/core/money';
 import { FORM_FOR, ON_WORK, ORG_LABEL, ORGS, REF_LABEL, filingFacts, filingOutcome, regState, type FilingSubject, type RegOrg, type RegStatus } from '@breakrecords/core/registrations';
 import { withTenant, type Tx } from '@breakrecords/db/client';
@@ -178,6 +178,7 @@ export type ClaimOutcome = { ok: true; value: Unclaimed } | { ok: false; status:
 
 /** Prepare a claim (an approval card), record it submitted after approval, then paid or not ours. */
 export async function liveClaimAction(ctx: RequestContext, c: z.infer<typeof UnclaimedActionCommand>): Promise<ClaimOutcome> {
+  if (c.action === 'add') return liveAddFound(ctx, c);
   const [u] = await withTenant(sql, ctx, (tx) => tx<ClaimDb[]>`
     SELECT u.slug, u.source::text AS source, u.what, u.amount_cents, u.why, u.held_since, u.claim_method, u.status::text AS status, u.approval_id, u.submitted_on, u.submit_ref,
            u.resolved_on, u.paid_cents, u.resolution_note, d.status::text AS decision, d.reason, u.work_id, u.recording_id
@@ -220,6 +221,22 @@ export async function liveClaimAction(ctx: RequestContext, c: z.infer<typeof Unc
       VALUES (${ctx.tenantId}, ${'AUD-CLM-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, ${'claim.' + c.action}, ${c.id},
               ${tx.json({ source: SOURCE_LABEL[u.source], what: u.what, ...(approvalId ? { approvalId } : {}), ...(c.action === 'paid' ? { paid: c.amount } : {}) })})`;
     return { ok: true, value: await unclaimedIn(tx) } as const;
+  });
+}
+
+/** Money a person found in a society's own search. Listed as Found, then claimed like any other. */
+async function liveAddFound(ctx: RequestContext, c: Extract<z.infer<typeof UnclaimedActionCommand>, { action: 'add' }>): Promise<ClaimOutcome> {
+  return withTenant(sql, ctx, async (tx) => {
+    const [dup] = await tx`SELECT 1 FROM unclaimed_royalties WHERE source = ${c.source} AND lower(what) = lower(${c.what}) AND amount_cents = ${c.amount}
+      AND held_since = ${c.heldSince} AND status NOT IN ('paid', 'dismissed')`;
+    if (dup) return { ok: false as const, status: 409, error: 'conflict' as const, message: 'That’s already on the list.' };
+    const slug = `found-${crypto.randomUUID().slice(0, 8)}`;
+    await tx`INSERT INTO unclaimed_royalties (tenant_id, slug, source, what, why, amount_cents, held_since, claim_method)
+      VALUES (${ctx.tenantId}, ${slug}, ${c.source}, ${c.what}, ${c.note || `You found this in ${SOURCE_LABEL[c.source]}’s search.`}, ${c.amount}, ${c.heldSince}, ${CLAIM_METHOD[c.source]})`;
+    await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
+      VALUES (${ctx.tenantId}, ${'AUD-CLM-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'claim.add', ${slug},
+              ${tx.json({ source: SOURCE_LABEL[c.source], what: c.what, amount: c.amount })})`;
+    return { ok: true as const, value: await unclaimedIn(tx) };
   });
 }
 
