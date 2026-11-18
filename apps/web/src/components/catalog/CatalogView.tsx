@@ -36,7 +36,7 @@ export function CatalogView({ data, tab, initialId, inProgress, people = [], ope
   const selected = list.find((r) => r.id === selectedId) ?? list[0];
   const upload = useRef<HTMLDialogElement>(null);
   const edit = useRef<HTMLDialogElement>(null);
-  const [queued, setQueued] = useState<string[]>([]);
+  const router = useRouter();
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const codes = useCodes();
@@ -102,15 +102,12 @@ export function CatalogView({ data, tab, initialId, inProgress, people = [], ope
           <Button variant="primary" onClick={() => setAdding(true)}>Add your first release</Button>
         </div>
       )}
-      {queued.length > 0 && (
-        <p className={o.toast} role="status"><Check size={16} className={o.good} aria-hidden="true" />{queued.length} {queued.length === 1 ? 'file' : 'files'} queued. Metadata Agent will check {queued.length === 1 ? 'it' : 'them'} before anything is delivered.</p>
-      )}
     </>
   );
 
   const dialogs = (
     <>
-      <UploadDialog ref={upload} onQueue={(names) => setQueued((q) => [...q, ...names])} />
+      <UploadDialog ref={upload} data={data} onDone={(text, ok) => { if (ok) { setSaved(text); setSaveError(null); router.refresh(); } }} />
       <AddRelease people={data.people ?? []} open={adding} onClose={() => setAdding(false)} />
       {selected && <EditDialog ref={edit} recording={selected} people={people} onSave={(r, rights) => void save(r, rights)} nextIsrc={codes.data?.nextIsrc ?? null} onAssign={(r) => void assignIsrc(r)} />}
     </>
@@ -313,11 +310,12 @@ function Releases({ data, nextUpc, onAssigned, openEdit }: { data: Data; nextUpc
 function Assets({ data }: { data: Data }) {
   return (
     <ul className={s.assets}>
-      {data.assets.map((a) => (
+      {(data.assets as (Data["assets"][number] & { size?: string; href?: string })[]).map((a) => (
         <li key={a.name} className={o.card}>
           <span className={`${o.art} ${s.assetArt}`} aria-hidden="true" />
           <span className={o.cardTitle}>{a.name}</span>
-          <span className={o.cardMeta}>{a.kind} · {a.release}</span>
+          <span className={o.cardMeta}>{a.kind} · {a.release}{a.size ? ` · ${a.size}` : ''}</span>
+          {a.href && <a className={o.linkInline} href={a.href}>Download<span className="visually-hidden"> {a.name}</span></a>}
           <span className={`${o.status} ${a.ready ? o.good : o.warn}`}>{a.ready ? <Check size={13} strokeWidth={2.5} aria-hidden="true" /> : <CircleAlert size={13} strokeWidth={2.5} aria-hidden="true" />}{a.ready ? 'Ready' : 'Missing'}</span>
         </li>
       ))}
@@ -335,19 +333,72 @@ function Drawer({ ref, title, id, children }: { ref: React.Ref<HTMLDialogElement
   );
 }
 
-function UploadDialog({ ref, onQueue }: { ref: React.RefObject<HTMLDialogElement | null>; onQueue: (names: string[]) => void }) {
-  const [files, setFiles] = useState<string[]>([]);
+const KINDS: [string, string][] = [['cover_art', 'Cover art'], ['master_audio', 'Master audio'], ['instrumental', 'Instrumental'], ['stems', 'Stems'], ['lyrics', 'Lyrics'], ['press_photo', 'Press photo'], ['document', 'Document']];
+const guessKind = (f: File) => (f.type.startsWith('image/') ? 'cover_art' : f.type.startsWith('audio/') || /\.(wav|aiff?|flac|mp3)$/i.test(f.name) ? 'master_audio' : /\.(txt|lrc)$/i.test(f.name) ? 'lyrics' : 'document');
+
+/** Sends one file: straight to storage when it can, else through the app; then confirms it arrived. */
+async function sendFile(file: File, kind: string, attach: string): Promise<string | null> {
+  const [what, id] = attach ? attach.split(':') : ['', ''];
+  const start = await fetch('/api/catalog/assets', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: file.name, kind, size: file.size, contentType: file.type || undefined, ...(what === 'release' ? { releaseId: id } : what === 'recording' ? { recordingId: id } : {}) }) });
+  const s = await start.json().catch(() => null);
+  if (!start.ok) return s?.message ?? `${file.name} couldn’t be started.`;
+  const put = (url: string) => fetch(url, { method: 'PUT', body: file, headers: file.type ? { 'content-type': file.type } : {} });
+  let sent = await put(s.upload.url).then((r) => r.ok).catch(() => false);
+  if (!sent && s.fallback) sent = await put(s.fallback).then((r) => r.ok).catch(() => false);
+  if (!sent) return s.upload.via === 'storage' && !s.fallback
+    ? `${file.name} didn’t reach file storage. Large files go straight from your browser to storage; check that storage allows uploads from this site.`
+    : `${file.name} didn’t upload. Nothing was saved.`;
+  const done = await fetch(`/api/catalog/assets/${s.id}/done`, { method: 'POST' });
+  if (!done.ok) return (await done.json().catch(() => null))?.message ?? `${file.name} didn’t finish uploading.`;
+  return null;
+}
+
+function UploadDialog({ ref, data, onDone }: { ref: React.RefObject<HTMLDialogElement | null>; data: Data; onDone: (text: string, ok: boolean) => void }) {
+  const [files, setFiles] = useState<{ file: File; kind: string }[]>([]);
+  const [attach, setAttach] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const upload = async () => {
+    setError(null);
+    const failed: string[] = [];
+    for (const [i, f] of files.entries()) {
+      setBusy(`Uploading ${i + 1} of ${files.length}: ${f.file.name}`);
+      const problem = await sendFile(f.file, f.kind, attach);
+      if (problem) failed.push(problem);
+    }
+    setBusy(null);
+    if (failed.length) { setError(failed.join(' ')); if (failed.length < files.length) onDone(`${files.length - failed.length} uploaded.`, true); return; }
+    onDone(`${files.length} ${files.length === 1 ? 'file' : 'files'} uploaded and saved.`, true);
+    setFiles([]); ref.current?.close();
+  };
   return (
     <Drawer ref={ref} title="Upload assets" id="upload-h">
-      <form className={o.form} onSubmit={(e) => { e.preventDefault(); if (files.length) { onQueue(files); setFiles([]); ref.current?.close(); } }}>
+      <form className={`${o.form} ${s.drawerScroll}`} onSubmit={(e) => { e.preventDefault(); if (files.length) void upload(); }}>
         <label className={o.drop}>
           <span><Upload size={18} aria-hidden="true" style={{ display: 'block', margin: '0 auto 8px' }} />Drop audio, art or documents, or choose files</span>
-          <input type="file" multiple className="visually-hidden" onChange={(e) => setFiles(Array.from(e.target.files ?? []).map((f) => f.name))} />
+          <input type="file" multiple className="visually-hidden" onChange={(e) => setFiles(Array.from(e.target.files ?? []).map((file) => ({ file, kind: guessKind(file) })))} />
         </label>
-        {files.length > 0 && <ul className={o.small}>{files.map((f) => <li key={f}>{f}</li>)}</ul>}
-        <p className={o.small}>Files stay in your catalog. Nothing goes to stores until a release is delivered, and that needs your approval.</p>
+        {files.map((f, i) => (
+          <label key={f.file.name + i} className={o.field}>{f.file.name} <span className={o.hint}>{(f.file.size / 1024 / 1024).toFixed(1)} MB</span>
+            <select className={o.input} value={f.kind} onChange={(e) => setFiles(files.map((x, j) => (j === i ? { ...x, kind: e.target.value } : x)))}>
+              {KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </label>
+        ))}
+        <label className={o.field}>For
+          <select className={o.input} value={attach} onChange={(e) => setAttach(e.target.value)}>
+            <option value="">Nothing in particular</option>
+            {data.releases.length > 0 && <optgroup label="Releases">{data.releases.map((r) => <option key={r.id} value={`release:${r.id}`}>{r.title}</option>)}</optgroup>}
+            {data.recordings.length > 0 && <optgroup label="Recordings">{data.recordings.map((r) => <option key={r.id} value={`recording:${r.id}`}>{r.title}</option>)}</optgroup>}
+          </select>
+          <span className={o.hint}>Cover art goes with a release; masters and stems with a recording.</span>
+        </label>
+        <p className={o.small}>Files are kept privately for your workspace. Nothing goes to stores until a release is delivered, and that needs your approval.</p>
+        {busy && <p className={o.small} role="status">{busy}</p>}
+        {error && <p className={o.toast} role="alert"><CircleAlert size={16} className={o.critical} aria-hidden="true" />{error}</p>}
         <div className={o.formActions}>
-          <Button variant="primary" type="submit" disabled={!files.length} disabledReason="Choose at least one file.">Queue {files.length || ''} {files.length === 1 ? 'file' : 'files'}</Button>
+          <Button variant="primary" type="submit" disabled={!files.length || !!busy} disabledReason="Choose at least one file.">{busy ? 'Uploading' : `Upload ${files.length || ''} ${files.length === 1 ? 'file' : 'files'}`}</Button>
           <Button onClick={() => ref.current?.close()}>Cancel</Button>
         </div>
       </form>

@@ -1,5 +1,5 @@
 import 'server-only';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { AwsClient } from 'aws4fetch';
 
@@ -19,6 +19,10 @@ export interface DocumentStore {
   readonly kind: 's3' | 'folder' | 'memory';
   put(key: string, body: Uint8Array, contentType: string): Promise<void>;
   get(key: string): Promise<Uint8Array | null>;
+  /** Size of a stored file in bytes, or null if it isn't there. */
+  size(key: string): Promise<number | null>;
+  /** S3 only: a short-lived signed address the browser can send a large file to, or fetch it from. */
+  signed?(key: string, method: 'PUT' | 'GET', seconds: number): Promise<string>;
 }
 
 /** Storage answered with an error. The message says which setting to check; no secrets in it. */
@@ -64,6 +68,17 @@ function s3(): DocumentStore | null {
       if (!res.ok) throw await refused(res, 'read');
       return new Uint8Array(await res.arrayBuffer());
     },
+    async size(key) {
+      const res = await aws.fetch(url(key), { method: 'HEAD' });
+      if (res.status === 404) return null;
+      if (!res.ok) throw await refused(res, 'check');
+      return Number(res.headers.get('content-length') ?? 0);
+    },
+    async signed(key, method, seconds) {
+      const u = new URL(url(key));
+      u.searchParams.set('X-Amz-Expires', String(seconds));
+      return (await aws.sign(u.toString(), { method, aws: { signQuery: true } })).url;
+    },
   };
 }
 
@@ -77,13 +92,14 @@ function folder(dir: string): DocumentStore {
     kind: 'folder',
     async put(key, body) { await mkdir(path.dirname(file(key)), { recursive: true }); await writeFile(file(key), body); },
     async get(key) { try { return new Uint8Array(await readFile(file(key))); } catch { return null; } },
+    async size(key) { try { return (await stat(file(key))).size; } catch { return null; } },
   };
 }
 
 const g = globalThis as unknown as { __brDocFiles?: Map<string, Uint8Array> };
 function memory(): DocumentStore {
   const files = (g.__brDocFiles ??= new Map());
-  return { kind: 'memory', async put(key, body) { files.set(key, body); }, async get(key) { return files.get(key) ?? null; } };
+  return { kind: 'memory', async put(key, body) { files.set(key, body); }, async get(key) { return files.get(key) ?? null; }, async size(key) { return files.get(key)?.byteLength ?? null; } };
 }
 
 /**

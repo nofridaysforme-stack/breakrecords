@@ -1,5 +1,5 @@
 import {
-  CircleDollarSign, Coins, Disc3, FileText, House, Inbox, LayoutGrid,
+  CircleDollarSign, Coins, Disc3, FileText, House, Inbox, LayoutGrid, ListChecks,
   Library, Lock, PieChart, Shield, Users, Activity, Settings, CircleHelp,
   type LucideIcon,
 } from 'lucide-react';
@@ -28,6 +28,8 @@ export const primaryNav: NavItem[] = [
   { label: 'Funding', href: '/funding', match: '/funding', icon: Coins },
   { label: 'Roster', href: '/roster', match: '/roster', icon: Users },
   { label: 'Departments', href: '/departments', match: '/departments', icon: LayoutGrid },
+  // The Label Head's plans: type a goal, get a plan from what the agents found.
+  { label: 'Plan', href: '/plan', match: '/plan', icon: ListChecks },
   { label: 'Marketing', href: '', match: '/marketing', icon: Lock, locked: true },
 ];
 

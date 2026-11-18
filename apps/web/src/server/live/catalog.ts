@@ -10,6 +10,7 @@ import { listReleases } from '@/data/api';
 import { sql } from '../db';
 import { liveSetIsrc, type CodeError } from './codes';
 import { resolveParty } from './people';
+import { sizeLabel } from '../assets';
 import type { RequestContext } from '../context';
 
 type Catalog = Awaited<ReturnType<typeof getCatalog>>;
@@ -81,9 +82,11 @@ async function catalogIn(tx: Tx): Promise<Catalog> {
     // Until the releases module is live, only releases with a runbook link to one.
     const runbooks = new Set((await listReleases()).map((r) => r.id));
 
-    const assets = await tx<{ name: string; kind: string; detail: string | null; release: string | null; ready: boolean }[]>`
-      SELECT s.name, s.kind::text AS kind, s.detail, rl.title AS release, s.ready
-      FROM assets s LEFT JOIN releases rl ON rl.id = s.release_id ORDER BY s.created_at, s.name`;
+    // Uploads that never finished aren't listed; they become ready when the file arrives.
+    const assets = await tx<{ id: string; name: string; kind: string; detail: string | null; release: string | null; ready: boolean; has_file: boolean; size_bytes: string | null }[]>`
+      SELECT s.id, s.name, s.kind::text AS kind, s.detail, coalesce(rl.title, rc.title) AS release, s.ready, s.storage_key IS NOT NULL AS has_file, s.size_bytes
+      FROM assets s LEFT JOIN releases rl ON rl.id = s.release_id LEFT JOIN recordings rc ON rc.id = s.recording_id
+      WHERE s.storage_key IS NULL OR s.ready ORDER BY s.created_at, s.name`;
 
     const people = await tx<{ slug: string; name: string }[]>`SELECT slug, name FROM parties WHERE type <> 'company' ORDER BY name`;
     const unsplit = await tx<{ slug: string; title: string; artist: string }[]>`
@@ -106,7 +109,8 @@ async function catalogIn(tx: Tx): Promise<Catalog> {
         ...(runbooks.has(r.slug) ? { href: `/releases/${r.slug}` } : {}),
         edit: { kind: r.kind as 'single' | 'ep' | 'album', releaseDate: r.iso, tracks: r.list },
       })),
-      assets: assets.map((a) => ({ name: a.name, kind: a.detail ? `${ASSET[a.kind]} · ${a.detail}` : ASSET[a.kind], release: a.release ?? 'Not assigned', ready: a.ready })),
+      assets: assets.map((a) => ({ name: a.name, kind: a.detail ? `${ASSET[a.kind]} · ${a.detail}` : ASSET[a.kind], release: a.release ?? 'Not assigned', ready: a.ready,
+        ...(a.has_file ? { id: a.id, href: `/api/catalog/assets/${a.id}/file`, ...(a.size_bytes ? { size: sizeLabel(Number(a.size_bytes)) } : {}) } : {}) })),
     } as Catalog;
   }
 }

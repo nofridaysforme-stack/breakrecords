@@ -60,6 +60,15 @@ async function main() {
   // Signed out, nothing is served.
   check((await fetch(`${base}/api/approvals`)).status === 401, 'signed out: the API refuses');
 
+  // 0. Every part is on live data. A part left on sample data answers in the right shape, so the
+  //    endpoint check below can't tell, but nothing done there is saved.
+  const status = await (await get(owner, '/api/status')).json() as { sample: { module: string; label: string }[]; files: string; dailyAgents: boolean };
+  check(!status.sample.length, status.sample.length
+    ? `every part is live (still on sample data, so nothing there saves: ${status.sample.map((x) => `${x.label} [${x.module}]`).join(', ')}; add them to BR_LIVE_MODULES in Vercel and redeploy)`
+    : 'every part is live');
+  check(status.files === 's3', `files are kept in storage (now: ${status.files}; set the DOCUMENTS_S3_* settings in Vercel)`);
+  if (!status.dailyAgents) console.log('Note: CRON_SECRET isn’t set in Vercel, so the agents only run from Run the agents now.');
+
   // 1. Every contract endpoint, live, for Northline's owner.
   for (const e of ENDPOINTS) {
     const res = await get(owner, e.path);
