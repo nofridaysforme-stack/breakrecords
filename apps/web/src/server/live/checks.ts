@@ -199,7 +199,8 @@ export async function liveFacts(tx: Tx): Promise<Record<string, ApprovalFacts>> 
     const grant = grants.find((g) => g.approval_id === c.id);
     if (batch) out[c.id] = await payoutFacts(tx, batch.id);
     else if (grant) out[c.id] = { kind: 'grant', deadline: iso(grant.deadline)!, verifiedOn: iso(grant.verified_on)!, fields: body?.fields ?? [] };
-    else if (body?.kind === 'filing' && body.works?.length) out[c.id] = await filingFacts(tx, body.org ?? 'registry', body.works.map((w) => w.title));
+    // A recording's filing (SoundExchange, copyright, neighboring rights) has no song checks.
+    else if (body?.kind === 'filing' && body.works?.length && !/^reg_(sx_|copyright|neighboring)/.test(c.id)) out[c.id] = await filingFacts(tx, body.org ?? 'registry', body.works.map((w) => w.title));
     else if (c.type === 'signature') out[c.id] = await signatureFacts(tx, c.id, c.detail);
   }
   return out;

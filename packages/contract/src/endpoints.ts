@@ -48,6 +48,8 @@ export const ENDPOINTS: Endpoint[] = [
   { path: '/api/funding', schema: R.FundingResponse, module: 'funding' },
   { path: '/api/funding/offers', schema: R.OffersResponse, module: 'funding' },
   { path: '/api/departments', schema: R.DepartmentsResponse, module: 'activity' },
+  { path: '/api/agents', schema: R.AgentsResponse, module: 'activity' },
+  { path: '/api/plans', schema: R.PlansResponse, module: 'activity' },
   { path: '/api/activity', schema: R.ActivityResponse, module: 'activity' },
   { path: '/api/settings', schema: R.SettingsResponse, module: 'settings' },
   { path: '/api/settings/theme', schema: R.ThemeResponse, module: 'settings' },

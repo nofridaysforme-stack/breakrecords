@@ -673,6 +673,42 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT * FROM app_team()`)).toHaveLength(0);
       expect((await asA((tx) => tx`SELECT * FROM app_team()`)).map((r) => r.user_id)).toEqual([ids.ua]);
     });
+
+    it('agent findings are kept, never deleted; a dismissed one stays dismissed; payees and other labels see none', async () => {
+      const asA = <T,>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(app, { userId: ids.ua, tenantId: ids.a }, fn);
+      await asA((tx) => tx`INSERT INTO agent_findings (tenant_id, key, dept, rule, title) VALUES (${ids.a}, 'metadata:isrc:x', 'metadata', 'MET-01', 'X has no ISRC')`);
+      await expect(asA((tx) => tx`INSERT INTO agent_findings (tenant_id, key, dept, rule, title) VALUES (${ids.a}, 'metadata:y', 'nope', 'MET-01', 'Y')`)).rejects.toThrow(/foreign key/);
+      await expect(asA((tx) => tx`UPDATE agent_findings SET status = 'dismissed', closed_at = now()`)).rejects.toThrow(/check constraint/);
+      await asA((tx) => tx`UPDATE agent_findings SET status = 'dismissed', closed_at = now(), dismiss_note = 'Not released'`);
+      await expect(asA((tx) => tx`UPDATE agent_findings SET status = 'open', closed_at = NULL`)).rejects.toThrow(/stays dismissed/);
+      await expect(asA((tx) => tx`UPDATE agent_findings SET rule = 'MET-02'`)).rejects.toThrow(/never change/);
+      await expect(asA((tx) => tx`DELETE FROM agent_findings`)).rejects.toThrow(/permission denied/);
+      await asA((tx) => tx`INSERT INTO agent_runs (tenant_id, trigger, started_by) VALUES (${ids.a}, 'manual', ${ids.ua})`);
+      expect((await asA((tx) => tx`UPDATE departments SET state = 'working', tasks_this_week = 3 WHERE slug = 'metadata'`)).count).toBe(1);
+      for (const who of [{ userId: ids.payee, tenantId: ids.a }, { userId: ids.ub, tenantId: ids.b }]) {
+        expect(await withTenant(app, who, (tx) => tx`SELECT 1 FROM agent_findings`)).toHaveLength(0);
+        expect(await withTenant(app, who, (tx) => tx`SELECT 1 FROM agent_runs`)).toHaveLength(0);
+      }
+      // The schedule lists every workspace with departments and an owner to act for.
+      expect((await app`SELECT tenant_id, user_id FROM app_agent_tenants()`).filter((r) => r.tenant_id === ids.a)).toEqual([{ tenant_id: ids.a, user_id: ids.ua }]);
+      // Label Head plans: tied to their plan card, kept as approved, and only the team sees them.
+      await asA((tx) => tx`INSERT INTO approvals (tenant_id, id, origin, type, title, agent, due, impact, risk) VALUES (${ids.a}, 'plan_registrations_x', 'user', 'plan', 'Get everything registered', 'Label Head', 'This week', '1 step', 'low')`);
+      await expect(asA((tx) => tx`INSERT INTO plans (tenant_id, id, goal, area, title, steps, approval_id) VALUES (${ids.a}, 'plan_x', 'g', 'registrations', 't', '[{"key":"a"}]', 'missing')`)).rejects.toThrow(/foreign key/);
+      await asA((tx) => tx`INSERT INTO plans (tenant_id, id, goal, area, title, steps, approval_id) VALUES (${ids.a}, 'plan_registrations_x', 'register', 'registrations', 't', '[{"key":"a"}]', 'plan_registrations_x')`);
+      await expect(asA((tx) => tx`UPDATE plans SET goal = 'other'`)).rejects.toThrow(/permission denied/);
+      await expect(asA((tx) => tx`DELETE FROM plans`)).rejects.toThrow(/permission denied/);
+      for (const who of [{ userId: ids.payee, tenantId: ids.a }, { userId: ids.ub, tenantId: ids.b }]) {
+        expect(await withTenant(app, who, (tx) => tx`SELECT 1 FROM plans`)).toHaveLength(0);
+      }
+      await owner`DELETE FROM approvals WHERE id = 'plan_registrations_x'`;
+      // A new workspace's departments always include Audit and Artist relations.
+      await owner`INSERT INTO departments (tenant_id, slug, name, agent, phase, autonomy, can_act, state) VALUES (${ids.b}, 'content', 'Content studio', NULL, 2, NULL, false, 'later')`;
+      expect((await owner`SELECT slug, autonomy::text FROM departments WHERE tenant_id = ${ids.b} AND slug IN ('audit', 'artist-relations') ORDER BY slug`))
+        .toEqual([{ slug: 'artist-relations', autonomy: 'suggest' }, { slug: 'audit', autonomy: 'observe' }]);
+      await owner`DELETE FROM departments WHERE tenant_id = ${ids.b}`;
+      await owner`DELETE FROM agent_runs WHERE tenant_id = ${ids.a}`;
+      await owner`DELETE FROM agent_findings WHERE tenant_id = ${ids.a}`;
+    });
   });
   describe('settings and white label', () => {
     const theme = { background: '#0f1a1c', surface: '#13221f', brand: '#1d4a4f', primary: '#e2b33c', text: '#e8f0ef' }; // lint-allow-hex: test data
@@ -790,7 +826,7 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       const mine = await memberships(app, u);
       expect(mine.map((m) => [m.name, m.role, m.kind])).toEqual([['My workspace', 'owner', 'artist']]);
       expect(await withTenant(app, { userId: u, tenantId: t }, (tx) => tx`SELECT app_needs_onboarding() AS n`)).toEqual([{ n: true }]);
-      expect((await withTenant(app, { userId: u, tenantId: t }, (tx) => tx`SELECT slug FROM departments WHERE phase = 1`)).length).toBe(9);
+      expect((await withTenant(app, { userId: u, tenantId: t }, (tx) => tx`SELECT slug FROM departments WHERE phase = 1`)).length).toBe(11); // 9 from sign-up, plus Audit and Artist relations
       await withTenant(app, { userId: u, tenantId: t }, (tx) => tx`SELECT app_apply_onboarding('Kesi Vale Music', 'small_label')`);
       expect((await memberships(app, u))[0]).toMatchObject({ name: 'Kesi Vale Music', kind: 'label' });
       // Nobody else can rename it, and it sees nothing of other labels.
@@ -847,7 +883,7 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       expect(list.map((r) => [r.name, r.kind])).toEqual([['Rue Nova', 'artist'], ['Tide Records', 'label']]);
       expect((await memberships(app, svcUser)).map((m) => m.name)).toEqual(['Svc Co', 'Rue Nova', 'Tide Records']);
       expect(await withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT app_role() AS r`)).toEqual([{ r: 'owner' }]);
-      expect((await withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT slug FROM departments WHERE phase = 1`)).length).toBe(9);
+      expect((await withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT slug FROM departments WHERE phase = 1`)).length).toBe(11); // 9 from sign-up, plus Audit and Artist relations
       // A client is not a parent: it can't add clients of its own, and stays an artist on setup.
       await expect(withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT app_create_client('Nested', 'artist')`)).rejects.toThrow(/owners add clients|can't have clients/);
       await withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT app_apply_onboarding('Rue Nova', 'services')`);

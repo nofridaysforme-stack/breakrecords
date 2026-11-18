@@ -33,3 +33,15 @@ button.card:hover { border-color: var(--line-control); }
 @media (max-width: 1279px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .editor { grid-template-columns: minmax(0, 1fr); gap: 18px; } }
 @media (max-width: 1023px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 767px) { .grid { grid-template-columns: minmax(0, 1fr); } .editor { padding: 18px; } }
+
+/* What the agents found */
+.findings { margin-top: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.findHead { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.findTitle { font-size: var(--fs-card-title); font-weight: 600; margin: 0 0 4px; }
+.findList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.finding { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 12px 0; border-top: 1px solid var(--line-soft); }
+.findBody { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.findLine { font-size: var(--fs-body); font-weight: 600; margin: 0; }
+.findActs { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; flex: 0 0 auto; }
+.dismissForm { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; max-width: 420px; }
+@media (max-width: 640px) { .finding { flex-direction: column; } }

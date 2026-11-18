@@ -10,6 +10,9 @@ import type { getDepartments } from '@/data/api';
 import type { Department } from '@/data/ops';
 import o from '@/components/ops/Ops.module.css';
 import s from './Departments.module.css';
+import { AgentFindings } from './AgentFindings';
+import type { z } from 'zod';
+import type { AgentsResponse } from '@breakrecords/contract';
 
 type Data = Awaited<ReturnType<typeof getDepartments>>;
 
@@ -17,8 +20,9 @@ const LEVEL: Record<Autonomy, string> = { observe: 'Observe', suggest: 'Suggest'
 const DOT: Record<Department['state'], string> = { working: s.dWorking, waitingOnYou: s.dCritical, blocked: s.dCritical, done: s.dDone, idle: s.dIdle, later: s.dIdle };
 
 /** 5f. One department open for editing, then all 14. Phase 2 departments show but can't be opened. */
-export function DepartmentsView({ data, initialId = 'royalties' }: { data: Data; initialId?: string }) {
+export function DepartmentsView({ data, initialId = 'royalties', agents }: { data: Data; initialId?: string; agents?: z.infer<typeof AgentsResponse> }) {
   const [depts, setDepts] = useState(data.departments);
+  const [agentsNow, setAgentsNow] = useState(agents);
   const [error, setError] = useState<string | null>(null);
   const [editId, setEditId] = useState(depts.some((d) => d.id === initialId && d.phase === 1) ? initialId : 'royalties');
   const [saved, setSaved] = useState<string | null>(null);
@@ -71,6 +75,8 @@ export function DepartmentsView({ data, initialId = 'royalties' }: { data: Data;
           {error && <p className={s.saved} role="alert" style={{ color: 'var(--critical)' }}><CircleAlert size={14} aria-hidden="true" />{error}</p>}
         </div>
       </section>
+
+      {agentsNow && <AgentFindings key={d.id} data={agentsNow} dept={d.id} deptName={d.agent} onRun={(a) => { setAgentsNow(a); void fetch('/api/departments').then((r) => (r.ok ? r.json() : null)).then((v) => v && setDepts(v.departments)); }} />}
 
       <ul className={s.grid} aria-label="All departments">
         {depts.map((x) => {

@@ -1,0 +1,16 @@
+/* Label Head plans (live): the draft, then saved plans with progress */
+.draft { margin-top: 24px; display: flex; flex-direction: column; gap: 16px; }
+.phases { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.phase { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 16px 18px; }
+.phaseName { font-size: var(--fs-card-title); font-weight: 600; margin: 0 0 8px; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.step { display: flex; flex-direction: column; gap: 2px; }
+.saved { margin-top: 32px; display: flex; flex-direction: column; gap: 12px; }
+.savedTitle { font-size: var(--fs-section); font-weight: 600; margin: 0; }
+.planList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.planCard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.planHead { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.planName { font-size: var(--fs-card-title); font-weight: 600; }
+.bar { display: block; height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.fill { display: block; height: 100%; background: var(--good); }
+.done { display: inline-flex; gap: 6px; align-items: center; color: var(--text-muted); }

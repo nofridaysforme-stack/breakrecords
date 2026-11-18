@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse, SplitVersionsResponse, ImportsResponse, SyncResponse, Template, PeopleResponse, PersonResponse } from '@breakrecords/contract';
+import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse, SplitVersionsResponse, ImportsResponse, SyncResponse, Template, PeopleResponse, PersonResponse, AgentsResponse, RunAgentsResponse, PlanDraftResponse, PlansResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 import { MAILBOX } from '../../playwright.live.config';
@@ -1667,6 +1667,190 @@ test('the details the rights forms need are entered on people, recordings and so
   await signIn(harbor, USERS.harbor);
   expect((await harbor.request.get('/api/catalog/people/marco-dela')).status()).toBe(404);
   expect((await harbor.request.patch('/api/catalog/people/marco-dela', { data: { phone: '555' } })).status()).toBe(404);
+});
+
+test('the agents run on a workspace’s own data: findings once, cards for filings, fixes only when allowed, and dismissals stick', async ({ page, browser }) => {
+  await signIn(page, USERS.jana);
+  const code = ((await (await page.request.post('/api/admin/invite-codes', { data: { note: 'E2E agents', maxUses: 1, expiresInDays: 7 } })).json()) as { code: string }).code;
+  const p = await signUp(browser, code, `e2e-agents-${Date.now()}@artist.example`);
+  const answers = { profile: 'solo', name: 'Rae Lin', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_yet' }, autonomy: 'draft_and_wait' };
+  expect((await p.request.put('/api/onboarding', { data: { answers, complete: true } })).status()).toBe(200);
+  const isrc = `USE2E25${String(Date.now() % 100000).padStart(5, '0')}`;
+  expect((await p.request.post('/api/catalog/releases', { data: { title: 'Tide', kind: 'single', artist: { name: 'Rae Lin' }, releaseDate: '2025-05-01', tracks: [{ title: 'Tide', isrc }] } })).status()).toBe(200);
+  const before = AgentsResponse.parse(await (await p.request.get('/api/agents')).json());
+  expect(before).toMatchObject({ live: true, lastRun: null, findings: [] });
+
+  // First run: what's missing, and SoundExchange filings put in Approvals as the Rights Agent's cards.
+  const run = async () => RunAgentsResponse.parse(await (await p.request.post('/api/agents/run')).json());
+  const first = await run();
+  expect(first.result).toMatchObject({ proposed: 2, fixed: 0, errors: [] });
+  const keys = first.findings.map((f) => f.key);
+  expect(keys).toEqual(expect.arrayContaining(['rights:sx_owner:tide', 'rights:sx_artist:tide', 'metadata:genre:tide', 'metadata:pyear:tide', 'metadata:owner:tide']));
+  expect(first.findings.find((f) => f.key === 'rights:sx_owner:tide')!.approvalId).toBe('reg_sx_owner_tide');
+  expect(first.lastRun).toMatchObject({ trigger: 'manual', proposed: 2 });
+  const card = await (await p.request.get('/api/approvals/reg_sx_owner_tide')).json();
+  expect(card).toMatchObject({ agent: 'Rights Agent', type: 'filing' });
+
+  // Again: nothing new, nothing doubled.
+  const second = await run();
+  expect(second.result).toMatchObject({ found: 0, proposed: 0 });
+  expect(second.findings).toHaveLength(first.findings.length);
+
+  // A fix only with Act within limits: the ℗ year from the release date.
+  expect((await p.request.patch('/api/departments/metadata', { data: { autonomy: 'act_within_limits' } })).status()).toBe(200);
+  const third = await run();
+  expect(third.result.fixed).toBe(1);
+  expect(third.findings.map((f) => f.key)).not.toContain('metadata:pyear:tide');
+  const rec = CatalogResponse.parse(await (await p.request.get('/api/catalog')).json()).recordings.find((r) => r.id === 'tide')!;
+  expect(rec.rights?.pYear).toBe(2025);
+
+  // A dismissal needs a reason and sticks.
+  expect((await p.request.post('/api/agents/findings/metadata%3Agenre%3Atide/dismiss', { data: { note: '' } })).status()).toBe(400);
+  expect((await p.request.post('/api/agents/findings/metadata%3Agenre%3Atide/dismiss', { data: { note: 'Genre comes from the distributor' } })).status()).toBe(200);
+  expect((await run()).findings.map((f) => f.key)).not.toContain('metadata:genre:tide');
+  await p.goto('/departments?dept=rights');
+  await expect(p.getByRole('heading', { name: 'What Rights Agent found' })).toBeVisible();
+  await expect(p.getByRole('link', { name: /Open the card about Tide isn’t registered with SoundExchange \(as owner\)/ })).toHaveAttribute('href', '/approvals/reg_sx_owner_tide');
+
+  // Nobody else sees it; the schedule needs its secret.
+  expect(AgentsResponse.parse(await (await page.request.get('/api/agents')).json()).findings.map((f) => f.key)).not.toContain('rights:sx_owner:tide');
+  expect((await page.request.get('/api/cron/agents')).status()).toBe(401);
+  const cron = await page.request.get('/api/cron/agents', { headers: { authorization: 'Bearer live-e2e-cron-secret' } });
+  expect(cron.status()).toBe(200);
+  expect((await cron.json()).workspaces).toBeGreaterThan(1);
+});
+
+test('the Royalties and Audit agents read the statements: lines matched by ISRC only when allowed, spikes and duplicates raised', async ({ page, browser }) => {
+  await signIn(page, USERS.jana);
+  const code = ((await (await page.request.post('/api/admin/invite-codes', { data: { note: 'E2E money agents', maxUses: 1, expiresInDays: 7 } })).json()) as { code: string }).code;
+  const p = await signUp(browser, code, `e2e-money-agents-${Date.now()}@artist.example`);
+  const answers = { profile: 'solo', name: 'Ivo Marsh', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_yet' }, autonomy: 'draft_and_wait' };
+  expect((await p.request.put('/api/onboarding', { data: { answers, complete: true } })).status()).toBe(200);
+  const isrc = `USE2F25${String(Date.now() % 100000).padStart(5, '0')}`;
+  expect((await p.request.post('/api/catalog/releases', { data: { title: 'Harbor', kind: 'single', artist: { name: 'Ivo Marsh' }, releaseDate: '2025-05-01', tracks: [{ title: 'Harbor', isrc }] } })).status()).toBe(200);
+
+  // Statements for the last four months: steady plays, then a spike; an unmatched line carrying Harbor's ISRC
+  // with dashes; a line nobody knows; and the same statement imported twice.
+  const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+  const [{ id: tenant }] = await db<{ id: string }[]>`SELECT id FROM tenants WHERE name = 'Ivo Marsh' ORDER BY created_at DESC LIMIT 1`;
+  const [{ id: rec }] = await db<{ id: string }[]>`SELECT id FROM recordings WHERE tenant_id = ${tenant} AND slug = 'harbor'`;
+  const month = (back: number) => db<{ d: string }[]>`SELECT to_char(date_trunc('month', current_date) - make_interval(months => ${back}), 'YYYY-MM-DD') AS d`.then((r) => r[0].d);
+  const stamp = String(Date.now() % 1000000);
+  const statement = (ref: string, period: string, lines: { isrc: string | null; units: number; cents: number; matched: boolean }[]) => db.begin(async (tx) => {
+    const [{ id }] = await tx<{ id: string }[]>`INSERT INTO income_statements (tenant_id, ref, source, period, total_cents)
+      VALUES (${tenant}, ${ref}, 'distributor', ${period}, ${lines.reduce((a, l) => a + l.cents, 0)}) RETURNING id`;
+    for (const [i, l] of lines.entries()) {
+      await tx`INSERT INTO income_lines (tenant_id, statement_id, line_no, title, isrc, units, amount_cents, recording_id)
+        VALUES (${tenant}, ${id}, ${i + 1}, 'Harbor', ${l.isrc}, ${l.units}, ${l.cents}, ${l.matched ? rec : null})`;
+    }
+  });
+  for (const back of [4, 3, 2]) await statement(`E2E-${stamp}-${back}`, await month(back), [{ isrc, units: 2000, cents: 1000, matched: true }]);
+  await statement(`E2E-${stamp}-1`, await month(1), [
+    { isrc, units: 40000, cents: 20000, matched: true },
+    { isrc: `${isrc.slice(0, 2)}-${isrc.slice(2, 5)}-${isrc.slice(5, 7)}-${isrc.slice(7)}`.toLowerCase(), units: 10, cents: 500, matched: false },
+    { isrc: 'QZZZZ2500001', units: 5, cents: 250, matched: false },
+  ]);
+  const again = [{ isrc: 'QZZZZ2500002', units: 1, cents: 7, matched: false }, { isrc: 'QZZZZ2500003', units: 1, cents: 7, matched: false }];
+  await statement(`E2E-${stamp}-2A`, await month(1), again);
+  await statement(`E2E-${stamp}-2B`, await month(1), again);
+
+  const run = async () => RunAgentsResponse.parse(await (await p.request.post('/api/agents/run')).json());
+  const first = await run();
+  const keys = first.findings.map((f) => f.key);
+  expect(keys).toEqual(expect.arrayContaining([
+    `royalties:match:${isrc.toLowerCase()}`, 'royalties:unknown:qzzzz2500001', 'royalties:nosplit:harbor',
+    'audit:spike:harbor', `audit:duplicate:e2e-${stamp}-2a:e2e-${stamp}-2b`,
+  ]));
+  expect(first.result.fixed).toBe(0); // Draft and wait: the match is only suggested
+  expect(first.findings.find((f) => f.key === 'audit:spike:harbor')!.title).toBe('Harbor jumped to 40,000 plays from about 2,000');
+  expect((await db`SELECT 1 FROM income_lines WHERE tenant_id = ${tenant} AND recording_id IS NULL`).length).toBe(6);
+
+  // With Act within limits, Royalties matches the line by its ISRC; Audit never holds money on its own.
+  expect((await p.request.patch('/api/departments/royalties', { data: { autonomy: 'act_within_limits' } })).status()).toBe(200);
+  const second = await run();
+  expect(second.result.fixed).toBe(1);
+  expect(second.findings.map((f) => f.key)).not.toContain(`royalties:match:${isrc.toLowerCase()}`);
+  expect((await db`SELECT 1 FROM income_lines WHERE tenant_id = ${tenant} AND recording_id = ${rec}`).length).toBe(5);
+  expect((await db`SELECT 1 FROM audit_flags WHERE tenant_id = ${tenant}`).length).toBe(0);
+  await db.end();
+});
+
+test('the Release and Roster agents chase what a release and its payees still need; a tax form request is the only thing done on their own', async ({ page, browser }) => {
+  await signIn(page, USERS.jana);
+  const code = ((await (await page.request.post('/api/admin/invite-codes', { data: { note: 'E2E release agents', maxUses: 1, expiresInDays: 7 } })).json()) as { code: string }).code;
+  const p = await signUp(browser, code, `e2e-release-agents-${Date.now()}@artist.example`);
+  const answers = { profile: 'solo', name: 'Nia Cole', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_yet' }, autonomy: 'draft_and_wait' };
+  expect((await p.request.put('/api/onboarding', { data: { answers, complete: true } })).status()).toBe(200);
+  const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+  const [{ d: soon }] = await db<{ d: string }[]>`SELECT to_char(current_date + 10, 'YYYY-MM-DD') AS d`;
+  const isrc = `USE2G26${String(Date.now() % 100000).padStart(5, '0')}`;
+  expect((await p.request.post('/api/catalog/releases', { data: { title: 'Lantern', kind: 'ep', artist: { name: 'Nia Cole' }, releaseDate: soon, tracks: [{ title: 'Lantern', isrc }, { title: 'Ember' }] } })).status()).toBe(200);
+  // Nia is owed money in a draft batch, with no tax form or bank details.
+  const [{ id: tenant }] = await db<{ id: string }[]>`SELECT id FROM tenants WHERE name = 'Nia Cole' ORDER BY created_at DESC LIMIT 1`;
+  const [{ id: party }] = await db<{ id: string }[]>`SELECT id FROM parties WHERE tenant_id = ${tenant} AND slug = 'nia-cole'`;
+  await db`INSERT INTO payees (tenant_id, party_id) VALUES (${tenant}, ${party})`;
+  const [{ id: batch }] = await db<{ id: string }[]>`INSERT INTO payout_batches (tenant_id, slug, name, cadence, period, pays_on)
+    VALUES (${tenant}, 'e2e-batch', 'E2E', 'monthly', date_trunc('month', current_date), current_date + 20) RETURNING id`;
+  await db`INSERT INTO payout_lines (tenant_id, batch_id, party_id, role, amount_cents) VALUES (${tenant}, ${batch}, ${party}, 'Artist', 12500)`;
+
+  const run = async () => RunAgentsResponse.parse(await (await p.request.post('/api/agents/run')).json());
+  const first = await run();
+  expect(first.findings.map((f) => f.key)).toEqual(expect.arrayContaining(['release:cover:lantern', 'release:masters:lantern', 'release:codes:lantern', 'roster:tax:nia-cole', 'roster:bank:nia-cole']));
+  expect(first.findings.find((f) => f.key === 'release:codes:lantern')!.title).toBe('Lantern comes out in 10 days: 1 track has no ISRC and it has no UPC');
+  expect(first.findings.find((f) => f.key === 'roster:tax:nia-cole')!.title).toBe('Nia Cole is owed $125.00 and their tax form is missing');
+  expect((await db`SELECT 1 FROM payee_requests WHERE party_id = ${party}`).length).toBe(0); // Suggest: nothing done alone
+
+  // With Act within limits, the Roster Agent asks for the tax form in the portal; the finding stays open until it arrives.
+  expect((await p.request.patch('/api/departments/artist-relations', { data: { autonomy: 'act_within_limits' } })).status()).toBe(200);
+  const second = await run();
+  expect(second.result.fixed).toBe(1);
+  expect((await db`SELECT kind::text FROM payee_requests WHERE party_id = ${party} AND done_at IS NULL`).map((r) => r.kind)).toEqual(['tax_form']);
+  expect(second.findings.map((f) => f.key)).toContain('roster:tax:nia-cole');
+  expect((await run()).result.fixed).toBe(0); // asked once
+  await db.end();
+});
+
+test('the Label Head turns a goal into a plan from what the agents found; approving saves it, and steps tick off as findings close', async ({ page, browser }) => {
+  await signIn(page, USERS.jana);
+  const code = ((await (await page.request.post('/api/admin/invite-codes', { data: { note: 'E2E plans', maxUses: 1, expiresInDays: 7 } })).json()) as { code: string }).code;
+  const p = await signUp(browser, code, `e2e-plans-${Date.now()}@artist.example`);
+  const answers = { profile: 'solo', name: 'Oren Vale', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_yet' }, autonomy: 'draft_and_wait' };
+  expect((await p.request.put('/api/onboarding', { data: { answers, complete: true } })).status()).toBe(200);
+  const draftOf = async (goal: string) => PlanDraftResponse.parse(await (await p.request.get(`/api/plans/draft?goal=${encodeURIComponent(goal)}`)).json());
+  expect((await draftOf('Get everything registered')).assumptions.join(' ')).toMatch(/haven’t run yet/);
+
+  const isrc = `USE2H25${String(Date.now() % 100000).padStart(5, '0')}`;
+  expect((await p.request.post('/api/catalog/releases', { data: { title: 'Drift', kind: 'single', artist: { name: 'Oren Vale' }, releaseDate: '2025-06-06', tracks: [{ title: 'Drift', isrc }] } })).status()).toBe(200);
+  expect((await p.request.post('/api/agents/run')).status()).toBe(200);
+  const draft = await draftOf('Get everything registered');
+  expect(draft).toMatchObject({ area: 'registrations', title: 'Get everything registered', empty: null });
+  expect(draft.phases.map((ph) => ph.name)).toEqual(['Get the facts right', 'File the registrations']);
+  const filing = draft.phases[1].steps.find((st) => st.key === 'rights:sx_owner:drift')!;
+  expect(filing).toMatchObject({ href: '/approvals/reg_sx_owner_drift', waitingOnYou: true });
+
+  // Approving saves the plan and an approved plan card; drafting changed nothing.
+  await p.goto('/plan?goal=Get%20everything%20registered');
+  await expect(p.getByRole('heading', { level: 1, name: 'Get everything registered' })).toBeVisible();
+  await p.getByRole('button', { name: /Approve the plan/ }).click();
+  await expect(p.getByRole('status')).toContainText('Plan approved');
+  const plans = PlansResponse.parse(await (await p.request.get('/api/plans')).json()).plans;
+  expect(plans).toHaveLength(1);
+  const total = plans[0].total;
+  expect(plans[0].done).toBe(0);
+  const state = await (await p.request.get('/api/approvals/state')).json();
+  expect(state.proposals.find((x: { id: string }) => x.id === plans[0].id)).toMatchObject({ type: 'plan', agent: 'Label Head' });
+  expect(state.decisions[plans[0].id]).toMatchObject({ status: 'approved' });
+
+  // Fix one step (the genre) and run again: the plan moves on.
+  expect((await p.request.patch('/api/catalog/recordings/drift', { data: { genre: 'Ambient' } })).status()).toBe(200);
+  expect((await p.request.post('/api/agents/run')).status()).toBe(200);
+  const after = PlansResponse.parse(await (await p.request.get('/api/plans')).json()).plans[0];
+  expect(after).toMatchObject({ done: 1, total });
+  expect(after.steps.find((st) => st.key === 'metadata:genre:drift')!.done).toBe(true);
+
+  // A goal with nothing open can't be approved, and nobody else sees the plans.
+  expect((await p.request.post('/api/plans', { data: { goal: 'Get everyone paid' } })).status()).toBe(409);
+  expect(PlansResponse.parse(await (await page.request.get('/api/plans')).json()).plans.map((x) => x.id)).not.toContain(plans[0].id);
 });
 
 // Last: staging is reseeded over data people made (flags, reserves, sync quotes, imports). After
