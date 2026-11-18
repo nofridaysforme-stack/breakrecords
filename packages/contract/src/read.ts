@@ -655,7 +655,14 @@ export const RosterResponse = z.array(z.object({
 
 // ---------- Prepared documents (Rights → Documents) ----------
 
-export const DocKind = z.enum(['split_sheet', 'registration_packet', 'copyright_worksheet', 'label_copy']);
+export const DocKind = z.enum(['split_sheet', 'registration_packet', 'copyright_worksheet', 'label_copy', 'pro_registration', 'mlc_registration', 'sx_registration', 'sx_lod', 'copyright_group']);
+/** A Letter of Direction's terms: the payee (a credited producer, mixer or engineer), their percentage of the featured artist's share, and from when. */
+export const LodTerms = z.object({
+  payee: z.string().trim().min(1).max(200),
+  percentBp: z.number().int().min(1).max(10000).nullable(),
+  effectiveDate: IsoDate.nullable(),
+  allRoyalties: z.boolean(),
+}).strict();
 export const DocSubject = z.enum(['work', 'recording', 'release']);
 export const DocGap = z.object({ severity: z.enum(['blocker', 'warning']), field: z.string(), message: z.string() });
 export const DocReview = z.object({
@@ -667,14 +674,18 @@ export const DocVersion = z.object({
   id: z.string(), version: z.number().int().positive(), preparedAt: z.string(), preparedBy: z.string(),
   gaps: z.array(DocGap), summary: z.string(), hasCsv: z.boolean(), review: DocReview.nullable(),
 });
-export const DocSlot = z.object({ kind: DocKind, label: z.string(), latest: DocVersion.nullable(), versions: z.number().int().nonnegative() });
+export const DocSlot = z.object({
+  kind: DocKind, label: z.string(), latest: DocVersion.nullable(), versions: z.number().int().nonnegative(),
+  /** For a Letter of Direction: who can be paid (credited producers, mixers, engineers) and the terms it was last made with. */
+  lod: z.object({ payees: z.array(z.string()), last: LodTerms.nullable() }).optional(),
+});
 export const DocSubjectRow = z.object({ subject: DocSubject, id: z.string(), title: z.string(), artist: z.string(), detail: z.string(), docs: z.array(DocSlot) });
 export const DocumentsResponse = z.object({
   ai: z.object({ available: z.boolean(), on: z.boolean(), canChange: z.boolean(), note: z.string() }),
   artists: z.array(z.string()),
   subjects: z.array(DocSubjectRow),
 });
-export const PrepareDocumentCommand = z.object({ kind: DocKind, subject: DocSubject, id: z.string().min(1) }).strict();
+export const PrepareDocumentCommand = z.object({ kind: DocKind, subject: DocSubject, id: z.string().min(1), lod: LodTerms.optional() }).strict();
 export const SetAiAssistCommand = z.object({ on: z.boolean() }).strict();
 export type DocumentsResponse = z.infer<typeof DocumentsResponse>;
 export type DocVersion = z.infer<typeof DocVersion>;

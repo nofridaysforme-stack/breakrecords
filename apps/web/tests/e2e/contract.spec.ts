@@ -323,20 +323,20 @@ test.describe('invitation writes', () => {
 test.describe('prepared documents', () => {
   test('preparing a document stores a version with its gaps; the PDF and CSV download', async ({ request }) => {
     // Glasshouse isn't out yet and Marco Dela has no PRO or IPI on file, so its packet has gaps.
-    const res = await request.post('/api/rights/documents', { data: { kind: 'registration_packet', subject: 'work', id: 'glasshouse' } });
+    const res = await request.post('/api/rights/documents', { data: { kind: 'pro_registration', subject: 'work', id: 'glasshouse' } });
     expect(res.status()).toBe(200);
     const body = await res.json();
     const view = DocumentsResponse.parse(body);
-    const slot = view.subjects.find((x) => x.subject === 'work' && x.id === 'glasshouse')!.docs.find((d) => d.kind === 'registration_packet')!;
+    const slot = view.subjects.find((x) => x.subject === 'work' && x.id === 'glasshouse')!.docs.find((d) => d.kind === 'pro_registration')!;
     expect(slot.latest).toMatchObject({ id: body.prepared, version: 1, hasCsv: true, summary: expect.stringMatching(/to fix/) });
     expect(slot.latest!.gaps.map((g) => g.message).join(' ')).toMatch(/Marco Dela's (PRO|IPI)/);
     const pdf = await request.get(`/api/rights/documents/${body.prepared}/file`);
     expect(pdf.headers()['content-type']).toBe('application/pdf');
     expect((await pdf.body()).subarray(0, 5).toString()).toBe('%PDF-');
     const csv = await (await request.get(`/api/rights/documents/${body.prepared}/file?format=csv`)).text();
-    expect(csv.split('\r\n')[0]).toContain('"Performance share","MLC share"');
-    const again = DocumentsResponse.parse(await (await request.post('/api/rights/documents', { data: { kind: 'registration_packet', subject: 'work', id: 'glasshouse' } })).json());
-    expect(again.subjects.find((x) => x.id === 'glasshouse')!.docs.find((d) => d.kind === 'registration_packet')).toMatchObject({ versions: 2, latest: { version: 2 } });
+    expect(csv.split('\r\n')[0]).toContain('"PRO","Work title","ISWC","Name","Role","Party PRO","IPI","Share"');
+    const again = DocumentsResponse.parse(await (await request.post('/api/rights/documents', { data: { kind: 'pro_registration', subject: 'work', id: 'glasshouse' } })).json());
+    expect(again.subjects.find((x) => x.id === 'glasshouse')!.docs.find((d) => d.kind === 'pro_registration')).toMatchObject({ versions: 2, latest: { version: 2 } });
   });
   test('documents only exist for what they apply to, and bad requests are refused', async ({ request }) => {
     expect((await request.post('/api/rights/documents', { data: { kind: 'label_copy', subject: 'work', id: 'night-bus' } })).status()).toBe(400);

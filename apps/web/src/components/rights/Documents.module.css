@@ -50,3 +50,4 @@
   .select { width: 100%; }
   .filter { width: 100%; }
 }
+.check2 { display: flex; gap: 8px; align-items: center; font-size: var(--fs-meta); }

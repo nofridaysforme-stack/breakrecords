@@ -426,6 +426,16 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       await owner`DELETE FROM contract_templates WHERE id = ${tpl}`;
     });
 
+    it('each organization’s form belongs to one kind of thing', async () => {
+      const [{ id: rec }] = await owner`SELECT id FROM recordings WHERE tenant_id = ${ids.a} LIMIT 1`;
+      const row = (kind: string, subject: string) => owner`INSERT INTO documents (tenant_id, kind, subject, subject_id, version, title, pdf_key, sha256, created_by)
+        VALUES (${ids.a}, ${kind}, ${subject}, ${rec}, 99, 'x', 'x.pdf', ${'0'.repeat(64)}, ${ids.ua})`;
+      await expect(row('mlc_registration', 'recording')).rejects.toThrow(/documents_form_subject/);
+      await expect(row('sx_lod', 'work')).rejects.toThrow(/documents_form_subject|cross-tenant reference/); // a recording's id is no song
+      await row('sx_lod', 'recording');
+      await owner`DELETE FROM documents WHERE version = 99`;
+    });
+
     it('no function of ours can be run by just anyone, now or when a migration adds one', async () => {
       const open = async () => (await owner<{ proname: string }[]>`
         SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace

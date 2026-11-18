@@ -1,6 +1,6 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
-import { prepare, toCsv, DOC_LABEL, type DocKind, type DocSubject, type Person, type RecordingFacts, type ReleaseFacts, type SongFacts } from '@breakrecords/core/documents';
+import { lodParticipants, prepare, toCsv, DOC_LABEL, type DocKind, type LodTerms, type DocSubject, type Person, type RecordingFacts, type ReleaseFacts, type SongFacts } from '@breakrecords/core/documents';
 import type { DocReview, DocumentsResponse } from '@breakrecords/contract';
 import { catalogReleases, recordings, songs } from '@/data/ops';
 import { SAMPLE_LYRICS, SAMPLE_MASTER_OWNER, SAMPLE_PEOPLE, SAMPLE_P_YEAR, SAMPLE_RELEASE_TRACKS, SAMPLE_SIGNED, SAMPLE_SIGNED_BY, SAMPLE_SONGS } from '@/data/rightsDetails';
@@ -39,7 +39,7 @@ function facts() {
   const recMap = new Map<string, RecordingFacts>();
   for (const r of recordings) {
     const song = r.song ? songMap.get(r.song) ?? null : null;
-    const rec: RecordingFacts = { id: r.id, title: r.title, isrc: r.isrc, durationS: r.duration ? seconds(r.duration) : null, genre: r.genre, artist: person(r.artist), owner: person(SAMPLE_MASTER_OWNER), pYear: SAMPLE_P_YEAR[r.id] ?? null, credits: r.credits, song, releases: [] };
+    const rec: RecordingFacts = { id: r.id, title: r.title, isrc: r.isrc, durationS: r.duration ? seconds(r.duration) : null, genre: r.genre, artist: person(r.artist), owner: person(SAMPLE_MASTER_OWNER), pYear: SAMPLE_P_YEAR[r.id] ?? null, credits: r.credits.map((c) => ({ ...c, person: person(c.name) })), song, releases: [] };
     recMap.set(r.id, rec);
     song?.recordings.push({ title: r.title, isrc: r.isrc, artist: r.artist, durationS: rec.durationS });
   }
@@ -62,7 +62,7 @@ function subjects(f: ReturnType<typeof facts>): SubjectRef[] {
   const kind = (k: string) => (k === 'ep' ? 'EP' : k[0].toUpperCase() + k.slice(1));
   return [
     ...f.songs.map((s) => ({ subject: 'work' as const, id: s.id, title: s.title, artist: s.recordings[0]?.artist ?? s.writers[0]?.person.name ?? 'No artist', detail: `Song · ${s.writers.length} writer${s.writers.length === 1 ? '' : 's'}` })),
-    ...f.recordings.map((r) => ({ subject: 'recording' as const, id: r.id, title: r.title, artist: r.artist.name, detail: `Recording · ${r.isrc ?? 'no ISRC'}` })),
+    ...f.recordings.map((r) => ({ subject: 'recording' as const, id: r.id, title: r.title, artist: r.artist.name, detail: `Recording · ${r.isrc ?? 'no ISRC'}`, payees: lodParticipants(r).map((x) => x.name) })),
     ...f.releases.map((r) => ({ subject: 'release' as const, id: r.id, title: r.title, artist: r.artist.name, detail: `${kind(r.kind)} · ${r.releaseDate ?? 'no date'}` })),
   ];
 }
@@ -93,10 +93,11 @@ function factsFor(subject: DocSubject, id: string) {
 
 const today = () => new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-export async function mockPrepareDocument(c: { kind: DocKind; subject: DocSubject; id: string }): Promise<{ ok: true; value: DocumentsResponse; id: string } | { ok: false; status: number; error: string; message: string }> {
+export async function mockPrepareDocument(c: { kind: DocKind; subject: DocSubject; id: string; lod?: LodTerms }): Promise<{ ok: true; value: DocumentsResponse; id: string } | { ok: false; status: number; error: string; message: string }> {
   const f = factsFor(c.subject, c.id);
   if (!f) return { ok: false, status: 404, error: 'not_found', message: 'No such song, recording or release.' };
-  const doc = prepare(c.kind, f as Parameters<typeof prepare>[1], today());
+  const options = c.kind === 'sx_lod' && c.lod ? { lod: c.lod } : null;
+  const doc = prepare(c.kind, f as Parameters<typeof prepare>[1], today(), options ?? {});
   if (!doc) return { ok: false, status: 400, error: 'invalid', message: `A ${DOC_LABEL[c.kind].toLowerCase()} isn’t made for that.` };
   const { session, docs } = await mine();
   const version = docs.filter((d) => d.kind === c.kind && d.subjectId === c.id).length + 1;
@@ -111,7 +112,7 @@ export async function mockPrepareDocument(c: { kind: DocKind; subject: DocSubjec
     throw e;
   }
   const id = crypto.randomUUID();
-  docs.push({ id, kind: c.kind, subject: c.subject, subjectId: c.id, version, preparedAt: new Date(), preparedBy: 'You', gaps: doc.gaps, hasCsv: !!doc.csv, review: null, title: doc.title, pdfKey: `${base}.pdf`, csvKey: doc.csv ? `${base}.csv` : null });
+  docs.push({ id, kind: c.kind, subject: c.subject, subjectId: c.id, version, preparedAt: new Date(), preparedBy: 'You', gaps: doc.gaps, hasCsv: !!doc.csv, review: null, options, title: doc.title, pdfKey: `${base}.pdf`, csvKey: doc.csv ? `${base}.csv` : null });
   return { ok: true, value: await view(), id };
 }
 
@@ -127,7 +128,7 @@ export async function mockDocumentForReview(id: string) {
   const d = (await current()).docs.find((x) => x.id === id);
   if (!d) return null;
   const f = factsFor(d.subject, d.subjectId);
-  return f ? prepare(d.kind, f as Parameters<typeof prepare>[1], today()) : null;
+  return f ? prepare(d.kind, f as Parameters<typeof prepare>[1], today(), d.options ?? {}) : null;
 }
 
 export async function mockSaveReview(id: string, r: { model: string; findings: DocReview['findings']; nextSteps: string }): Promise<DocumentsResponse> {

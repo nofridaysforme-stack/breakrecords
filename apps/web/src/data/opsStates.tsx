@@ -49,7 +49,7 @@ export const OPS_STATES: Record<Key, StateCopy> = {
     partial: { text: <><strong>YouTube isn&apos;t connected.</strong> Its column shows what Rights Agent prepared only.</>, action: 'Connect' },
   },
   documents: {
-    empty: { title: 'Nothing to prepare yet', text: 'Add songs and recordings to your catalog and their split sheets, registration packets and copyright worksheets appear here.', action: { label: 'Open catalog', href: '/catalog/recordings' } },
+    empty: { title: 'Nothing to prepare yet', text: 'Add songs and recordings to your catalog and their split sheets, registrations and copyright applications appear here.', action: { label: 'Open catalog', href: '/catalog/recordings' } },
     working: { agent: 'Rights Agent', task: 'preparing documents', note: 'Each one lists what’s missing before you submit it.' },
     blocked: { title: 'Document storage isn’t set up', text: <>Documents can&apos;t be saved until storage is connected. <strong>Owner: you, in the staging settings.</strong></>, action: { label: 'See settings', href: '/settings' } },
     error: { title: 'Documents didn’t load', text: <>The catalog didn&apos;t answer. <strong>Nothing was prepared, filed or changed.</strong></>, meta: 'Error DC-500 · Nov 9, 9:00 · Audit AUD-7F3K-2410', retry: 'Retry' },

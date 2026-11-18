@@ -1524,6 +1524,26 @@ test('a payee whose record goes missing is told so, never stuck on "page not fou
   await expect(page.getByRole('heading', { name: 'Nothing from Northline Records to show you' })).toHaveCount(0);
 });
 
+test('a form for each organization: the Letter of Direction keeps its terms; the MLC form and album group are stored', async ({ page }) => {
+  await signIn(page, USERS.owner);
+  const lod = { payee: 'Marco Dela', percentBp: 250, effectiveDate: null, allRoyalties: true };
+  const res = await page.request.post('/api/rights/documents', { data: { kind: 'sx_lod', subject: 'recording', id: 'velvet-hours', lod } });
+  expect(res.status()).toBe(200);
+  const body = await res.json();
+  const slot = DocumentsResponse.parse(body).subjects.find((x) => x.subject === 'recording' && x.id === 'velvet-hours')!.docs.find((d) => d.kind === 'sx_lod')!;
+  expect(slot.lod).toEqual({ payees: ['Marco Dela'], last: lod });
+  const csv = await (await page.request.get(`/api/rights/documents/${body.prepared}/file?format=csv`)).text();
+  expect(csv.split('\r\n')[1]).toBe('"Kesi Vale","Velvet Hours","All royalties received for this recording","USNL12400007","2.5%"');
+  for (const [kind, subject, id] of [['mlc_registration', 'work', 'night-bus'], ['pro_registration', 'work', 'night-bus'], ['sx_registration', 'recording', 'night-bus'], ['copyright_group', 'release', 'rel_velvet']]) {
+    expect((await page.request.post('/api/rights/documents', { data: { kind, subject, id } })).status()).toBe(200);
+  }
+  expect((await page.request.post('/api/rights/documents', { data: { kind: 'mlc_registration', subject: 'recording', id: 'night-bus' } })).status()).toBe(400);
+  const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+  const [row] = await db<{ options: unknown }[]>`SELECT options FROM documents WHERE id = ${body.prepared}`;
+  await db.end();
+  expect(row.options).toEqual({ lod });
+});
+
 // Last: staging is reseeded over data people made (flags, reserves, sync quotes, imports). After
 // every test above has written its rows, the seed must still run cleanly on top of them.
 test('the seed runs again over everything the tests made', async () => {
