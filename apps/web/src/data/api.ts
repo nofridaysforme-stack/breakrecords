@@ -12,7 +12,7 @@ import { approvalDetails, home, homeNumberNotes, homeNumbers, releases, TODAY } 
 import type { ApprovalDetail, Release, Scenario } from './types';
 import type { ApprovalSummary } from '@/components/ui/Approval';
 import * as ops from './ops';
-import type { RegistrationsResponse, UnclaimedResponse, SplitVersionsResponse, Module, ReservesResponse, SplitNodeResponse, SplitTreeNode, TaxYearResponse } from '@breakrecords/contract';
+import type { PeopleResponse, PersonResponse, RegistrationsResponse, UnclaimedResponse, SplitVersionsResponse, Module, ReservesResponse, SplitNodeResponse, SplitTreeNode, TaxYearResponse } from '@breakrecords/contract';
 import { advance, baselineIncome, sale, type AdvanceOffer, type OfferAssumptions, type SaleOffer } from '@breakrecords/core/offers';
 
 export { TODAY };
@@ -230,12 +230,25 @@ export async function getCatalog(): Promise<ReturnType<typeof mockCatalog>> {
   const base = mockCatalog();
   // Releases and recordings added this session come after the sample's.
   const music = await (await import('@/server/mockMusic')).mockMusic();
-  const recordings = [...base.recordings.map((r) => (edits[r.id] ? { ...r, ...edits[r.id] } : r)), ...music.recordings];
+  // Credits, owner, ℗ year, length and writer details: the sample's, with this session's changes.
+  const f = await (await import('@/server/mockDocuments')).mockFacts();
+  const fmt = (s: number | null) => (s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : 'Not set');
+  const withRights = (r: typeof base.recordings[number]) => {
+    const x = f.recordings.find((y) => y.id === r.id);
+    if (!x) return r;
+    return { ...r, duration: fmt(x.durationS), credits: x.credits.map((c) => ({ name: c.name, role: c.role })),
+      rights: { credits: x.credits.filter((c) => c.person).map((c) => ({ partyId: c.person!.id, name: c.name, role: c.role })), owner: x.owner ? { partyId: x.owner.id, name: x.owner.name } : null, pYear: x.pYear, durationS: x.durationS } };
+  };
+  const recordings = [...base.recordings.map((r) => withRights(edits[r.id] ? { ...r, ...edits[r.id] } : r)), ...music.recordings];
+  const songs = base.songs.map((sg) => {
+    const x = f.songs.find((y) => y.id === sg.id);
+    return x ? { ...sg, edit: { writers: x.writers.map((w) => ({ partyId: w.person.id, name: w.person.name, share: `${w.shareBp / 100}%`, role: w.role, publisher: w.publisher ? { partyId: w.publisher.id, name: w.publisher.name } : null })), altTitles: x.altTitles, completionYear: x.completionYear } } : sg;
+  });
   const releases = [...base.releases.map((r) => (upcs[r.id] !== undefined ? { ...r, upc: upcs[r.id] ?? 'Not assigned' } : r)), ...music.releases];
   return {
     ...base,
     counts: { ...base.counts, recordings: base.counts.recordings + music.recordings.length, releases: base.counts.releases + music.releases.length },
-    recordings, releases, people: music.people, unsplit: music.unsplit,
+    recordings, songs, releases, people: music.people, unsplit: music.unsplit,
   };
 }
 export type Contracts = { summary: string; contracts: ops.Contract[]; templates: ops.Template[]; staff: boolean; reviews: { id: string; fileName: string; status: 'queued' | 'reviewed'; requested: string }[] };
@@ -380,4 +393,17 @@ export async function getSearch(q: string) {
     recoupment: recoup, unclaimed: unclaimed.total, contracts: contracts.contracts, templates: contracts.templates, funding: funding.items,
   });
   return { items: search(q, 12, index) };
+}
+
+/** People and companies in the workspace, with what the rights forms still need about each. */
+export async function getPeople(): Promise<z.infer<typeof PeopleResponse>> {
+  const ctx = await liveCtx('catalog');
+  if (ctx) return (await import('@/server/live/people')).livePeople(ctx);
+  return (await import('@/server/mockPeople')).mockPeople();
+}
+/** One person or company: what's on file, what's missing, and where they appear. Null if not in this workspace. */
+export async function getPerson(id: string): Promise<z.infer<typeof PersonResponse> | null> {
+  const ctx = await liveCtx('catalog');
+  if (ctx) return (await import('@/server/live/people')).livePerson(ctx, id);
+  return (await import('@/server/mockPeople')).mockPerson(id);
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { CircleAlert, Download, FileText, ListChecks } from 'lucide-react';
 import type { DocumentsResponse } from '@breakrecords/contract';
@@ -27,6 +28,11 @@ function DocStatus({ slot }: { slot: Slot }) {
   if (d.gaps.length) return <StatusPill status="needsYou" label={`${d.gaps.length} to check`} />;
   return <StatusPill status="prepared" label="Ready to submit" />;
 }
+
+/** Where a missing fact is entered; a person's page returns here when done. */
+const fixHref = (f: { to: 'person' | 'recording' | 'song' | 'release' | 'lod'; id: string }) =>
+  f.to === 'person' ? `/catalog/people/${encodeURIComponent(f.id)}?back=/rights/documents` : f.to === 'song' ? `/catalog/songs?edit=${encodeURIComponent(f.id)}`
+  : f.to === 'release' ? `/catalog/releases?edit=${encodeURIComponent(f.id)}` : `/catalog/recordings?edit=${encodeURIComponent(f.id)}`;
 
 /** Rights → Documents: prepare, download and review the paperwork for every artist on the label. */
 export function DocumentsView({ data }: { data: DocumentsResponse }) {
@@ -177,11 +183,15 @@ export function DocumentsView({ data }: { data: DocumentsResponse }) {
                                 {d.gaps.map((gap, i) => (
                                   <li key={i} className={s.gap}>
                                     {gap.severity === 'blocker' ? <CircleAlert size={14} className={o.critical} aria-hidden="true" /> : <span className={s.gapIcon} aria-hidden="true" />}
-                                    <span>{gap.severity === 'blocker' ? <strong>Fix:</strong> : <strong className={s.check}>Check:</strong>} {gap.field}. {gap.message}</span>
+                                    <span>{gap.severity === 'blocker' ? <strong>Fix:</strong> : <strong className={s.check}>Check:</strong>} {gap.field}. {gap.message}
+                                      {gap.fix && (gap.fix.to === 'lod'
+                                        ? (slot.lod?.payees.length ? <> <button type="button" className={o.linkInline} onClick={() => openLod(sub, slot)}>Set the terms<span className="visually-hidden"> for {gap.field}</span></button></> : null)
+                                        : <> <Link href={fixHref(gap.fix)} className={o.linkInline}>Fix it<span className="visually-hidden"> for {gap.field}, {sub.title}</span></Link></>)}
+                                    </span>
                                   </li>
                                 ))}
                               </ul>
-                              <p className={s.muted}>Fix these in the catalog, then prepare again. Earlier versions are kept.</p>
+                              <p className={s.muted}>{d.gaps.some((g) => g.fix) ? 'Use Fix it on each line, then prepare again. Earlier versions are kept.' : 'Prepare again to get a Fix it link on each line. Earlier versions are kept.'}</p>
                             </div>
                           )}
                           {d?.review && (

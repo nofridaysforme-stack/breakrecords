@@ -439,6 +439,8 @@ export const Recording = z.object({
   score: z.number().int().min(0).max(100), ai: z.string(), duration: Display, upc: z.string().regex(/^\d{12,13}$/).nullable(),
   song: z.string(), iswc: z.string().nullable(), genre: z.string().nullable(),
   credits: z.array(z.object({ name: z.string(), role: z.string() })), note: z.string(),
+  /** Credits, owner, ℗ year and length for editing; present where the viewer can change them. */
+  rights: z.lazy(() => RecordingRights).optional(),
 });
 /** PATCH /api/catalog/recordings/{id}. Identifiers and credits come from the distributor and signed agreements, so only these change here. */
 export const UpdateRecordingCommand = z.object({
@@ -446,13 +448,66 @@ export const UpdateRecordingCommand = z.object({
   ai: AiUseLabel.optional(),
   /** Typed with or without hyphens; null removes it. Checked against the ISRC format. */
   isrc: z.string().trim().max(20).nullable().optional(),
-}).refine((c) => c.genre !== undefined || c.ai !== undefined || c.isrc !== undefined, 'Send a genre, an AI use or an ISRC.');
+  /** Everyone credited, in order (replaces the list). A new name adds that person to the workspace. */
+  credits: z.array(z.object({ party: z.lazy(() => PartyRef), role: z.string().trim().min(1, 'Give each credit a role.').max(60) }).strict()).max(30).optional(),
+  /** Who owns the master: the ℗ line, and the claimant on copyright and SoundExchange forms. */
+  owner: z.lazy(() => PartyRef).nullable().optional(),
+  pYear: z.number().int().min(1900).max(2100).nullable().optional(),
+  durationS: z.number().int().min(1).max(86400).nullable().optional(),
+}).refine((c) => Object.values(c).some((v) => v !== undefined), 'Send something to change.');
 export type Recording = z.infer<typeof Recording>;
+
+// ---------- People and rights details (entered for the rights forms) ----------
+const Pro = z.enum(['ascap', 'bmi', 'sesac', 'gmr', 'socan', 'prs', 'other', 'none']);
+const Country = z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, 'Use the two-letter country code, like US.');
+export const PersonDetails = z.object({
+  type: z.enum(['person', 'group', 'company']),
+  legalName: z.string().nullable(), pro: Pro.nullable(), ipi: z.string().nullable(), isni: z.string().nullable(),
+  email: z.string().nullable(), phone: z.string().nullable(), address: z.string().nullable(),
+  citizenship: z.string().nullable(), domicile: z.string().nullable(),
+});
+/** GET /api/catalog/people/{id}: one person or company, what's missing, and where they appear. */
+export const PersonResponse = PersonDetails.extend({
+  id: Id, name: z.string(), missing: z.array(z.string()),
+  uses: z.array(z.object({ text: z.string(), href: Link })),
+});
+/** GET /api/catalog/people: everyone in the workspace, with what's missing for the rights forms. */
+export const PeopleResponse = z.object({ people: z.array(z.object({ id: Id, name: z.string(), type: z.enum(['person', 'group', 'company']), missing: z.array(z.string()), roles: z.string() })) });
+const opt = <T extends z.ZodType>(t: T) => z.preprocess((v) => (typeof v === 'string' && !v.trim() ? null : v), t.nullable()).optional();
+/** PATCH /api/catalog/people/{id}: send only what changed; an empty value clears it. */
+export const UpdatePersonCommand = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  type: z.enum(['person', 'group', 'company']).optional(),
+  legalName: opt(z.string().trim().max(200)), pro: opt(Pro),
+  ipi: opt(z.string().trim().regex(/^\d{9,11}$/, 'An IPI is 9 to 11 digits. Your PRO shows it in your account.')),
+  isni: opt(z.string().trim().regex(/^\d{4} ?\d{4} ?\d{4} ?\d{3}[\dX]$/, 'An ISNI is 16 characters, like 0000 0001 2345 678X.')),
+  email: opt(z.string().trim().email('That email doesn’t look right.').max(200)),
+  phone: opt(z.string().trim().min(3).max(40)), address: opt(z.string().trim().max(300)),
+  citizenship: opt(Country), domicile: opt(Country),
+}).strict();
+/** Someone already in the workspace (by id), or a new person or company by name. */
+export const PartyRef = z.union([z.object({ partyId: Id }).strict(), z.object({ name: z.string().trim().min(1).max(120), company: z.boolean().optional() }).strict()]);
+/** PATCH /api/catalog/songs/{id}: each writer's role and publisher, other titles and the year it was written. Shares change in Splits. */
+export const UpdateSongCommand = z.object({
+  writers: z.array(z.object({ partyId: Id, role: z.enum(['composer', 'lyricist', 'composer_lyricist']).nullable(), publisher: PartyRef.nullable() }).strict()).max(20).optional(),
+  altTitles: z.array(z.string().trim().min(1).max(200)).max(10).optional(),
+  completionYear: z.number().int().min(1900).max(2100).nullable().optional(),
+}).strict().refine((c) => c.writers !== undefined || c.altTitles !== undefined || c.completionYear !== undefined, 'Send something to change.');
+/** A song's rights details, for its edit panel. */
+export const SongEdit = z.object({
+  writers: z.array(z.object({ partyId: Id, name: z.string(), share: Display, role: z.enum(['composer', 'lyricist', 'composer_lyricist']).nullable(), publisher: z.object({ partyId: Id, name: z.string() }).nullable() })),
+  altTitles: z.array(z.string()), completionYear: z.number().int().nullable(),
+});
+/** A recording's rights details, for its edit panel. */
+export const RecordingRights = z.object({
+  credits: z.array(z.object({ partyId: Id, name: z.string(), role: z.string() })),
+  owner: z.object({ partyId: Id, name: z.string() }).nullable(), pYear: z.number().int().nullable(), durationS: z.number().int().nullable(),
+});
 export type UpdateRecordingCommand = z.infer<typeof UpdateRecordingCommand>;
 export const CatalogResponse = z.object({
   counts: z.object({ songs: z.number().int(), recordings: z.number().int(), releases: z.number().int(), assets: z.number().int() }),
   recordings: z.array(Recording),
-  songs: z.array(z.object({ id: Id, title: z.string(), writers: z.string(), iswc: z.string().nullable(), recordings: z.number().int(), mlc: RegistrationStatus })),
+  songs: z.array(z.object({ id: Id, title: z.string(), writers: z.string(), iswc: z.string().nullable(), recordings: z.number().int(), mlc: RegistrationStatus, edit: SongEdit.optional() })),
   releases: z.array(z.object({
     id: Id, title: z.string(), artist: z.string(), kind: z.string(), date: Display, upc: z.string(), tracks: z.number().int(), href: Link.optional(),
     /** For changing the release: its date and tracks in order. Present on releases the viewer can change. */
@@ -702,7 +757,9 @@ export const LodTerms = z.object({
   allRoyalties: z.boolean(),
 }).strict();
 export const DocSubject = z.enum(['work', 'recording', 'release']);
-export const DocGap = z.object({ severity: z.enum(['blocker', 'warning']), field: z.string(), message: z.string() });
+/** fix: where the missing fact is entered (a person, recording, song or release by id, or the letter's own terms). */
+export const DocGap = z.object({ severity: z.enum(['blocker', 'warning']), field: z.string(), message: z.string(),
+  fix: z.object({ to: z.enum(['person', 'recording', 'song', 'release', 'lod']), id: z.string() }).optional() });
 export const DocReview = z.object({
   id: z.string(), model: z.string(), at: z.string(),
   findings: z.array(z.object({ severity: z.enum(['problem', 'check']), message: z.string() })),

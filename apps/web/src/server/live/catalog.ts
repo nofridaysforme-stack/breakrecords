@@ -1,5 +1,6 @@
 import 'server-only';
-import type { Recording, UpdateRecordingCommand } from '@breakrecords/contract';
+import type { z } from 'zod';
+import type { Recording, UpdateRecordingCommand, UpdateSongCommand } from '@breakrecords/contract';
 import { aiUseFromLabel, aiUseLabel, formatDuration, metadataScore, type MetadataInput } from '@breakrecords/core/metadata';
 import { formatPercent } from '@breakrecords/core/percent';
 import { isIsrc, normalizeIsrc } from '@breakrecords/core/codes';
@@ -8,6 +9,7 @@ import type { getCatalog } from '@/data/api';
 import { listReleases } from '@/data/api';
 import { sql } from '../db';
 import { liveSetIsrc, type CodeError } from './codes';
+import { resolveParty } from './people';
 import type { RequestContext } from '../context';
 
 type Catalog = Awaited<ReturnType<typeof getCatalog>>;
@@ -15,7 +17,8 @@ type Catalog = Awaited<ReturnType<typeof getCatalog>>;
 type RecRow = {
   slug: string; title: string; artist: string | null; isrc: string | null; duration_s: number | null; genre: string | null;
   ai_use: MetadataInput['aiUse']; agent_note: string | null; song: string | null; iswc: string | null; has_lyrics: boolean | null;
-  writers_ok: boolean; upc: string | null; credits: { name: string; role: string }[];
+  writers_ok: boolean; upc: string | null; credits: { name: string; role: string; slug: string }[];
+  owner: { partyId: string; name: string } | null; p_year: number | null;
 };
 
 const recordingRows = (tx: Tx, slug?: string) => tx<RecRow[]>`
@@ -24,8 +27,9 @@ const recordingRows = (tx: Tx, slug?: string) => tx<RecRow[]>`
          coalesce((SELECT sum(share_bp) = 10000 AND bool_and(confirmed) FROM work_writers ww WHERE ww.work_id = w.id), false) AS writers_ok,
          (SELECT rl.upc FROM release_tracks rt JOIN releases rl ON rl.id = rt.release_id
             WHERE rt.recording_id = r.id AND rl.upc IS NOT NULL ORDER BY rl.release_date NULLS LAST LIMIT 1) AS upc,
-         coalesce((SELECT json_agg(json_build_object('name', p.name, 'role', c.role) ORDER BY c.position, p.name)
-            FROM recording_credits c JOIN parties p ON p.id = c.party_id WHERE c.recording_id = r.id), '[]') AS credits
+         coalesce((SELECT json_agg(json_build_object('name', p.name, 'role', c.role, 'slug', p.slug) ORDER BY c.position, p.name)
+            FROM recording_credits c JOIN parties p ON p.id = c.party_id WHERE c.recording_id = r.id), '[]') AS credits,
+         (SELECT json_build_object('partyId', o.slug, 'name', o.name) FROM parties o WHERE o.id = r.owner_id) AS owner, r.p_year
   FROM recordings r
   JOIN parties a ON a.id = r.artist_id
   LEFT JOIN works w ON w.id = r.work_id
@@ -40,7 +44,8 @@ function toRecording(r: RecRow): Recording {
   }, r.agent_note);
   return {
     id: r.slug, title: r.title, artist: r.artist ?? '', isrc: r.isrc, score, ai: aiUseLabel(r.ai_use), duration: formatDuration(r.duration_s),
-    upc: r.upc, song: r.song ?? 'No song linked', iswc: r.iswc, genre: r.genre, credits: r.credits, note,
+    upc: r.upc, song: r.song ?? 'No song linked', iswc: r.iswc, genre: r.genre, credits: r.credits.map(({ name, role }) => ({ name, role })), note,
+    rights: { credits: r.credits.map((c) => ({ partyId: c.slug, name: c.name, role: c.role })), owner: r.owner, pYear: r.p_year, durationS: r.duration_s },
   };
 }
 
@@ -57,9 +62,11 @@ async function catalogIn(tx: Tx): Promise<Catalog> {
   {
     const recordings = (await recordingRows(tx)).map(toRecording);
 
-    const songs = await tx<{ slug: string; title: string; iswc: string | null; writers: { name: string; bp: number }[]; recordings: number; mlc: string | null }[]>`
-      SELECT w.slug, w.title, w.iswc,
-             coalesce((SELECT json_agg(json_build_object('name', p.name, 'bp', ww.share_bp) ORDER BY ww.share_bp DESC, p.name)
+    const songs = await tx<{ slug: string; title: string; iswc: string | null; alt_titles: string[]; completion_year: number | null; recordings: number; mlc: string | null;
+      writers: { name: string; bp: number; slug: string; role: 'composer' | 'lyricist' | 'composer_lyricist' | null; publisher: { partyId: string; name: string } | null }[] }[]>`
+      SELECT w.slug, w.title, w.iswc, w.alt_titles, w.completion_year,
+             coalesce((SELECT json_agg(json_build_object('name', p.name, 'bp', ww.share_bp, 'slug', p.slug, 'role', ww.role,
+                 'publisher', (SELECT json_build_object('partyId', b.slug, 'name', b.name) FROM parties b WHERE b.id = ww.publisher_id)) ORDER BY ww.share_bp DESC, p.name)
                FROM work_writers ww JOIN parties p ON p.id = ww.party_id WHERE ww.work_id = w.id), '[]') AS writers,
              (SELECT count(*)::int FROM recordings r WHERE r.work_id = w.id) AS recordings,
              (SELECT g.status::text FROM registrations g WHERE g.work_id = w.id AND g.org = 'mlc') AS mlc
@@ -92,6 +99,7 @@ async function catalogIn(tx: Tx): Promise<Catalog> {
         id: w.slug, title: w.title, iswc: w.iswc, recordings: w.recordings,
         writers: w.writers.length ? w.writers.map((x) => `${x.name} ${formatPercent(x.bp)}`).join(', ') : 'No writers yet',
         mlc: (w.mlc ?? 'notStarted') as Catalog['songs'][number]['mlc'],
+        edit: { writers: w.writers.map((x) => ({ partyId: x.slug, name: x.name, share: formatPercent(x.bp), role: x.role, publisher: x.publisher })), altTitles: w.alt_titles, completionYear: w.completion_year },
       })),
       releases: releases.map((r) => ({
         id: r.slug, title: r.title, artist: r.artist, kind: KIND[r.kind] ?? r.kind, date: shortDate(r.release_date), upc: r.upc ?? 'Not assigned', tracks: r.tracks,
@@ -112,9 +120,32 @@ export function liveUpdateRecording(ctx: RequestContext, slug: string, cmd: Upda
       if (bad) return bad;
     }
     const ai = cmd.ai ? aiUseFromLabel(cmd.ai) : null;
+    const [rec] = await tx<{ id: string }[]>`SELECT id FROM recordings WHERE slug = ${slug}`;
+    if (!rec) return null;
+    let ownerId: string | null = null;
+    if (cmd.owner) {
+      ownerId = await resolveParty(tx, ctx, cmd.owner);
+      if (!ownerId) return { ok: false, status: 404, error: 'not_found', message: 'That owner isn’t in this workspace.' } as CodeError;
+    }
+    if (cmd.credits) {
+      const ids: string[] = [];
+      for (const c of cmd.credits) {
+        const id = await resolveParty(tx, ctx, c.party);
+        if (!id) return { ok: false, status: 404, error: 'not_found', message: 'Someone in the credits isn’t in this workspace.' } as CodeError;
+        if (ids.includes(id)) return { ok: false, status: 400, error: 'invalid', message: 'Each person is credited once; put both roles on one line, like "Producer, mix engineer".' } as CodeError;
+        ids.push(id);
+      }
+      await tx`DELETE FROM recording_credits WHERE recording_id = ${rec.id}`;
+      for (const [i, c] of cmd.credits.entries()) {
+        await tx`INSERT INTO recording_credits (tenant_id, recording_id, party_id, role, position) VALUES (${ctx.tenantId}, ${rec.id}, ${ids[i]}, ${c.role}, ${i})`;
+      }
+    }
     const res = await tx`UPDATE recordings SET
         genre = CASE WHEN ${cmd.genre !== undefined} THEN ${cmd.genre?.trim() || null} ELSE genre END,
         ai_use = coalesce(${ai}::ai_use, ai_use),
+        owner_id = CASE WHEN ${cmd.owner !== undefined} THEN ${ownerId}::uuid ELSE owner_id END,
+        p_year = CASE WHEN ${cmd.pYear !== undefined} THEN ${cmd.pYear ?? null}::smallint ELSE p_year END,
+        duration_s = CASE WHEN ${cmd.durationS !== undefined} THEN ${cmd.durationS ?? null}::integer ELSE duration_s END,
         updated_by = ${ctx.userId}, updated_at = now()
       WHERE slug = ${slug}`;
     if (!res.count) return null;
@@ -263,6 +294,28 @@ export function liveRemoveRelease(ctx: RequestContext, slug: string): Promise<Ca
     await dropOrphans(tx, recs);
     await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
       VALUES (${ctx.tenantId}, ${'AUD-CAT-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'release.removed', ${slug}, ${tx.json({ title: rel.title } as never)})`;
+    return { ok: true, value: await catalogIn(tx) } as const;
+  });
+}
+
+/** A song's writer roles and publishers, other titles and year written. Shares and writers change in Splits. */
+export function liveUpdateSong(ctx: RequestContext, slug: string, c: z.infer<typeof UpdateSongCommand>): Promise<CatalogWrite<Catalog>> {
+  return withTenant(sql, ctx, async (tx) => {
+    const [w] = await tx<{ id: string }[]>`SELECT id FROM works WHERE slug = ${slug}`;
+    if (!w) return { ok: false, status: 404, error: 'not_found', message: `No song ${slug}.` } as const;
+    for (const x of c.writers ?? []) {
+      const [p] = await tx<{ id: string }[]>`SELECT id FROM parties WHERE slug = ${x.partyId}`;
+      const pub = x.publisher ? await resolveParty(tx, ctx, 'partyId' in x.publisher ? x.publisher : { ...x.publisher, company: true }) : null;
+      if (!p || (x.publisher && !pub)) return { ok: false, status: 404, error: 'not_found', message: 'That writer or publisher isn’t in this workspace.' } as const;
+      const res = await tx`UPDATE work_writers SET role = ${x.role}::writer_role, publisher_id = ${pub}::uuid WHERE work_id = ${w.id} AND party_id = ${p.id}`;
+      if (!res.count) return { ok: false, status: 400, error: 'invalid', message: 'Only the song’s writers can be changed here. Add writers in Splits.' } as const;
+    }
+    await tx`UPDATE works SET
+        alt_titles = CASE WHEN ${c.altTitles !== undefined} THEN ${c.altTitles ?? []}::text[] ELSE alt_titles END,
+        completion_year = CASE WHEN ${c.completionYear !== undefined} THEN ${c.completionYear ?? null}::smallint ELSE completion_year END
+      WHERE id = ${w.id}`;
+    await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
+      VALUES (${ctx.tenantId}, ${'AUD-CAT-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, 'song.updated', ${slug}, ${tx.json({ fields: Object.keys(c) })})`;
     return { ok: true, value: await catalogIn(tx) } as const;
   });
 }

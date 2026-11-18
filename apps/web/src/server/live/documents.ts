@@ -16,9 +16,10 @@ type Catalog = { songs: Map<string, SongFacts>; recordings: Map<string, Recordin
 /** The label's catalog as document facts, keyed by database id. */
 async function catalog(tx: Tx, labelName: string): Promise<Catalog> {
   const people = new Map<string, Person>();
-  for (const p of await tx<{ id: string; name: string; type: Person['type']; legal_name: string | null; pro: Person['pro']; ipi: string | null; email: string | null; address: string | null; citizenship: string | null; domicile: string | null }[]>`
-    SELECT id, name, type::text AS type, legal_name, pro::text AS pro, ipi, email, address, citizenship, domicile FROM parties`) {
-    people.set(p.id, { id: p.id, name: p.name, type: p.type, legalName: p.legal_name, pro: p.pro, ipi: p.ipi, email: p.email, address: p.address, citizenship: p.citizenship, domicile: p.domicile });
+  for (const p of await tx<{ id: string; slug: string; name: string; type: Person['type']; legal_name: string | null; pro: Person['pro']; ipi: string | null; email: string | null; phone: string | null; address: string | null; citizenship: string | null; domicile: string | null }[]>`
+    SELECT id, slug, name, type::text AS type, legal_name, pro::text AS pro, ipi, email, phone, address, citizenship, domicile FROM parties`) {
+    // Keyed by database id; the person's own id is their slug, so a gap's fix link opens their page.
+    people.set(p.id, { id: p.slug, name: p.name, type: p.type, legalName: p.legal_name, pro: p.pro, ipi: p.ipi, email: p.email, phone: p.phone, address: p.address, citizenship: p.citizenship, domicile: p.domicile });
   }
   const ids = new Map<string, { subject: DocSubject; id: string }>();
   const songs = new Map<string, SongFacts>();
