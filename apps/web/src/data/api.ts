@@ -218,6 +218,13 @@ const mockCatalog = () => ({ counts: ops.catalogCounts, recordings: ops.recordin
   people: [] as { id: string; name: string }[], unsplit: [] as { id: string; title: string; artist: string }[] });
 
 /** Catalog (5a). Live: the signed-in tenant's tables. Mock: the sample, plus this session's edits. */
+const ASSET_KIND: Record<string, string> = { cover_art: 'Image', press_photo: 'Image', master_audio: 'Audio', instrumental: 'Audio', stems: 'Audio', lyrics: 'Text', document: 'Document' };
+async function uploadedThisSession() {
+  const { mockAssets, sizeLabel } = await import('@/server/assets');
+  return (await mockAssets()).filter((a) => a.ready).map((a) => ({ name: a.name, kind: ASSET_KIND[a.kind], release: a.release ?? 'Not assigned', ready: true,
+    id: a.id, href: `/api/catalog/assets/${a.id}/file`, ...(a.size ? { size: sizeLabel(a.size) } : {}) }));
+}
+
 export async function getCatalog(): Promise<ReturnType<typeof mockCatalog>> {
   const ctx = await liveCtx('catalog');
   if (ctx) {
@@ -230,6 +237,7 @@ export async function getCatalog(): Promise<ReturnType<typeof mockCatalog>> {
   const base = mockCatalog();
   // Releases and recordings added this session come after the sample's.
   const music = await (await import('@/server/mockMusic')).mockMusic();
+  const uploaded = await uploadedThisSession();
   // Credits, owner, ℗ year, length and writer details: the sample's, with this session's changes.
   const f = await (await import('@/server/mockDocuments')).mockFacts();
   const fmt = (s: number | null) => (s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : 'Not set');
@@ -247,8 +255,10 @@ export async function getCatalog(): Promise<ReturnType<typeof mockCatalog>> {
   const releases = [...base.releases.map((r) => (upcs[r.id] !== undefined ? { ...r, upc: upcs[r.id] ?? 'Not assigned' } : r)), ...music.releases];
   return {
     ...base,
-    counts: { ...base.counts, recordings: base.counts.recordings + music.recordings.length, releases: base.counts.releases + music.releases.length },
+    counts: { ...base.counts, recordings: base.counts.recordings + music.recordings.length, releases: base.counts.releases + music.releases.length, assets: base.counts.assets + uploaded.length },
     recordings, songs, releases, people: music.people, unsplit: music.unsplit,
+    // This session's uploads, after the sample's.
+    assets: [...base.assets, ...uploaded],
   };
 }
 export type Contracts = { summary: string; contracts: ops.Contract[]; templates: ops.Template[]; staff: boolean; reviews: { id: string; fileName: string; status: 'queued' | 'reviewed'; requested: string }[] };

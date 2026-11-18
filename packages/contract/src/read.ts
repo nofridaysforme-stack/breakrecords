@@ -513,7 +513,9 @@ export const CatalogResponse = z.object({
     /** For changing the release: its date and tracks in order. Present on releases the viewer can change. */
     edit: z.object({ kind: z.enum(['single', 'ep', 'album']), releaseDate: IsoDate.nullable(), tracks: z.array(z.object({ id: Id, title: z.string(), isrc: z.string().nullable() })) }).optional(),
   })),
-  assets: z.array(z.object({ name: z.string(), kind: z.string(), release: z.string(), ready: z.boolean() })),
+  assets: z.array(z.object({ name: z.string(), kind: z.string(), release: z.string(), ready: z.boolean(),
+    /** Uploaded files: their id, a download link, and size in words ("4.2 MB"). */
+    id: Id.optional(), href: Link.optional(), size: Display.optional() })),
   /** People and groups in the workspace, for picking an artist, producer or featured artist. */
   people: z.array(z.object({ id: Id, name: z.string() })).optional(),
   /** Releases with no split yet, for creating one. */
@@ -527,6 +529,21 @@ export const CreateReleaseCommand = z.object({
   releaseDate: IsoDate.optional(),
   tracks: z.array(z.object({ title: z.string().trim().min(1).max(200), isrc: z.string().trim().max(20).optional() })).min(1).max(40),
 }).strict();
+/** POST /api/catalog/assets: start uploading a file. The browser then sends it to `upload`, and confirms with POST /api/catalog/assets/{id}/done. */
+export const StartAssetUploadCommand = z.object({
+  name: z.string().trim().min(1).max(255),
+  kind: z.enum(['cover_art', 'master_audio', 'instrumental', 'stems', 'lyrics', 'press_photo', 'document']),
+  size: z.number().int().min(1, 'That file is empty.').max(2147483648, 'Files can be up to 2 GB.'),
+  contentType: z.string().trim().max(120).optional(),
+  releaseId: Id.optional(), recordingId: Id.optional(),
+}).strict().refine((c) => !(c.releaseId && c.recordingId), 'Attach a file to a release or a recording, not both.');
+export const StartAssetUploadResponse = z.object({
+  id: Id,
+  /** Where to send the file: straight to storage (large files) or through the app (up to 4 MB). */
+  upload: z.object({ url: z.string(), via: z.enum(['storage', 'app']) }),
+  /** Through the app, when sending straight to storage isn't possible. */
+  fallback: z.string().startsWith('/').nullable(),
+});
 export const CatalogWriteError = z.object({ error: z.enum(['invalid', 'unauthorized', 'forbidden', 'not_found', 'duplicate', 'already_split']), message: z.string() });
 
 // ---------- Contracts (5b) ----------

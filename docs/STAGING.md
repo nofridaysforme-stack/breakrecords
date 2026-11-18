@@ -172,6 +172,7 @@ From now on, a merge to `main` that adds a migration runs `migrate` on staging b
 | `AUTH_SECRET` | Made with the command above. Its own value, used nowhere else |
 | `APP_URL` | `https://breakrecords-staging.vercel.app` (the address Vercel gives the project; no slash at the end) |
 | `RESEND_API_KEY` | From step 4 |
+| `DOCUMENTS_S3_ENDPOINT`, `DOCUMENTS_S3_REGION`, `DOCUMENTS_S3_BUCKET`, `DOCUMENTS_S3_ACCESS_KEY_ID`, `DOCUMENTS_S3_SECRET_ACCESS_KEY` | Supabase Storage's S3 settings (a private bucket, S3 access keys for storage only). Prepared documents and uploaded assets are kept there. Files over 4 MB go straight from the browser to storage with a signed link; smaller ones can also go through the app |
 | `CRON_SECRET` | Made with the same command as `AUTH_SECRET`, its own value. Vercel sends it with the daily agents run; without it the run does nothing |
 | `EMAIL_FROM` | `Indie SRVCS <onboarding@resend.dev>` until your domain is verified, then for example `Indie SRVCS <no-reply@staging.<your-domain>>` |
 
@@ -254,3 +255,7 @@ They open the link, enter their email, and get a sign-in link. Their first sign-
 
 - After merging a migration: the Staging workflow migrates staging by itself; Vercel deploys the same push.
 - Production is a second Supabase project and a second Vercel project, set up the same way. Production migrations on money tables, turning on live modules and sending real email are never done alone (CLAUDE.md).
+
+## If things you enter don't save
+
+Every part of the app reads `BR_LIVE_MODULES`. A part left out runs on sample data: it looks normal and answers in the right shape, but nothing done there is saved. Signed in, the app shows a **Not saved** banner naming those parts, `/api/status` lists them, and the gate fails with their names. The fix is to set `BR_LIVE_MODULES` to the full list above (no spaces needed, commas between) and redeploy.
