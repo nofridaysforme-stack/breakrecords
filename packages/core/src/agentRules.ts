@@ -80,3 +80,71 @@ export function rightsFindings(f: RightsFacts): Finding[] {
   }
   return out;
 }
+
+// ---------- Royalties Agent ----------
+// Rule ids ROY-21 and up (ROY-01 to ROY-09 are the approval checks on payout cards).
+export type RoyaltiesFacts = {
+  /** Unmatched statement lines grouped by reported ISRC, with the recording that has that ISRC now, if any. */
+  unmatched: { isrc: string | null; lines: number; cents: number; recording: { id: string; title: string } | null }[];
+  /** Releases that earned money in the last 120 days and have no split. */
+  unsplit: { id: string; title: string; cents: number }[];
+  /** Draft payout batches whose month has ended and that aren't in Approvals yet. */
+  draftBatches: { id: string; name: string }[];
+};
+
+const usd = (c: number) => `$${(c / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+export function royaltiesFindings(f: RoyaltiesFacts): Finding[] {
+  const out: Finding[] = [];
+  for (const u of f.unmatched) {
+    const what = `${u.lines} statement ${u.lines === 1 ? 'line' : 'lines'} (${usd(u.cents)})`;
+    if (u.isrc && u.recording) {
+      out.push({ dept: 'royalties', rule: 'ROY-21', key: `royalties:match:${u.isrc.toLowerCase()}`, title: `${what} for ${u.isrc} belong to ${u.recording.title}`,
+        detail: 'The ISRC on the statement is this recording’s. Matching them lets the money reach its split.', href: '/money/royalties',
+        fix: { kind: 'match_isrc', args: { isrc: u.isrc, recording: u.recording.id } } });
+    } else {
+      out.push({ dept: 'royalties', rule: 'ROY-22', key: `royalties:unknown:${(u.isrc ?? 'none').toLowerCase()}`,
+        title: u.isrc ? `${what} for ${u.isrc} don’t match anything in your catalog` : `${what} have no ISRC`,
+        detail: 'They aren’t paid until they’re matched. Add the recording or its ISRC in Catalog, or match them in Royalties.', href: '/money/royalties' });
+    }
+  }
+  for (const r of f.unsplit) {
+    out.push({ dept: 'royalties', rule: 'ROY-23', key: `royalties:nosplit:${r.id}`, title: `${r.title} earned ${usd(r.cents)} and has no split`,
+      detail: 'Without a split, nobody on it can be paid. Set who gets what in Splits.', href: '/splits' });
+  }
+  for (const b of f.draftBatches) {
+    out.push({ dept: 'royalties', rule: 'ROY-24', key: `royalties:batch:${b.id}`, title: `The ${b.name} payout batch is still a draft`,
+      detail: 'Its month has ended. Check it and send it for approval in Payouts.', href: '/money/payouts' });
+  }
+  return out;
+}
+
+// ---------- Audit Agent ----------
+// Rule ids AUD-21 and up. The Audit Agent only raises things; holding money is always a person's call.
+// (A statement whose lines don't add up to its total is refused by the database at import.)
+export type AuditFacts = {
+  /** Plays per recording in the latest month on file, and the average of up to 3 months before it. */
+  units: { id: string; title: string; latest: number; average: number; months: number; flagged: boolean }[];
+  /** Pairs of statements from the same source and month with the same total and line count. */
+  duplicates: { a: string; b: string }[];
+};
+
+/** A month at least 3 times the usual, and at least 5,000 more plays, needs a look. */
+export const SPIKE = { factor: 3, minExtra: 5000 };
+
+export function auditFindings(f: AuditFacts): Finding[] {
+  const out: Finding[] = [];
+  for (const u of f.units) {
+    if (u.flagged || u.months < 1) continue;
+    if (u.latest >= u.average * SPIKE.factor && u.latest - u.average >= SPIKE.minExtra) {
+      out.push({ dept: 'audit', rule: 'AUD-21', key: `audit:spike:${u.id}`,
+        title: `${u.title} jumped to ${u.latest.toLocaleString('en-US')} plays from about ${Math.round(u.average).toLocaleString('en-US')}`,
+        detail: 'Sudden spikes can be artificial streams, which stores claw back. If it looks wrong, flag it in Payouts › Reserves to hold its money until you decide.', href: '/money/payouts' });
+    }
+  }
+  for (const d of f.duplicates) {
+    out.push({ dept: 'audit', rule: 'AUD-22', key: `audit:duplicate:${d.a.toLowerCase()}:${d.b.toLowerCase()}`, title: `Statements ${d.a} and ${d.b} look like the same statement twice`,
+      detail: 'Same source, same month, same total and line count. Importing a statement twice would pay it twice.', href: '/money/royalties' });
+  }
+  return out;
+}

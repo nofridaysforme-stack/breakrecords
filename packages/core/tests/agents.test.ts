@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { deptState, MAX_CARDS_PER_RUN, planRun, runSummary, type Dept, type Finding } from '../src/agents';
-import { metadataFindings, rightsFindings } from '../src/agentRules';
+import { auditFindings, metadataFindings, rightsFindings, royaltiesFindings } from '../src/agentRules';
 
 const dept = (slug: string, autonomy: Dept['autonomy'], canAct = true): Dept => ({ slug, agent: `${slug} agent`, autonomy, canAct });
 const f = (key: string, extra: Partial<Finding> = {}): Finding => ({ dept: 'rights', key, rule: 'RGT-01', title: key, detail: '', href: '/x', ...extra });
@@ -75,5 +75,34 @@ describe('Rights Agent', () => {
     expect(out.map((x) => x.key)).toEqual(['rights:pro:glass', 'rights:mlc:glass', 'rights:sx_owner:glass-r', 'rights:submit:reg_mlc_x', 'rights:unclaimed:u1']);
     expect(out[0].card).toEqual({ kind: 'registration', args: { org: 'pro', subject: 'work', id: 'glass' } });
     expect(out[1].card).toBeUndefined(); // already waiting on approval: kept open, no second card
+  });
+});
+
+describe('Royalties Agent', () => {
+  it('matches lines whose ISRC is now in the catalog, and reports the rest, unsplit releases and draft batches', () => {
+    const out = royaltiesFindings({
+      unmatched: [{ isrc: 'USX1A2600001', lines: 3, cents: 1250, recording: { id: 'tide', title: 'Tide' } }, { isrc: 'ZZZ', lines: 1, cents: 99, recording: null }, { isrc: null, lines: 2, cents: 10, recording: null }],
+      unsplit: [{ id: 'tide-single', title: 'Tide', cents: 1250 }],
+      draftBatches: [{ id: 'oct', name: 'October' }],
+    });
+    expect(out.map((x) => x.key)).toEqual(['royalties:match:usx1a2600001', 'royalties:unknown:zzz', 'royalties:unknown:none', 'royalties:nosplit:tide-single', 'royalties:batch:oct']);
+    expect(out[0].fix).toEqual({ kind: 'match_isrc', args: { isrc: 'USX1A2600001', recording: 'tide' } });
+    expect(out[0].title).toBe('3 statement lines ($12.50) for USX1A2600001 belong to Tide');
+  });
+});
+
+describe('Audit Agent', () => {
+  it('raises spikes (not flagged ones) and likely duplicate statements, and never acts', () => {
+    const out = auditFindings({
+      units: [
+        { id: 'a', title: 'A', latest: 30000, average: 4000, months: 3, flagged: false },
+        { id: 'b', title: 'B', latest: 30000, average: 4000, months: 3, flagged: true },
+        { id: 'c', title: 'C', latest: 9000, average: 3500, months: 3, flagged: false },
+        { id: 'd', title: 'D', latest: 900, average: 100, months: 2, flagged: false },
+      ],
+      duplicates: [{ a: 'DS-1', b: 'DS-2' }],
+    });
+    expect(out.map((x) => x.key)).toEqual(['audit:spike:a', 'audit:duplicate:ds-1:ds-2']);
+    expect(out.every((x) => !x.card && !x.fix)).toBe(true);
   });
 });

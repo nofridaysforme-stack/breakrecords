@@ -70,16 +70,24 @@ CREATE POLICY agent_runs_team ON agent_runs FOR ALL TO br_app
 GRANT SELECT, INSERT, UPDATE ON agent_findings, agent_runs TO br_app;   -- no DELETE: history stays
 GRANT UPDATE (state, tasks_this_week) ON departments TO br_app;
 
--- Workspaces made before these agents had departments get the two that were missing.
-INSERT INTO departments (tenant_id, slug, name, agent, phase, autonomy, can_act, act_note, spend_cap_cents, state, tasks_this_week, position)
-SELECT t.id, d.slug, d.name, d.agent, 1, d.autonomy::autonomy_level, d.can_act, d.note, 0, 'idle', 0, d.pos
-FROM tenants t
-JOIN (VALUES
-  ('audit', 'Audit', 'Audit Agent', 'observe', true, 'it can open and close its own checks. It never holds money on its own.', 9),
-  ('artist-relations', 'Artist relations', 'Roster Agent', 'suggest', true, 'it can send routine reminders to artists on its own.', 9)
-) AS d(slug, name, agent, autonomy, can_act, note, pos) ON true
-WHERE EXISTS (SELECT 1 FROM departments x WHERE x.tenant_id = t.id)
-  AND NOT EXISTS (SELECT 1 FROM departments x WHERE x.tenant_id = t.id AND x.slug = d.slug);
+-- Audit and Artist relations: a workspace's departments always include them. Made for every
+-- workspace that has departments now, and for each new one when its last department ("content")
+-- is added by sign-up or by a label services client. Already there: left as it is.
+CREATE FUNCTION add_agent_departments(t uuid) RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  INSERT INTO departments (tenant_id, slug, name, agent, phase, autonomy, can_act, act_note, spend_cap_cents, state, tasks_this_week, position)
+  VALUES
+    (t, 'audit', 'Audit', 'Audit Agent', 1, 'observe', true, 'it can open and close its own checks. It never holds money on its own.', 0, 'idle', 0, 9),
+    (t, 'artist-relations', 'Artist relations', 'Roster Agent', 1, 'suggest', true, 'it can send routine reminders to artists on its own.', 0, 'idle', 0, 9)
+  ON CONFLICT (tenant_id, slug) DO NOTHING
+$$;
+REVOKE ALL ON FUNCTION add_agent_departments(uuid) FROM PUBLIC;
+CREATE FUNCTION agent_departments_follow() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  PERFORM add_agent_departments(NEW.tenant_id);
+  RETURN NULL;
+END $$;
+CREATE TRIGGER departments_add_agents AFTER INSERT ON departments FOR EACH ROW WHEN (NEW.slug = 'content') EXECUTE FUNCTION agent_departments_follow();
+SELECT add_agent_departments(t.id) FROM tenants t WHERE EXISTS (SELECT 1 FROM departments x WHERE x.tenant_id = t.id);
 
 -- The scheduled run: every workspace with departments, with an owner the run acts for (row-level
 -- security needs one). Returns ids and the workspace's name. Only the app's server role may call it.
@@ -95,6 +103,9 @@ GRANT EXECUTE ON FUNCTION app_agent_tenants() TO br_app;
 
 -- migrate:down
 DROP FUNCTION IF EXISTS app_agent_tenants();
+DROP TRIGGER IF EXISTS departments_add_agents ON departments;
+DROP FUNCTION IF EXISTS agent_departments_follow();
+DROP FUNCTION IF EXISTS add_agent_departments(uuid);
 REVOKE UPDATE (state, tasks_this_week) ON departments FROM br_app;
 DROP TABLE IF EXISTS agent_runs, agent_findings;
 DROP FUNCTION IF EXISTS agent_finding_guard();

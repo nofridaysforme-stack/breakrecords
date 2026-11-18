@@ -1720,6 +1720,61 @@ test('the agents run on a workspace’s own data: findings once, cards for filin
   expect((await cron.json()).workspaces).toBeGreaterThan(1);
 });
 
+test('the Royalties and Audit agents read the statements: lines matched by ISRC only when allowed, spikes and duplicates raised', async ({ page, browser }) => {
+  await signIn(page, USERS.jana);
+  const code = ((await (await page.request.post('/api/admin/invite-codes', { data: { note: 'E2E money agents', maxUses: 1, expiresInDays: 7 } })).json()) as { code: string }).code;
+  const p = await signUp(browser, code, `e2e-money-agents-${Date.now()}@artist.example`);
+  const answers = { profile: 'solo', name: 'Ivo Marsh', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_yet' }, autonomy: 'draft_and_wait' };
+  expect((await p.request.put('/api/onboarding', { data: { answers, complete: true } })).status()).toBe(200);
+  const isrc = `USE2F25${String(Date.now() % 100000).padStart(5, '0')}`;
+  expect((await p.request.post('/api/catalog/releases', { data: { title: 'Harbor', kind: 'single', artist: { name: 'Ivo Marsh' }, releaseDate: '2025-05-01', tracks: [{ title: 'Harbor', isrc }] } })).status()).toBe(200);
+
+  // Statements for the last four months: steady plays, then a spike; an unmatched line carrying Harbor's ISRC
+  // with dashes; a line nobody knows; and the same statement imported twice.
+  const db = connect(process.env.TEST_DATABASE_URL!, { max: 1 });
+  const [{ id: tenant }] = await db<{ id: string }[]>`SELECT id FROM tenants WHERE name = 'Ivo Marsh' ORDER BY created_at DESC LIMIT 1`;
+  const [{ id: rec }] = await db<{ id: string }[]>`SELECT id FROM recordings WHERE tenant_id = ${tenant} AND slug = 'harbor'`;
+  const month = (back: number) => db<{ d: string }[]>`SELECT to_char(date_trunc('month', current_date) - make_interval(months => ${back}), 'YYYY-MM-DD') AS d`.then((r) => r[0].d);
+  const stamp = String(Date.now() % 1000000);
+  const statement = (ref: string, period: string, lines: { isrc: string | null; units: number; cents: number; matched: boolean }[]) => db.begin(async (tx) => {
+    const [{ id }] = await tx<{ id: string }[]>`INSERT INTO income_statements (tenant_id, ref, source, period, total_cents)
+      VALUES (${tenant}, ${ref}, 'distributor', ${period}, ${lines.reduce((a, l) => a + l.cents, 0)}) RETURNING id`;
+    for (const [i, l] of lines.entries()) {
+      await tx`INSERT INTO income_lines (tenant_id, statement_id, line_no, title, isrc, units, amount_cents, recording_id)
+        VALUES (${tenant}, ${id}, ${i + 1}, 'Harbor', ${l.isrc}, ${l.units}, ${l.cents}, ${l.matched ? rec : null})`;
+    }
+  });
+  for (const back of [4, 3, 2]) await statement(`E2E-${stamp}-${back}`, await month(back), [{ isrc, units: 2000, cents: 1000, matched: true }]);
+  await statement(`E2E-${stamp}-1`, await month(1), [
+    { isrc, units: 40000, cents: 20000, matched: true },
+    { isrc: `${isrc.slice(0, 2)}-${isrc.slice(2, 5)}-${isrc.slice(5, 7)}-${isrc.slice(7)}`.toLowerCase(), units: 10, cents: 500, matched: false },
+    { isrc: 'QZZZZ2500001', units: 5, cents: 250, matched: false },
+  ]);
+  const again = [{ isrc: 'QZZZZ2500002', units: 1, cents: 7, matched: false }, { isrc: 'QZZZZ2500003', units: 1, cents: 7, matched: false }];
+  await statement(`E2E-${stamp}-2A`, await month(1), again);
+  await statement(`E2E-${stamp}-2B`, await month(1), again);
+
+  const run = async () => RunAgentsResponse.parse(await (await p.request.post('/api/agents/run')).json());
+  const first = await run();
+  const keys = first.findings.map((f) => f.key);
+  expect(keys).toEqual(expect.arrayContaining([
+    `royalties:match:${isrc.toLowerCase()}`, 'royalties:unknown:qzzzz2500001', 'royalties:nosplit:harbor',
+    'audit:spike:harbor', `audit:duplicate:e2e-${stamp}-2a:e2e-${stamp}-2b`,
+  ]));
+  expect(first.result.fixed).toBe(0); // Draft and wait: the match is only suggested
+  expect(first.findings.find((f) => f.key === 'audit:spike:harbor')!.title).toBe('Harbor jumped to 40,000 plays from about 2,000');
+  expect((await db`SELECT 1 FROM income_lines WHERE tenant_id = ${tenant} AND recording_id IS NULL`).length).toBe(6);
+
+  // With Act within limits, Royalties matches the line by its ISRC; Audit never holds money on its own.
+  expect((await p.request.patch('/api/departments/royalties', { data: { autonomy: 'act_within_limits' } })).status()).toBe(200);
+  const second = await run();
+  expect(second.result.fixed).toBe(1);
+  expect(second.findings.map((f) => f.key)).not.toContain(`royalties:match:${isrc.toLowerCase()}`);
+  expect((await db`SELECT 1 FROM income_lines WHERE tenant_id = ${tenant} AND recording_id = ${rec}`).length).toBe(5);
+  expect((await db`SELECT 1 FROM audit_flags WHERE tenant_id = ${tenant}`).length).toBe(0);
+  await db.end();
+});
+
 // Last: staging is reseeded over data people made (flags, reserves, sync quotes, imports). After
 // every test above has written its rows, the seed must still run cleanly on top of them.
 test('the seed runs again over everything the tests made', async () => {

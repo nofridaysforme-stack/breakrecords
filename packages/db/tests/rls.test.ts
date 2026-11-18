@@ -691,6 +691,11 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       }
       // The schedule lists every workspace with departments and an owner to act for.
       expect((await app`SELECT tenant_id, user_id FROM app_agent_tenants()`).filter((r) => r.tenant_id === ids.a)).toEqual([{ tenant_id: ids.a, user_id: ids.ua }]);
+      // A new workspace's departments always include Audit and Artist relations.
+      await owner`INSERT INTO departments (tenant_id, slug, name, agent, phase, autonomy, can_act, state) VALUES (${ids.b}, 'content', 'Content studio', NULL, 2, NULL, false, 'later')`;
+      expect((await owner`SELECT slug, autonomy::text FROM departments WHERE tenant_id = ${ids.b} AND slug IN ('audit', 'artist-relations') ORDER BY slug`))
+        .toEqual([{ slug: 'artist-relations', autonomy: 'suggest' }, { slug: 'audit', autonomy: 'observe' }]);
+      await owner`DELETE FROM departments WHERE tenant_id = ${ids.b}`;
       await owner`DELETE FROM agent_runs WHERE tenant_id = ${ids.a}`;
       await owner`DELETE FROM agent_findings WHERE tenant_id = ${ids.a}`;
     });
@@ -811,7 +816,7 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       const mine = await memberships(app, u);
       expect(mine.map((m) => [m.name, m.role, m.kind])).toEqual([['My workspace', 'owner', 'artist']]);
       expect(await withTenant(app, { userId: u, tenantId: t }, (tx) => tx`SELECT app_needs_onboarding() AS n`)).toEqual([{ n: true }]);
-      expect((await withTenant(app, { userId: u, tenantId: t }, (tx) => tx`SELECT slug FROM departments WHERE phase = 1`)).length).toBe(9);
+      expect((await withTenant(app, { userId: u, tenantId: t }, (tx) => tx`SELECT slug FROM departments WHERE phase = 1`)).length).toBe(11); // 9 from sign-up, plus Audit and Artist relations
       await withTenant(app, { userId: u, tenantId: t }, (tx) => tx`SELECT app_apply_onboarding('Kesi Vale Music', 'small_label')`);
       expect((await memberships(app, u))[0]).toMatchObject({ name: 'Kesi Vale Music', kind: 'label' });
       // Nobody else can rename it, and it sees nothing of other labels.
@@ -868,7 +873,7 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       expect(list.map((r) => [r.name, r.kind])).toEqual([['Rue Nova', 'artist'], ['Tide Records', 'label']]);
       expect((await memberships(app, svcUser)).map((m) => m.name)).toEqual(['Svc Co', 'Rue Nova', 'Tide Records']);
       expect(await withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT app_role() AS r`)).toEqual([{ r: 'owner' }]);
-      expect((await withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT slug FROM departments WHERE phase = 1`)).length).toBe(9);
+      expect((await withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT slug FROM departments WHERE phase = 1`)).length).toBe(11); // 9 from sign-up, plus Audit and Artist relations
       // A client is not a parent: it can't add clients of its own, and stays an artist on setup.
       await expect(withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT app_create_client('Nested', 'artist')`)).rejects.toThrow(/owners add clients|can't have clients/);
       await withTenant(app, { userId: svcUser, tenantId: c1 }, (tx) => tx`SELECT app_apply_onboarding('Rue Nova', 'services')`);

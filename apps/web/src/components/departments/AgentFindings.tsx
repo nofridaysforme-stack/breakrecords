@@ -10,6 +10,8 @@ import o from '@/components/ops/Ops.module.css';
 import s from './Departments.module.css';
 
 type Agents = z.infer<typeof AgentsResponse>;
+/** Departments whose agent runs today; the rest start in later parts of the build. */
+const RUNNING = ['metadata', 'rights', 'royalties', 'audit'];
 
 /** What the agents found that's still open, for the department being edited, and Run now. */
 export function AgentFindings({ data, dept, deptName, onRun }: { data: Agents; dept: string; deptName: string; onRun?: (a: Agents) => void }) {
@@ -73,7 +75,7 @@ export function AgentFindings({ data, dept, deptName, onRun }: { data: Agents; d
             </li>
           ))}
         </ul>
-      ) : <p className={o.small}>{['metadata', 'rights'].includes(dept) ? 'Nothing open. ' : ''}{['metadata', 'rights'].includes(dept) ? 'When something needs doing, it shows here with a link to fix it.' : `${deptName}’s agent starts running in a later part of this build.`}</p>)}
+      ) : <p className={o.small}>{RUNNING.includes(dept) ? 'Nothing open. ' : ''}{RUNNING.includes(dept) ? 'When something needs doing, it shows here with a link to fix it.' : `${deptName}’s agent starts running in a later part of this build.`}</p>)}
     </section>
   );
 }

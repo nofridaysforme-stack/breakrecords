@@ -2,7 +2,7 @@ import 'server-only';
 import type { z } from 'zod';
 import type { AgentsResponse } from '@breakrecords/contract';
 import { deptState, planRun, runSummary, type Dept, type Finding, type StoredFinding } from '@breakrecords/core/agents';
-import { metadataFindings, rightsFindings, type MetadataFacts, type RegNext, type RightsFacts } from '@breakrecords/core/agentRules';
+import { auditFindings, metadataFindings, rightsFindings, royaltiesFindings, type AuditFacts, type MetadataFacts, type RegNext, type RightsFacts, type RoyaltiesFacts } from '@breakrecords/core/agentRules';
 import { personMissing } from '@breakrecords/core/people';
 import { regState, type RegOrg, type RegStatus } from '@breakrecords/core/registrations';
 import type { Person } from '@breakrecords/core/documents';
@@ -17,9 +17,56 @@ import { liveRegistrationAction } from '../live/rights';
 
 export type RunResult = { found: number; closed: number; proposed: number; fixed: number; errors: string[] };
 
-const ACTIVE = ['metadata', 'rights'] as const;
-const DEPT_NAME: Record<string, string> = { metadata: 'Metadata', rights: 'Rights' };
-const INPUTS: Record<string, string[]> = { metadata: ['Catalog', 'People'], rights: ['Catalog', 'Registrations', 'Unclaimed money'] };
+const ACTIVE = ['metadata', 'rights', 'royalties', 'audit'] as const;
+const DEPT_NAME: Record<string, string> = { metadata: 'Metadata', rights: 'Rights', royalties: 'Royalties', audit: 'Audit' };
+const INPUTS: Record<string, string[]> = {
+  metadata: ['Catalog', 'People'], rights: ['Catalog', 'Registrations', 'Unclaimed money'],
+  royalties: ['Statements', 'Splits', 'Payouts'], audit: ['Statements', 'Reserves'],
+};
+
+async function royaltiesFacts(tx: Tx): Promise<RoyaltiesFacts> {
+  const unmatched = await tx<{ isrc: string | null; lines: number; cents: string; rec_id: string | null; rec_title: string | null }[]>`
+    SELECT u.isrc, u.lines, u.cents, r.slug AS rec_id, r.title AS rec_title FROM (
+      SELECT nullif(upper(regexp_replace(coalesce(l.isrc, ''), '[^A-Za-z0-9]', '', 'g')), '') AS isrc, count(*)::int AS lines, sum(l.amount_cents) AS cents
+      FROM income_lines l WHERE l.recording_id IS NULL AND l.work_id IS NULL GROUP BY 1
+    ) u LEFT JOIN recordings r ON r.isrc = u.isrc ORDER BY u.cents DESC`;
+  const unsplit = await tx<{ id: string; title: string; cents: string }[]>`
+    SELECT rl.slug AS id, rl.title, sum(l.amount_cents) AS cents
+    FROM income_lines l JOIN income_statements s ON s.id = l.statement_id
+    JOIN release_tracks t ON t.recording_id = l.recording_id JOIN releases rl ON rl.id = t.release_id
+    WHERE s.period >= date_trunc('month', current_date) - interval '4 months'
+      AND NOT EXISTS (SELECT 1 FROM split_nodes n WHERE n.release_id = rl.id)
+    GROUP BY rl.slug, rl.title HAVING sum(l.amount_cents) > 0 ORDER BY 3 DESC`;
+  const draftBatches = await tx<{ id: string; name: string }[]>`
+    SELECT slug AS id, name FROM payout_batches WHERE status = 'draft' AND approval_id IS NULL AND period < date_trunc('month', current_date) ORDER BY period`;
+  return {
+    unmatched: unmatched.map((u) => ({ isrc: u.isrc, lines: u.lines, cents: Number(u.cents), recording: u.rec_id ? { id: u.rec_id, title: u.rec_title! } : null })),
+    unsplit: unsplit.map((r) => ({ id: r.id, title: r.title, cents: Number(r.cents) })),
+    draftBatches,
+  };
+}
+
+async function auditFacts(tx: Tx): Promise<AuditFacts> {
+  // Plays per recording per month; the latest month on file against the up-to-3 months before it.
+  const units = await tx<{ id: string; title: string; latest: string; average: string | null; months: number; flagged: boolean }[]>`
+    WITH m AS (
+      SELECT l.recording_id, s.period, sum(coalesce(l.units, 0)) AS units
+      FROM income_lines l JOIN income_statements s ON s.id = l.statement_id WHERE l.recording_id IS NOT NULL GROUP BY 1, 2
+    ), last AS (SELECT max(period) AS period FROM m)
+    SELECT r.slug AS id, r.title, cur.units AS latest,
+           (SELECT avg(p.units) FROM m p WHERE p.recording_id = cur.recording_id AND p.period < cur.period AND p.period >= cur.period - interval '3 months') AS average,
+           (SELECT count(*)::int FROM m p WHERE p.recording_id = cur.recording_id AND p.period < cur.period AND p.period >= cur.period - interval '3 months') AS months,
+           EXISTS (SELECT 1 FROM audit_flags f WHERE f.recording_id = cur.recording_id AND f.resolved_at IS NULL) AS flagged
+    FROM m cur JOIN last ON last.period = cur.period JOIN recordings r ON r.id = cur.recording_id`;
+  const duplicates = await tx<{ a: string; b: string }[]>`
+    WITH st AS (SELECT s.id, s.ref, s.source, s.period, s.total_cents, (SELECT count(*) FROM income_lines l WHERE l.statement_id = s.id) AS n FROM income_statements s)
+    SELECT x.ref AS a, y.ref AS b FROM st x JOIN st y ON x.source = y.source AND x.period = y.period AND x.total_cents = y.total_cents AND x.n = y.n AND x.n > 0 AND x.ref < y.ref
+    ORDER BY 1, 2`;
+  return {
+    units: units.map((u) => ({ id: u.id, title: u.title, latest: Number(u.latest), average: Number(u.average ?? 0), months: u.months, flagged: u.flagged })),
+    duplicates,
+  };
+}
 
 async function metadataFacts(tx: Tx): Promise<MetadataFacts> {
   const recordings = await tx<{ id: string; title: string; on_release: boolean; isrc: string | null; genre: string | null; duration_s: number | null;
@@ -88,7 +135,7 @@ export async function runAgents(ctx: RequestContext, trigger: 'schedule' | 'manu
       SELECT slug, agent, autonomy::text AS autonomy, can_act FROM departments WHERE slug = ANY(${[...ACTIVE]})`)
       .map((d) => ({ slug: d.slug, agent: d.agent ?? d.slug, autonomy: d.autonomy, canAct: d.can_act }));
     const stored = await tx<StoredFinding[]>`SELECT key, status::text AS status, approval_id AS "approvalId", fixed FROM agent_findings WHERE dept = ANY(${[...ACTIVE]})`;
-    const found: Finding[] = [...metadataFindings(await metadataFacts(tx)), ...rightsFindings(await rightsFacts(tx))];
+    const found: Finding[] = [...metadataFindings(await metadataFacts(tx)), ...rightsFindings(await rightsFacts(tx)), ...royaltiesFindings(await royaltiesFacts(tx)), ...auditFindings(await auditFacts(tx))];
     return { runId: run.id, depts, stored, found };
   });
   const plan = planRun(found, stored, depts);
@@ -112,6 +159,12 @@ export async function runAgents(ctx: RequestContext, trigger: 'schedule' | 'manu
     for (const f of plan.fixes) {
       if (f.fix?.kind === 'set_p_year') {
         const res = await tx`UPDATE recordings SET p_year = ${Number(f.fix.args.year)}, updated_at = now() WHERE slug = ${String(f.fix.args.recording)} AND p_year IS NULL`;
+        if (res.count) fixedKeys.add(f.key);
+      } else if (f.fix?.kind === 'match_isrc') {
+        // Lines whose reported ISRC is a recording's: matched as a person's Resolve would, by the agent.
+        const res = await tx`UPDATE income_lines l SET recording_id = r.id, matched_at = now()
+          FROM recordings r WHERE r.slug = ${String(f.fix.args.recording)} AND r.isrc = ${String(f.fix.args.isrc)}
+            AND l.recording_id IS NULL AND l.work_id IS NULL AND upper(regexp_replace(coalesce(l.isrc, ''), '[^A-Za-z0-9]', '', 'g')) = r.isrc`;
         if (res.count) fixedKeys.add(f.key);
       }
     }
@@ -170,7 +223,7 @@ export async function runAllAgents(): Promise<{ workspaces: number; failed: numb
   return { workspaces: targets.length, failed };
 }
 
-const AGENT: Record<string, string> = { metadata: 'Metadata Agent', rights: 'Rights Agent' };
+const AGENT: Record<string, string> = { metadata: 'Metadata Agent', rights: 'Rights Agent', royalties: 'Royalties Agent', audit: 'Audit Agent' };
 const day = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 const when = (d: Date) => `${day(d)}, ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })} UTC`;
 
