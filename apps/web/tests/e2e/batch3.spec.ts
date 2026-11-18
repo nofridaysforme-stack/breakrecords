@@ -88,9 +88,9 @@ test.describe('desktop only', () => {
 
   test('departments: autonomy changes per department; Legal cannot act alone', async ({ page }) => {
     await page.goto('/departments');
-    await expect(page.getByRole('heading', { name: 'Royalties', level: 2 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Royalties', level: 2, exact: true })).toBeVisible();
     await page.getByRole('button', { name: /^Legal/ }).click();
-    await expect(page.getByRole('heading', { name: 'Legal', level: 2 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Legal', level: 2, exact: true })).toBeVisible();
     await expect(page.getByRole('radio', { name: /Act within limits/ })).toBeDisabled();
     await page.getByRole('button', { name: /^Royalties/ }).click();
     await page.getByRole('radio', { name: /Act within limits/ }).check({ force: true });

@@ -70,7 +70,7 @@ export type RegOutcome = { ok: true; value: Registrations } | { ok: false; statu
 type RegCommand = z.infer<typeof RegistrationActionCommand>;
 
 /** Prepare a filing (an approval card with the facts to confirm), record it submitted, or record its confirmation. */
-export async function liveRegistrationAction(ctx: RequestContext, c: RegCommand): Promise<RegOutcome> {
+export async function liveRegistrationAction(ctx: RequestContext, c: RegCommand, opts: { agent?: boolean } = {}): Promise<RegOutcome> {
   if (ON_WORK.has(c.org) !== (c.subject === 'work')) return { ok: false, status: 400, error: 'invalid', message: ON_WORK.has(c.org) ? 'A song registers with that organization, not a recording.' : 'A recording registers with that organization, not a song.' };
   const pre = await withTenant(sql, ctx, async (tx) => {
     const [t] = c.subject === 'work'
@@ -110,8 +110,15 @@ export async function liveRegistrationAction(ctx: RequestContext, c: RegCommand)
       impact: ON_WORK.has(c.org) ? 'Royalties for the song get paid' : 'Royalties for the recording get paid', risk: 'needsEyes', riskLabel: 'Filing', context: 'Registration',
       href: '/rights/registrations', dept: 'Rights',
     };
-    const out = await liveApprovals(ctx).propose(proposal);
-    if (!out.ok) return refuse(out.message);
+    if (opts.agent) {
+      // Prepared by the Rights Agent: an agent card, recorded in the activity log by the run, not as a person's proposal.
+      await withTenant(sql, ctx, (tx) => tx`INSERT INTO approvals (tenant_id, id, origin, type, title, agent, due, impact, risk, context, risk_label, href, dept)
+        VALUES (${ctx.tenantId}, ${approvalId}, 'agent', 'filing', ${proposal.title}, ${proposal.agent}, ${proposal.due}, ${proposal.impact}, 'needsEyes', ${proposal.context ?? null},
+                ${proposal.riskLabel ?? null}, ${proposal.href}, ${proposal.dept ?? null})`);
+    } else {
+      const out = await liveApprovals(ctx).propose(proposal);
+      if (!out.ok) return refuse(out.message);
+    }
     // The card shows what's being filed and the facts to confirm; for songs, the PRO and MLC checks run on it.
     const detail = {
       breadcrumb: 'Filing', outcome: { text: filingOutcome(c.org, t.title) }, primaryLabel: 'Approve the filing', rejectLabel: 'Reject with reason',
@@ -136,7 +143,7 @@ export async function liveRegistrationAction(ctx: RequestContext, c: RegCommand)
       // A PRO or The MLC may give the song its ISWC; keep it on the song if it has none.
       if (c.iswc && c.subject === 'work') await tx`UPDATE works SET iswc = ${c.iswc} WHERE id = ${t.id} AND iswc IS NULL`;
     }
-    await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
+    if (!opts.agent) await tx`INSERT INTO audit_events (tenant_id, audit_id, actor, kind, ref, data)
       VALUES (${ctx.tenantId}, ${'AUD-REG-' + crypto.randomUUID().slice(0, 8).toUpperCase()}, ${ctx.userId}, ${'registration.' + c.action}, ${c.id},
               ${tx.json({ org: ORG_LABEL[c.org], title: t.title, ...(approvalId ? { approvalId } : {}), ...('reference' in c && c.reference ? { reference: c.reference } : {}) })})`;
     return { ok: true, value: await registrationsIn(tx) } as const;

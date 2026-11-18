@@ -646,6 +646,20 @@ export const FundingError = z.object({ error: z.enum(['invalid', 'unauthorized',
 
 // ---------- Departments, activity, settings, theme, roster (5f to 5i) ----------
 const TeamMember = z.object({ id: Id, name: z.string(), role: z.string() });
+/** GET /api/agents: what the agents found that's still open, and their last run. Owners and team. */
+export const AgentsResponse = z.object({
+  live: z.boolean(),
+  lastRun: z.object({ at: Display, trigger: z.enum(['schedule', 'manual']), found: z.number().int(), closed: z.number().int(), proposed: z.number().int(), fixed: z.number().int(), error: z.string().nullable() }).nullable(),
+  findings: z.array(z.object({
+    key: z.string(), dept: z.string(), agent: z.string(), rule: z.string(), title: z.string(), detail: z.string(), href: Link.nullable(),
+    approvalId: z.string().nullable(), since: Display,
+  })),
+});
+/** POST /api/agents/run: run the agents now for this workspace. Returns what changed and the new list. */
+export const RunAgentsResponse = AgentsResponse.extend({ result: z.object({ found: z.number().int(), closed: z.number().int(), proposed: z.number().int(), fixed: z.number().int(), errors: z.array(z.string()) }) });
+/** POST /api/agents/findings/{key}/dismiss: a person says this isn't worth acting on. It stays quiet after. */
+export const DismissFindingCommand = z.object({ note: z.string().trim().min(1, 'Say why, in a few words.').max(300) }).strict();
+
 export const DepartmentsResponse = z.object({
   departments: z.array(z.object({
     id: Id, name: z.string(), agent: z.string(), state: z.union([AgentState, z.literal('later')]), stateLabel: z.string(),

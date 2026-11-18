@@ -28,6 +28,7 @@ export default defineConfig({
       APP_URL: `http://localhost:${PORT}`,
       AUTH_TEST_MAILBOX: MAILBOX,
       AUTH_IP_LIMIT: '10000',
+      CRON_SECRET: 'live-e2e-cron-secret',
     },
   },
 });

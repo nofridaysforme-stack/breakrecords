@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse, SplitVersionsResponse, ImportsResponse, SyncResponse, Template, PeopleResponse, PersonResponse } from '@breakrecords/contract';
+import { ActivityResponse, ApprovalChecksResponse, CodesResponse, SessionResponse, DocumentsResponse, ApprovalError, ApprovalState, CatalogResponse, HomeResponse, OnboardingResponse, SearchResponse, ContractsResponse, DepartmentsResponse, ENDPOINTS, SettingsResponse, ThemeResponse, FundingResponse, OffersResponse, RosterResponse, Release, ReleasesResponse, PayeeResponse, PayoutsResponse, RecoupmentResponse, ProfileClaimsResponse, Recording, RegistrationsResponse, RoyaltiesResponse, SplitNodeResponse, SplitTreeResponse, StatementResponse, StatementsResponse, UnclaimedResponse, TaxYearResponse, ReservesResponse, SplitVersionsResponse, ImportsResponse, SyncResponse, Template, PeopleResponse, PersonResponse, AgentsResponse, RunAgentsResponse } from '@breakrecords/contract';
 import { connect } from '@breakrecords/db/client';
 import { signIn, USERS } from './helpers';
 import { MAILBOX } from '../../playwright.live.config';
@@ -1667,6 +1667,57 @@ test('the details the rights forms need are entered on people, recordings and so
   await signIn(harbor, USERS.harbor);
   expect((await harbor.request.get('/api/catalog/people/marco-dela')).status()).toBe(404);
   expect((await harbor.request.patch('/api/catalog/people/marco-dela', { data: { phone: '555' } })).status()).toBe(404);
+});
+
+test('the agents run on a workspace’s own data: findings once, cards for filings, fixes only when allowed, and dismissals stick', async ({ page, browser }) => {
+  await signIn(page, USERS.jana);
+  const code = ((await (await page.request.post('/api/admin/invite-codes', { data: { note: 'E2E agents', maxUses: 1, expiresInDays: 7 } })).json()) as { code: string }).code;
+  const p = await signUp(browser, code, `e2e-agents-${Date.now()}@artist.example`);
+  const answers = { profile: 'solo', name: 'Rae Lin', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_yet' }, autonomy: 'draft_and_wait' };
+  expect((await p.request.put('/api/onboarding', { data: { answers, complete: true } })).status()).toBe(200);
+  const isrc = `USE2E25${String(Date.now() % 100000).padStart(5, '0')}`;
+  expect((await p.request.post('/api/catalog/releases', { data: { title: 'Tide', kind: 'single', artist: { name: 'Rae Lin' }, releaseDate: '2025-05-01', tracks: [{ title: 'Tide', isrc }] } })).status()).toBe(200);
+  const before = AgentsResponse.parse(await (await p.request.get('/api/agents')).json());
+  expect(before).toMatchObject({ live: true, lastRun: null, findings: [] });
+
+  // First run: what's missing, and SoundExchange filings put in Approvals as the Rights Agent's cards.
+  const run = async () => RunAgentsResponse.parse(await (await p.request.post('/api/agents/run')).json());
+  const first = await run();
+  expect(first.result).toMatchObject({ proposed: 2, fixed: 0, errors: [] });
+  const keys = first.findings.map((f) => f.key);
+  expect(keys).toEqual(expect.arrayContaining(['rights:sx_owner:tide', 'rights:sx_artist:tide', 'metadata:genre:tide', 'metadata:pyear:tide', 'metadata:owner:tide']));
+  expect(first.findings.find((f) => f.key === 'rights:sx_owner:tide')!.approvalId).toBe('reg_sx_owner_tide');
+  expect(first.lastRun).toMatchObject({ trigger: 'manual', proposed: 2 });
+  const card = await (await p.request.get('/api/approvals/reg_sx_owner_tide')).json();
+  expect(card).toMatchObject({ agent: 'Rights Agent', type: 'filing' });
+
+  // Again: nothing new, nothing doubled.
+  const second = await run();
+  expect(second.result).toMatchObject({ found: 0, proposed: 0 });
+  expect(second.findings).toHaveLength(first.findings.length);
+
+  // A fix only with Act within limits: the ℗ year from the release date.
+  expect((await p.request.patch('/api/departments/metadata', { data: { autonomy: 'act_within_limits' } })).status()).toBe(200);
+  const third = await run();
+  expect(third.result.fixed).toBe(1);
+  expect(third.findings.map((f) => f.key)).not.toContain('metadata:pyear:tide');
+  const rec = CatalogResponse.parse(await (await p.request.get('/api/catalog')).json()).recordings.find((r) => r.id === 'tide')!;
+  expect(rec.rights?.pYear).toBe(2025);
+
+  // A dismissal needs a reason and sticks.
+  expect((await p.request.post('/api/agents/findings/metadata%3Agenre%3Atide/dismiss', { data: { note: '' } })).status()).toBe(400);
+  expect((await p.request.post('/api/agents/findings/metadata%3Agenre%3Atide/dismiss', { data: { note: 'Genre comes from the distributor' } })).status()).toBe(200);
+  expect((await run()).findings.map((f) => f.key)).not.toContain('metadata:genre:tide');
+  await p.goto('/departments?dept=rights');
+  await expect(p.getByRole('heading', { name: 'What Rights Agent found' })).toBeVisible();
+  await expect(p.getByRole('link', { name: /Open the card about Tide isn’t registered with SoundExchange \(as owner\)/ })).toHaveAttribute('href', '/approvals/reg_sx_owner_tide');
+
+  // Nobody else sees it; the schedule needs its secret.
+  expect(AgentsResponse.parse(await (await page.request.get('/api/agents')).json()).findings.map((f) => f.key)).not.toContain('rights:sx_owner:tide');
+  expect((await page.request.get('/api/cron/agents')).status()).toBe(401);
+  const cron = await page.request.get('/api/cron/agents', { headers: { authorization: 'Bearer live-e2e-cron-secret' } });
+  expect(cron.status()).toBe(200);
+  expect((await cron.json()).workspaces).toBeGreaterThan(1);
 });
 
 // Last: staging is reseeded over data people made (flags, reserves, sync quotes, imports). After

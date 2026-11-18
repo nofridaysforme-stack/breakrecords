@@ -172,6 +172,7 @@ From now on, a merge to `main` that adds a migration runs `migrate` on staging b
 | `AUTH_SECRET` | Made with the command above. Its own value, used nowhere else |
 | `APP_URL` | `https://breakrecords-staging.vercel.app` (the address Vercel gives the project; no slash at the end) |
 | `RESEND_API_KEY` | From step 4 |
+| `CRON_SECRET` | Made with the same command as `AUTH_SECRET`, its own value. Vercel sends it with the daily agents run; without it the run does nothing |
 | `EMAIL_FROM` | `Indie SRVCS <onboarding@resend.dev>` until your domain is verified, then for example `Indie SRVCS <no-reply@staging.<your-domain>>` |
 
 4. **Deploy**. The first build takes a few minutes.

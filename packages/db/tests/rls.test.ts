@@ -673,6 +673,27 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT * FROM app_team()`)).toHaveLength(0);
       expect((await asA((tx) => tx`SELECT * FROM app_team()`)).map((r) => r.user_id)).toEqual([ids.ua]);
     });
+
+    it('agent findings are kept, never deleted; a dismissed one stays dismissed; payees and other labels see none', async () => {
+      const asA = <T,>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(app, { userId: ids.ua, tenantId: ids.a }, fn);
+      await asA((tx) => tx`INSERT INTO agent_findings (tenant_id, key, dept, rule, title) VALUES (${ids.a}, 'metadata:isrc:x', 'metadata', 'MET-01', 'X has no ISRC')`);
+      await expect(asA((tx) => tx`INSERT INTO agent_findings (tenant_id, key, dept, rule, title) VALUES (${ids.a}, 'metadata:y', 'nope', 'MET-01', 'Y')`)).rejects.toThrow(/foreign key/);
+      await expect(asA((tx) => tx`UPDATE agent_findings SET status = 'dismissed', closed_at = now()`)).rejects.toThrow(/check constraint/);
+      await asA((tx) => tx`UPDATE agent_findings SET status = 'dismissed', closed_at = now(), dismiss_note = 'Not released'`);
+      await expect(asA((tx) => tx`UPDATE agent_findings SET status = 'open', closed_at = NULL`)).rejects.toThrow(/stays dismissed/);
+      await expect(asA((tx) => tx`UPDATE agent_findings SET rule = 'MET-02'`)).rejects.toThrow(/never change/);
+      await expect(asA((tx) => tx`DELETE FROM agent_findings`)).rejects.toThrow(/permission denied/);
+      await asA((tx) => tx`INSERT INTO agent_runs (tenant_id, trigger, started_by) VALUES (${ids.a}, 'manual', ${ids.ua})`);
+      expect((await asA((tx) => tx`UPDATE departments SET state = 'working', tasks_this_week = 3 WHERE slug = 'metadata'`)).count).toBe(1);
+      for (const who of [{ userId: ids.payee, tenantId: ids.a }, { userId: ids.ub, tenantId: ids.b }]) {
+        expect(await withTenant(app, who, (tx) => tx`SELECT 1 FROM agent_findings`)).toHaveLength(0);
+        expect(await withTenant(app, who, (tx) => tx`SELECT 1 FROM agent_runs`)).toHaveLength(0);
+      }
+      // The schedule lists every workspace with departments and an owner to act for.
+      expect((await app`SELECT tenant_id, user_id FROM app_agent_tenants()`).filter((r) => r.tenant_id === ids.a)).toEqual([{ tenant_id: ids.a, user_id: ids.ua }]);
+      await owner`DELETE FROM agent_runs WHERE tenant_id = ${ids.a}`;
+      await owner`DELETE FROM agent_findings WHERE tenant_id = ${ids.a}`;
+    });
   });
   describe('settings and white label', () => {
     const theme = { background: '#0f1a1c', surface: '#13221f', brand: '#1d4a4f', primary: '#e2b33c', text: '#e8f0ef' }; // lint-allow-hex: test data
