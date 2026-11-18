@@ -243,7 +243,7 @@ test.describe('rights (live)', () => {
     // Paper Moons is on the Velvet Hours album but has no filings yet.
     expect(r.rows[5].cells.every((c) => c.status === 'notStarted')).toBe(true);
     await page.goto('/rights/registrations');
-    await expect(page.getByRole('heading', { name: /3 MLC filings need you/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '1 filing waits on your approval' })).toBeVisible(); // the sample MLC filing card
     await expect(page.getByRole('heading', { name: '$312.40 unclaimed found' })).toBeVisible();
   });
 
@@ -1542,6 +1542,39 @@ test('a form for each organization: the Letter of Direction keeps its terms; the
   const [row] = await db<{ options: unknown }[]>`SELECT options FROM documents WHERE id = ${body.prepared}`;
   await db.end();
   expect(row.options).toEqual({ lod });
+});
+
+test('registrations move along in order: a filing card, approval, submitted (ending undo), confirmed with its number; PRO and MLC filings get the publishing checks', async ({ page, browser }) => {
+  await signIn(page, USERS.owner);
+  const reg = (data: object) => page.request.post('/api/rights/registrations', { data });
+  const cell = async (rowId: string, col: number) => RegistrationsResponse.parse(await (await page.request.get('/api/rights/registrations')).json()).rows.find((r) => r.id === rowId)!.cells[col];
+  const base = { org: 'copyright', subject: 'recording', id: 'paper-moons' };
+  expect((await reg({ action: 'submitted', ...base, on: '2026-11-18' })).status()).toBe(409);
+  expect((await reg({ action: 'prepare', ...base })).status()).toBe(200);
+  expect(await cell('paper-moons', 4)).toMatchObject({ status: 'needsYou', next: 'approve', approvalId: 'reg_copyright_paper-moons' });
+  expect((await reg({ action: 'prepare', ...base })).status()).toBe(409);
+  const card = await (await page.request.get('/api/approvals/reg_copyright_paper-moons')).json();
+  expect(card.body.facts).toHaveLength(3);
+  expect((await page.request.post('/api/approvals/reg_copyright_paper-moons/decision', { data: { action: 'approve' } })).status()).toBe(200);
+  expect(await cell('paper-moons', 4)).toMatchObject({ status: 'prepared', label: 'Approved, ready to submit', next: 'submitted' });
+  expect((await reg({ action: 'submitted', ...base, on: '2026-11-18', reference: 'Case 1-55' })).status()).toBe(200);
+  expect((await page.request.delete('/api/approvals/reg_copyright_paper-moons/decision')).status()).toBe(409); // submitted ends undo
+  expect((await reg({ action: 'confirmed', ...base, reference: 'SR 1-7777' })).status()).toBe(200);
+  expect(await cell('paper-moons', 4)).toMatchObject({ status: 'confirmed', ref: 'SR 1-7777', submitRef: 'Case 1-55', submittedOn: 'Nov 18, 2026', next: null });
+  const log = ActivityResponse.parse(await (await page.request.get('/api/activity')).json());
+  expect(log.slice(0, 1)[0].who).toBeTruthy();
+
+  // A song's MLC filing carries the publishing checks.
+  expect((await reg({ action: 'prepare', org: 'mlc', subject: 'work', id: 'paper-moons' })).status()).toBe(200);
+  const checks = ApprovalChecksResponse.parse(await (await page.request.get('/api/approvals/checks')).json());
+  expect(checks.items['reg_mlc_paper-moons'].results.map((r) => r.id)).toEqual(expect.arrayContaining(['PUB-01', 'PUB-04']));
+  // A payee and another label can't touch Northline's registrations.
+  const payee = await (await browser.newContext()).newPage();
+  await signIn(payee, USERS.payee, { into: 'Northline Records' });
+  expect((await payee.request.post('/api/rights/registrations', { data: { action: 'prepare', org: 'pro', subject: 'work', id: 'paper-moons' } })).status()).toBe(403);
+  const harbor = await (await browser.newContext()).newPage();
+  await signIn(harbor, USERS.harbor);
+  expect((await harbor.request.post('/api/rights/registrations', { data: { action: 'prepare', org: 'pro', subject: 'work', id: 'paper-moons' } })).status()).toBe(404);
 });
 
 // Last: staging is reseeded over data people made (flags, reserves, sync quotes, imports). After

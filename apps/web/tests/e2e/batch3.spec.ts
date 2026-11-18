@@ -44,7 +44,8 @@ test('registrations pair every status with a word, and callouts link onward', as
   const table = page.getByRole('table');
   await expect(table.getByRole('row', { name: /Glasshouse/ })).toContainText('Needs you');
   await expect(table.getByRole('row', { name: /Low Light/ })).toContainText('Blocked');
-  await expect(page.getByRole('link', { name: 'Open filing' })).toHaveAttribute('href', '/approvals/apr_mlc');
+  await expect(page.getByRole('heading', { name: '1 filing waits on your approval' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open Approvals' })).toHaveAttribute('href', '/approvals');
   await page.getByRole('link', { name: 'Start claim' }).click();
   await expect(page).toHaveURL(/\/rights\/unclaimed$/);
   await page.getByRole('button', { name: 'Prepare claim' }).click();

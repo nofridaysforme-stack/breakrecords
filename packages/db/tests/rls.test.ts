@@ -426,6 +426,28 @@ describe.skipIf(!OWNER || !APP)('row-level security', () => {
       await owner`DELETE FROM contract_templates WHERE id = ${tpl}`;
     });
 
+    it('a registration is filed in order: an approved card before it is submitted, a number before it is confirmed, then it is final', async () => {
+      const [{ id: rec }] = await owner`INSERT INTO recordings (tenant_id, slug, title, artist_id) VALUES (${ids.a}, 'reg-rec', 'Filed', ${kesi}) RETURNING id`;
+      await owner`INSERT INTO approvals (tenant_id, id, origin, type, title, agent, due, impact, risk) VALUES (${ids.a}, 'reg_copyright_reg-rec', 'user', 'filing', 'Register', 'Rights Agent', 'This week', 'x', 'needsEyes')`;
+      await asOwner((tx) => tx`INSERT INTO registrations (tenant_id, org, recording_id, status, approval_id) VALUES (${ids.a}, 'copyright', ${rec}, 'needsYou', 'reg_copyright_reg-rec')`);
+      const upd = (q: (tx: Parameters<Parameters<typeof asOwner>[0]>[0]) => Promise<unknown>) => asOwner(q);
+      await expect(upd((tx) => tx`UPDATE registrations SET status = 'submitted' WHERE recording_id = ${rec}`)).rejects.toThrow(/hasn’t been approved/);
+      await expect(upd((tx) => tx`UPDATE registrations SET status = 'confirmed', ref = 'SR 1' WHERE recording_id = ${rec}`)).rejects.toThrow(/submission before the confirmation/);
+      await owner`INSERT INTO approval_decisions (tenant_id, approval_id, status, decided_by, audit_id) VALUES (${ids.a}, 'reg_copyright_reg-rec', 'approved', ${ids.ua}, 'AUD-REG')`;
+      await expect(upd((tx) => tx`UPDATE registrations SET approval_id = NULL, status = 'needsYou' WHERE recording_id = ${rec}`)).rejects.toThrow(/already waiting or approved/);
+      await upd((tx) => tx`UPDATE registrations SET status = 'submitted' WHERE recording_id = ${rec}`);
+      expect((await owner`SELECT executed_at FROM approvals WHERE id = 'reg_copyright_reg-rec'`)[0].executed_at).not.toBeNull();
+      expect((await owner`SELECT submitted_on FROM registrations WHERE recording_id = ${rec}`)[0].submitted_on).not.toBeNull();
+      await expect(upd((tx) => tx`UPDATE registrations SET status = 'confirmed' WHERE recording_id = ${rec}`)).rejects.toThrow(/needs its registration number/);
+      await expect(upd((tx) => tx`UPDATE registrations SET status = 'notStarted' WHERE recording_id = ${rec}`)).rejects.toThrow(/already submitted/);
+      await upd((tx) => tx`UPDATE registrations SET status = 'confirmed', ref = 'SR 1-1' WHERE recording_id = ${rec}`);
+      await expect(upd((tx) => tx`UPDATE registrations SET ref = 'SR 2' WHERE recording_id = ${rec}`)).rejects.toThrow(/already confirmed/);
+      await expect(upd((tx) => tx`DELETE FROM registrations WHERE recording_id = ${rec}`)).rejects.toThrow(/permission denied/);
+      expect(await withTenant(app, { userId: ids.payee, tenantId: ids.a }, (tx) => tx`SELECT 1 FROM registrations`)).toHaveLength(0);
+      await owner`DELETE FROM registrations WHERE recording_id = ${rec}`;
+      await owner`DELETE FROM recordings WHERE id = ${rec}`;
+    });
+
     it('each organization’s form belongs to one kind of thing', async () => {
       const [{ id: rec }] = await owner`SELECT id FROM recordings WHERE tenant_id = ${ids.a} LIMIT 1`;
       const row = (kind: string, subject: string) => owner`INSERT INTO documents (tenant_id, kind, subject, subject_id, version, title, pdf_key, sha256, created_by)

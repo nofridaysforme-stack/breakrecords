@@ -55,7 +55,7 @@ async function main() {
     // Payouts and statements point at parties, recordings and split versions, and batches at approvals, so they go first.
     // Sync quotes and audit flags (with their reserves) point at recordings, so they go too; a reseed must not trip on them.
     for (const t of [ids.northline, ids['harbor-sound']]) {
-      for (const table of ['sync_briefs', 'audit_flags', 'payout_batches', 'payee_requests', 'payees', 'recoupment_accounts', 'payout_policies', 'agreements', 'contract_templates', 'contract_reviews', 'funding_opportunities', 'funding_questions', 'funding_assumptions']) {
+      for (const table of ['registrations', 'sync_briefs', 'audit_flags', 'payout_batches', 'payee_requests', 'payees', 'recoupment_accounts', 'payout_policies', 'agreements', 'contract_templates', 'contract_reviews', 'funding_opportunities', 'funding_questions', 'funding_assumptions']) {
         await tx.unsafe(`DELETE FROM ${table} WHERE tenant_id = $1`, [t]);
       }
       await tx`DELETE FROM payee_statements WHERE tenant_id = ${t}`;
@@ -208,8 +208,10 @@ async function seedCatalog(tx: Tx, tenant: string) {
       const workId = onWork ? work.get(row.id) : null;
       const recordingId = onWork ? null : rec.get(row.id);
       if (!workId && !recordingId) continue;
-      await tx`INSERT INTO registrations (tenant_id, org, work_id, recording_id, status, ref)
-        VALUES (${tenant}, ${org}, ${workId ?? null}, ${recordingId ?? null}, ${cell.status}, ${cell.ref ?? null})`;
+      // The sample MLC filing card covers Night Bus and Static Hymn.
+      const approvalId = org === 'mlc' && cell.status === 'needsYou' && (row.id === 'night-bus' || row.id === 'static-hymn') ? 'apr_mlc' : null;
+      await tx`INSERT INTO registrations (tenant_id, org, work_id, recording_id, status, ref, approval_id)
+        VALUES (${tenant}, ${org}, ${workId ?? null}, ${recordingId ?? null}, ${cell.status}, ${cell.ref ?? null}, ${approvalId})`;
     }
   }
 }

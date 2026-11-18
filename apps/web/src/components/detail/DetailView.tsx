@@ -382,15 +382,28 @@ function ContractFlags({ body, choices, setChoices }: { body: ContractBody; choi
 }
 
 function FilingBodyView({ body, facts, setFacts, locked }: { body: FilingBody; facts: boolean[]; setFacts: (f: boolean[]) => void; locked: boolean }) {
+  // A recording's filing (SoundExchange, sound recording copyright) has no song columns.
+  const recordingsOnly = body.works.every((w) => w.iswc === 'Not a song');
   return (
     <>
       <div className={s.tableWrap} role="region" aria-label={`${body.org} registration preview`} tabIndex={0}>
         <table className={cx(s.table, s.stack)}>
           <caption className="visually-hidden">{body.org} registration preview</caption>
-          <thead><tr><th scope="col">Song (composition)</th><th scope="col">Writers and shares</th><th scope="col">Linked recording (ISRC)</th><th scope="col">ISWC</th></tr></thead>
-          <tbody>{body.works.map((w) => (
-            <tr key={w.title}><th scope="row" className={s.payeeName}>{w.title}</th><td data-label="Writers and shares">{w.writers}</td><td className={s.mono} data-label="Recording (ISRC)">{w.isrc}</td><td className={s.muted} data-label="ISWC">{w.iswc}</td></tr>
-          ))}</tbody>
+          {recordingsOnly ? (
+            <>
+              <thead><tr><th scope="col">Recording</th><th scope="col">Artist</th><th scope="col">ISRC</th></tr></thead>
+              <tbody>{body.works.map((w) => (
+                <tr key={w.title}><th scope="row" className={s.payeeName}>{w.title}</th><td data-label="Artist">{w.writers}</td><td className={s.mono} data-label="ISRC">{w.isrc}</td></tr>
+              ))}</tbody>
+            </>
+          ) : (
+            <>
+              <thead><tr><th scope="col">Song (composition)</th><th scope="col">Writers and shares</th><th scope="col">Linked recording (ISRC)</th><th scope="col">ISWC</th></tr></thead>
+              <tbody>{body.works.map((w) => (
+                <tr key={w.title}><th scope="row" className={s.payeeName}>{w.title}</th><td data-label="Writers and shares">{w.writers}</td><td className={s.mono} data-label="Recording (ISRC)">{w.isrc}</td><td className={s.muted} data-label="ISWC">{w.iswc}</td></tr>
+              ))}</tbody>
+            </>
+          )}
         </table>
       </div>
       <fieldset className={s.facts}>

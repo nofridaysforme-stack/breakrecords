@@ -513,11 +513,32 @@ export const EditTemplateCommand = z.object({
 export const ReviewStarterCommand = z.object({ reviewed: z.boolean() }).strict();
 
 // ---------- Rights (5c and the undrawn tabs) ----------
-const Cell = z.object({ status: RegistrationStatus, ref: z.string().optional() });
+const Cell = z.object({
+  status: RegistrationStatus, ref: z.string().optional(),
+  /** Registrations only: what the cell says, what to do next, and the filing behind it. */
+  label: z.string().optional(),
+  note: z.string().optional(),
+  next: z.enum(['prepare', 'approve', 'submitted', 'confirmed']).nullable().optional(),
+  approvalId: z.string().optional(),
+  target: z.object({ subject: z.enum(['work', 'recording']), id: Id, title: z.string() }).nullable().optional(),
+  form: z.string().nullable().optional(),
+  refLabel: z.string().optional(),
+  submittedOn: Display.optional(),
+  submitRef: z.string().optional(),
+  confirmedOn: Display.optional(),
+});
 export const RegistrationsResponse = z.object({
   columns: z.array(z.object({ key: z.string(), name: z.string(), sub: z.string(), term: Term.optional() })),
   rows: z.array(z.object({ id: Id, name: z.string(), artist: z.string(), cells: z.array(Cell).length(6) })),
 });
+/** POST /api/rights/registrations: move one registration along. */
+export const RegistrationActionCommand = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('prepare'), org: z.enum(['pro', 'mlc', 'sx_owner', 'sx_artist', 'copyright', 'neighboring']), subject: z.enum(['work', 'recording']), id: z.string().min(1) }).strict(),
+  z.object({ action: z.literal('submitted'), org: z.enum(['pro', 'mlc', 'sx_owner', 'sx_artist', 'copyright', 'neighboring']), subject: z.enum(['work', 'recording']), id: z.string().min(1),
+    on: IsoDate, reference: z.string().trim().max(120).optional() }).strict(),
+  z.object({ action: z.literal('confirmed'), org: z.enum(['pro', 'mlc', 'sx_owner', 'sx_artist', 'copyright', 'neighboring']), subject: z.enum(['work', 'recording']), id: z.string().min(1),
+    reference: z.string().trim().min(1).max(120), on: IsoDate.optional(), iswc: z.string().trim().regex(/^T-?\d{3}\.?\d{3}\.?\d{3}-?\d$/, 'An ISWC looks like T-123.456.789-0.').optional() }).strict(),
+]);
 export const UnclaimedResponse = z.object({
   total: Cents,
   items: z.array(z.object({ id: Id, source: z.string(), what: z.string(), amount: Cents, why: z.string(), since: Display, claim: z.string() })),

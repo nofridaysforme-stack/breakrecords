@@ -1,4 +1,5 @@
 import 'server-only';
+import type { z } from 'zod';
 import { formatMoney } from '@breakrecords/core/money';
 
 // Mock API: the single source the route handlers (/api/*) and server components
@@ -11,7 +12,7 @@ import { approvalDetails, home, homeNumberNotes, homeNumbers, releases, TODAY } 
 import type { ApprovalDetail, Release, Scenario } from './types';
 import type { ApprovalSummary } from '@/components/ui/Approval';
 import * as ops from './ops';
-import type { SplitVersionsResponse, Module, ReservesResponse, SplitNodeResponse, SplitTreeNode, TaxYearResponse } from '@breakrecords/contract';
+import type { RegistrationsResponse, SplitVersionsResponse, Module, ReservesResponse, SplitNodeResponse, SplitTreeNode, TaxYearResponse } from '@breakrecords/contract';
 import { advance, baselineIncome, sale, type AdvanceOffer, type OfferAssumptions, type SaleOffer } from '@breakrecords/core/offers';
 
 export { TODAY };
@@ -66,7 +67,7 @@ export async function getApprovals(scenario: Scenario = 'default'): Promise<{ sc
 export async function getApproval(id: string): Promise<ApprovalDetail | null> {
   const ctx = await liveCtx();
   if (!ctx) {
-    const d = approvalDetails[id] ?? null;
+    const d = approvalDetails[id] ?? (id.startsWith('reg_') ? await (await import('@/server/mockRegistrations')).mockRegistrationDetail(id) : null);
     // Sample data: answers edited on the card this session.
     const edited = d?.body.kind === 'application' ? await (await import('@/server/approvalDraft')).mockDraftValues(id) : null;
     return d && edited && d.body.kind === 'application' ? { ...d, body: { ...d.body, fields: d.body.fields.map((f, i) => ({ ...f, value: edited[i] ?? f.value })) } } : d;
@@ -252,13 +253,13 @@ export async function getContracts(): Promise<Contracts> {
 export async function getTemplate(id: string): Promise<ops.Template | null> {
   return (await getContracts()).templates.find((t) => t.id === id) ?? null;
 }
-const mockRegistrations = () => ({ columns: ops.regColumns, rows: ops.registrations });
 const mockProfileClaims = () => ({ services: ops.profileServices, rows: ops.profileClaims });
 
 /** Rights (5c and its tabs). Live: the tenant's registrations, unclaimed royalties and profile claims. */
-export async function getRegistrations(): Promise<ReturnType<typeof mockRegistrations>> {
+export type Registrations = z.infer<typeof RegistrationsResponse>;
+export async function getRegistrations(): Promise<Registrations> {
   const ctx = await liveCtx('registrations');
-  if (!ctx) return mockRegistrations();
+  if (!ctx) return (await import('@/server/mockRegistrations')).mockRegistrations();
   const { liveRegistrations } = await import('@/server/live/rights');
   return liveRegistrations(ctx);
 }
