@@ -556,6 +556,9 @@ export const UnclaimedActionCommand = z.discriminatedUnion('action', [
   z.object({ action: z.literal('submitted'), id: z.string().min(1), on: IsoDate, reference: z.string().trim().max(120).optional() }).strict(),
   z.object({ action: z.literal('paid'), id: z.string().min(1), amount: Cents.refine((n) => n > 0, 'Enter the amount received.'), on: IsoDate.optional() }).strict(),
   z.object({ action: z.literal('dismissed'), id: z.string().min(1), reason: z.string().trim().min(1, 'Say why it isn’t yours.').max(500) }).strict(),
+  /** Money a person found in a society's own search, added by hand (nothing searches for you yet). */
+  z.object({ action: z.literal('add'), source: z.enum(['soundexchange', 'mlc', 'pro']), what: z.string().trim().min(1, 'Say which song or recording it’s for.').max(200),
+    amount: Cents.refine((n) => n > 0, 'Enter the amount shown.'), heldSince: IsoDate, note: z.string().trim().max(500).optional() }).strict(),
 ]);
 export const ProfileClaimsResponse = z.object({ services: z.array(z.string()), rows: z.array(z.object({ artist: z.string(), cells: z.array(Cell) })) });
 /** POST /api/rights/claims/prepare: Rights Agent prepares every claim not yet started; the artist confirms by email. Returns the updated claims. */

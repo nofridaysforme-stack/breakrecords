@@ -46,3 +46,23 @@ export const claimFacts = (source: ClaimSource, what: string, labelName: string)
   `Nobody else has been paid for it by ${SOURCE_LABEL[source]} (a claim for money already paid out is refused).`,
   'The song and recording details on file are correct.',
 ];
+
+/**
+ * Free places to look for money held in your name (read Nov 18, 2026). Nothing searches them for
+ * you until a connection is chosen, so a person looks and adds what they find.
+ */
+export const WHERE_TO_LOOK: { source: ClaimSource; name: string; href: string; text: string }[] = [
+  { source: 'soundexchange', name: 'SoundExchange', href: 'https://www.soundexchange.com/what-we-do/for-artists-labels-and-producers/',
+    text: 'Search by artist or label name to see if digital radio royalties (SiriusXM, Pandora, internet radio) are waiting. Registering is free.' },
+  { source: 'mlc', name: 'The MLC artist lookup', href: 'https://durp.themlc.com/artist-lookup',
+    text: 'Shows recordings with mechanical royalties that aren’t matched to a song yet. If your name isn’t there, check The MLC’s public song search.' },
+  { source: 'pro', name: 'Songview (ASCAP and BMI)', href: 'https://www.ascap.com/repertory',
+    text: 'PROs don’t publish an unclaimed list. Check each song is registered with the right writers and shares; ask your PRO about any gaps.' },
+];
+
+/** How a claim is made at each source, for one someone added by hand. */
+export const CLAIM_METHOD: Record<ClaimSource, string> = {
+  soundexchange: 'Claim the recording in SoundExchange Direct',
+  mlc: 'Claim the song in The MLC Portal',
+  pro: 'Ask the PRO to release the held royalties',
+};

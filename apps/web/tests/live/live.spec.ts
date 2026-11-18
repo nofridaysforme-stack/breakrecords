@@ -1601,6 +1601,38 @@ test('unclaimed money is claimed through a card, then paid or not ours; another 
   expect((await harbor.request.post('/api/rights/unclaimed', { data: { action: 'prepare', id: mlc.id } })).status()).toBe(404);
 });
 
+test('a new workspace sees how to start on every Rights page, and adds money it found itself', async ({ page, browser }) => {
+  await signIn(page, USERS.jana);
+  const code = ((await (await page.request.post('/api/admin/invite-codes', { data: { note: 'E2E rights empty', maxUses: 1, expiresInDays: 7 } })).json()) as { code: string }).code;
+  const p = await signUp(browser, code, `e2e-rights-${Date.now()}@artist.example`);
+  const answers = { profile: 'solo', name: 'Mara Lune', country: 'United States', distributor: null, catalogFile: null, pro: { status: 'not_yet' }, autonomy: 'draft_and_wait' };
+  expect((await p.request.put('/api/onboarding', { data: { answers, complete: true } })).status()).toBe(200);
+  await p.goto('/rights/registrations');
+  await expect(p.getByRole('heading', { name: 'Nothing to register yet' })).toBeVisible();
+  await expect(p.getByRole('heading', { name: 'Look for unclaimed money' })).toBeVisible();
+  await p.goto('/rights/documents');
+  await expect(p.getByRole('heading', { name: 'No songs or recordings yet' })).toBeVisible();
+  await p.goto('/rights/claims');
+  await expect(p.getByRole('heading', { name: 'No artists yet' })).toBeVisible();
+  await p.goto('/rights/unclaimed');
+  await expect(p.getByRole('heading', { name: 'Nothing found yet' })).toBeVisible();
+  const add = p.getByRole('region', { name: 'Add money you found' });
+  await add.getByLabel('Where you found it').selectOption('soundexchange');
+  await add.getByLabel('Song or recording').fill('Glass Tide');
+  await add.getByLabel('Amount shown ($)').fill('88.20');
+  await add.getByLabel(/Held since/).fill('2026-02-01');
+  await add.getByRole('button', { name: 'Add to the list' }).click();
+  await expect(add.getByRole('status')).toContainText('Added to the list');
+  const list = UnclaimedResponse.parse(await (await p.request.get('/api/rights/unclaimed')).json());
+  expect(list).toMatchObject({ total: 8820, items: [{ source: 'SoundExchange', what: 'Glass Tide', label: 'Found', next: 'prepare', claim: 'Claim the recording in SoundExchange Direct' }] });
+  expect((await p.request.post('/api/rights/unclaimed', { data: { action: 'add', source: 'soundexchange', what: 'glass tide', amount: 8820, heldSince: '2026-02-01' } })).status()).toBe(409);
+  const id = list.items[0].id;
+  expect((await p.request.post('/api/rights/unclaimed', { data: { action: 'prepare', id } })).status()).toBe(200);
+  expect((await (await p.request.get(`/api/approvals/claim_${id}`)).json()).title).toBe('Claim $88.20 from SoundExchange');
+  // Nobody else sees it.
+  expect((await page.request.post('/api/rights/unclaimed', { data: { action: 'prepare', id } })).status()).toBe(404);
+});
+
 // Last: staging is reseeded over data people made (flags, reserves, sync quotes, imports). After
 // every test above has written its rows, the seed must still run cleanly on top of them.
 test('the seed runs again over everything the tests made', async () => {

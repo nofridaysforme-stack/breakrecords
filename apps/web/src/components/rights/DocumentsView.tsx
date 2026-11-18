@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { CircleAlert, Download, FileText, ListChecks } from 'lucide-react';
 import type { DocumentsResponse } from '@breakrecords/contract';
 import { PageTitle } from '@/components/type/Type';
-import { Button } from '@/components/ui/Button';
+import { Button, ButtonLink } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/Blocks';
 import { StatusPill } from '@/components/ui/Status';
 import o from '@/components/ops/Ops.module.css';
 import s from './Documents.module.css';
@@ -104,7 +105,11 @@ export function DocumentsView({ data }: { data: DocumentsResponse }) {
         </p>
       )}
 
-      {!shown.length && <p className={s.muted}>Nothing in the catalog for this artist yet.</p>}
+      {!view.subjects.length ? (
+        <EmptyState title="No songs or recordings yet" action={<ButtonLink href="/catalog" variant="primary">Go to Catalog</ButtonLink>}>
+          Each form is filled in from your catalog. Add a song or a release in Catalog and its forms appear here.
+        </EmptyState>
+      ) : !shown.length && <p className={s.muted}>Nothing in the catalog for this artist yet.</p>}
 
       {GROUPS.map((g) => {
         const subs = shown.filter((x) => x.subject === g.subject);

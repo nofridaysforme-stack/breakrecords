@@ -4,7 +4,7 @@ import type { z } from 'zod';
 import type { ApprovalDetail } from '@/data/types';
 import type { Proposal, UnclaimedActionCommand } from '@breakrecords/contract';
 import { formatMoney } from '@breakrecords/core/money';
-import { claimFacts, claimState, claimSteps, SOURCE_LABEL, type ClaimSource, type ClaimStatus } from '@breakrecords/core/unclaimed';
+import { CLAIM_METHOD, claimFacts, claimState, claimSteps, SOURCE_LABEL, type ClaimSource, type ClaimStatus } from '@breakrecords/core/unclaimed';
 import { label as LABEL } from '@/data/sample';
 import * as ops from '@/data/ops';
 import type { Unclaimed } from '@/data/api';
@@ -15,6 +15,12 @@ type Row = { status: ClaimStatus; approvalId?: string; submittedOn?: string; sub
 const g = globalThis as unknown as { __brClaims?: Map<string, Record<string, Row>>; __brClaimDetails?: Map<string, Record<string, ApprovalDetail>>;
   __brApprovals?: Map<string, { decisions: Record<string, { status: string; reason?: string }> }> };
 const store = (g.__brClaims ??= new Map());
+type Item = (typeof ops.unclaimed.items)[number];
+const gf = globalThis as unknown as { __brFound?: Map<string, Item[]> };
+const found = (gf.__brFound ??= new Map<string, Item[]>());
+const itemsFor = (s: string): Item[] => [...ops.unclaimed.items, ...(found.get(s) ?? [])];
+const SHORT: Record<ClaimSource, string> = { soundexchange: 'SoundExchange', mlc: 'MLC', pro: 'PRO' };
+const monthYear = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 const details = (g.__brClaimDetails ??= new Map());
 const sid = async () => (await cookies()).get('br_mock_session')?.value ?? '';
 const sourceOf = (s: string): ClaimSource => (s === 'MLC' ? 'mlc' : s === 'PRO' ? 'pro' : 'soundexchange');
@@ -23,7 +29,7 @@ const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en
 export async function mockUnclaimed(): Promise<Unclaimed> {
   const s = await sid();
   const decisions = g.__brApprovals?.get(s)?.decisions ?? {};
-  const items = ops.unclaimed.items.map((u) => {
+  const items = itemsFor(s).map((u) => {
     const row: Row = store.get(s)?.[u.id] ?? { status: 'found' };
     const d = row.approvalId ? decisions[row.approvalId] : undefined;
     const st = claimState({ status: row.status, approvalId: row.approvalId ?? null, decision: (d?.status as 'approved' | 'rejected' | undefined) ?? null, rejectReason: d?.reason ?? null });
@@ -40,9 +46,20 @@ export async function mockClaimDetail(id: string): Promise<ApprovalDetail | null
 
 export type MockClaimOutcome = { ok: true } | { ok: false; status: number; error: string; message: string };
 export async function mockClaimAction(c: z.infer<typeof UnclaimedActionCommand>, propose: (p: Proposal) => Promise<unknown>): Promise<MockClaimOutcome> {
-  const u = ops.unclaimed.items.find((x) => x.id === c.id);
-  if (!u) return { ok: false, status: 404, error: 'not_found', message: 'No such unclaimed royalty.' };
   const session = await mockSession();
+  if (c.action === 'add') {
+    const list = found.get(session) ?? [];
+    const since = monthYear(c.heldSince);
+    if (itemsFor(session).some((x) => x.source === SHORT[c.source] && x.what.toLowerCase() === c.what.toLowerCase() && x.amount === c.amount && x.since === since
+      && !['paid', 'dismissed'].includes(store.get(session)?.[x.id]?.status ?? 'found'))) {
+      return { ok: false, status: 409, error: 'conflict', message: 'That’s already on the list.' };
+    }
+    list.push({ id: `found-${list.length + 1}`, source: SHORT[c.source], what: c.what, amount: c.amount, why: c.note || `You found this in ${SOURCE_LABEL[c.source]}’s search.`, since, claim: CLAIM_METHOD[c.source] });
+    found.set(session, list);
+    return { ok: true };
+  }
+  const u = itemsFor(session).find((x) => x.id === c.id);
+  if (!u) return { ok: false, status: 404, error: 'not_found', message: 'No such unclaimed royalty.' };
   const mine = store.get(session) ?? {};
   const cur: Row = mine[c.id] ?? { status: 'found' };
   const d = cur.approvalId ? g.__brApprovals?.get(session)?.decisions[cur.approvalId] : undefined;
